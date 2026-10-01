@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 420" width="1280" height="420" role="img" aria-labelledby="t d">
+  <title id="t">dunnage</title>
+  <desc id="d">A drawer seen from above. Kettle, mugs, glasses and stacks of crockery, each held by a few printed posts, fingers, wells and cradles.</desc>
+  <style>
+    .bg { fill: #f5f2eb; }
+    .ink { fill: #1d2125; }
+    .muted { fill: #6b6f73; }
+    .line { stroke: #1d2125; fill: none; }
+    .item { stroke: #1d2125; fill: #f5f2eb; stroke-width: 2; }
+    .hold { fill: #e5582a; }
+    .hold-soft { fill: #e5582a; fill-opacity: .14; stroke: #e5582a; stroke-width: 2; }
+    .dot { fill: #1d2125; fill-opacity: .12; }
+    .road { stroke: #e5582a; fill: none; stroke-width: 2.5; stroke-linecap: round; }
+    .word { font: 700 104px/1 ui-rounded, "SF Pro Rounded", -apple-system, "Segoe UI", Inter, Helvetica, Arial, sans-serif; letter-spacing: -4px; }
+    .tag { font: 400 25px/1.3 -apple-system, "Segoe UI", Inter, Helvetica, Arial, sans-serif; }
+    .label { font: 600 12px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: 2px; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #14171a; }
+      .ink { fill: #ece8df; }
+      .muted { fill: #9a9ea2; }
+      .line { stroke: #ece8df; }
+      .item { stroke: #ece8df; fill: #14171a; }
+      .dot { fill: #ece8df; fill-opacity: .10; }
+      .hold { fill: #f0703f; }
+      .hold-soft { fill: #f0703f; stroke: #f0703f; fill-opacity: .16; }
+      .road { stroke: #f0703f; }
+    }
+  </style>
+  <defs>
+    <pattern id="grid" width="21" height="21" patternUnits="userSpaceOnUse" x="760" y="50">
+      <circle class="dot" cx="10.5" cy="10.5" r="1.4"/>
+    </pattern>
+  </defs>
+
+  <rect class="bg" width="1280" height="420"/>
+
+  <!-- Wordmark -->
+  <text class="word ink" x="80" y="200">dunnage</text>
+  <text class="tag muted" x="84" y="252">Printable holders that keep things still</text>
+  <text class="tag muted" x="84" y="285">in a drawer, even on a rough road.</text>
+
+  <!-- Corrugated road -->
+  <path class="road" d="M84 340 q 12 -10 24 0 t 24 0 t 24 0 t 24 0 t 24 0 t 24 0 t 24 0 t 24 0 t 24 0 t 24 0 t 24 0 t 24 0 t 24 0 t 24 0 t 24 0 t 24 0 t 24 0 t 24 0 t 24 0 t 24 0 t 24 0 t 24 0"/>
+
+  <!-- Drawer, seen from above: 700 × 500 mm at 0.6 px/mm -->
+  <rect x="760" y="50" width="420" height="300" rx="10" fill="url(#grid)"/>
+  <rect class="line" x="760" y="50" width="420" height="300" rx="10" stroke-width="2.5"/>
+  <text class="label muted" x="970" y="378" text-anchor="middle">FRONT</text>
+
+  <!-- Back row: plates, plate-bowls, bowls, each held by three posts -->
+  <g>
+    <circle class="item" cx="840" cy="118" r="50"/>
+    <circle class="item" cx="840" cy="118" r="42"/>
+    <circle class="hold" cx="840" cy="60" r="6"/>
+    <circle class="hold" cx="789.8" cy="147" r="6"/>
+    <circle class="hold" cx="890.2" cy="147" r="6"/>
+  </g>
+  <g>
+    <circle class="item" cx="965" cy="114" r="42"/>
+    <circle class="item" cx="965" cy="114" r="34"/>
+    <circle class="hold" cx="965" cy="64" r="6"/>
+    <circle class="hold" cx="921.7" cy="139" r="6"/>
+    <circle class="hold" cx="1008.3" cy="139" r="6"/>
+  </g>
+  <g>
+    <circle class="item" cx="1095" cy="110" r="36"/>
+    <circle class="item" cx="1095" cy="110" r="27"/>
+    <circle class="item" cx="1095" cy="110" r="18"/>
+    <circle class="hold" cx="1095" cy="66" r="6"/>
+    <circle class="hold" cx="1056.9" cy="132" r="6"/>
+    <circle class="hold" cx="1133.1" cy="132" r="6"/>
+  </g>
+
+  <!-- Middle band: glasses lying in cradles -->
+  <g>
+    <rect class="item" x="876" y="180" width="96" height="30" rx="15"/>
+    <rect class="hold" x="884" y="208" width="12" height="9" rx="2"/>
+    <rect class="hold" x="952" y="208" width="12" height="9" rx="2"/>
+    <rect class="item" x="986" y="180" width="96" height="30" rx="15"/>
+    <rect class="hold" x="994" y="208" width="12" height="9" rx="2"/>
+    <rect class="hold" x="1062" y="208" width="12" height="9" rx="2"/>
+  </g>
+
+  <!-- Front row, in brewing order -->
+  <!-- Kettle on four fingers -->
+  <g>
+    <circle class="item" cx="818" cy="282" r="40"/>
+    <rect class="item" x="808" y="322" width="20" height="14" rx="5"/>
+    <circle class="hold" cx="783.4" cy="247.4" r="6"/>
+    <circle class="hold" cx="852.6" cy="247.4" r="6"/>
+    <circle class="hold" cx="783.4" cy="316.6" r="6"/>
+    <circle class="hold" cx="852.6" cy="316.6" r="6"/>
+  </g>
+  <!-- Scales stood on edge in a slot -->
+  <g>
+    <rect class="hold" x="874" y="240" width="5" height="94" rx="2"/>
+    <rect class="item" x="881" y="244" width="12" height="86" rx="3"/>
+    <rect class="hold" x="895" y="240" width="5" height="94" rx="2"/>
+  </g>
+  <!-- Two mugs in one shallow well tray -->
+  <g>
+    <rect class="hold-soft" x="914" y="242" width="148" height="88" rx="16"/>
+    <circle class="item" cx="952" cy="282" r="28"/>
+    <rect class="item" x="944" y="308" width="16" height="14" rx="5"/>
+    <circle class="item" cx="1022" cy="284" r="24"/>
+    <rect class="item" x="1015" y="306" width="14" height="13" rx="5"/>
+  </g>
+  <!-- V60 on a peg -->
+  <g>
+    <circle class="item" cx="1118" cy="284" r="34"/>
+    <circle class="item" cx="1118" cy="284" r="16"/>
+    <circle class="hold" cx="1118" cy="284" r="8"/>
+  </g>
+
+  <!-- Key -->
+  <circle class="hold" cx="1015" cy="398" r="5"/>
+  <text class="label muted" x="1027" y="402">HOLDER</text>
+  <circle class="item" cx="1105" cy="398" r="5" stroke-width="1.5"/>
+  <text class="label muted" x="1117" y="402">ITEM</text>
+</svg>
