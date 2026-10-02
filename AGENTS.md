@@ -11,6 +11,8 @@ what it does and the drawer file format.
 | `src/cli/` | The `dunnage` bin, on top of the core. Node only. |
 | `src/ui/` | The React app, built by Vite and deployed to GitHub Pages. |
 | `fixtures/` | Real drawer and printer files. CI runs `dunnage check` over all of them. |
+| `docs/format/` | The drawer and printer format specs, and their JSON Schemas (generated from `src/core/schema.ts`). |
+| `scripts/` | Dev scripts, run with Bun. |
 | `test/` | Vitest. |
 
 three.js draws; manifold-3d (WASM, browser and Node) makes holder geometry.
@@ -27,6 +29,7 @@ bun run typecheck   # core, CLI and UI, each against its own tsconfig
 bun run test        # Vitest, on Bun (plain `bun test` is Bun's own runner: don't use it)
 bun run build       # dist/ (core and CLI) and dist-site/ (the UI)
 bun run validate    # dunnage check over fixtures/
+bun run schema      # rewrite docs/format/*.schema.json after changing src/core/schema.ts
 ```
 
 ## Releases

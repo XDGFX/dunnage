@@ -1,0 +1,1626 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/XDGFX/dunnage/main/docs/format/drawer-0.2.schema.json",
+  "title": "dunnage drawer/0.2",
+  "description": "A dunnage drawer file. docs/format/drawer.md explains each field, and the checks a schema can't express.",
+  "type": "object",
+  "required": [
+    "format",
+    "name",
+    "drawer",
+    "items",
+    "layout"
+  ],
+  "properties": {
+    "format": {
+      "type": "string",
+      "const": "drawer/0.2"
+    },
+    "name": {
+      "type": "string"
+    },
+    "printer": {
+      "type": "string",
+      "description": "A printer profile, <printer>.printer.yml beside this file."
+    },
+    "drawer": {
+      "type": "object",
+      "required": [
+        "inside"
+      ],
+      "properties": {
+        "inside": {
+          "type": "array",
+          "additionalItems": false,
+          "items": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "mm"
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "mm"
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "mm"
+            }
+          ],
+          "minItems": 3,
+          "description": "[width, depth, height] in mm."
+        },
+        "obstructions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "at",
+              "size"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "at": {
+                "type": "array",
+                "additionalItems": false,
+                "items": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "minItems": 2,
+                "description": "[x, y] in mm"
+              },
+              "size": {
+                "type": "array",
+                "additionalItems": false,
+                "items": [
+                  {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "description": "mm"
+                  },
+                  {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "description": "mm"
+                  }
+                ],
+                "minItems": 2
+              },
+              "height": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "description": "mm"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "base": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "bare"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "gridfinity"
+            },
+            "pitch": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "mm"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "preset"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "pegboard"
+            },
+            "preset": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "const": "uppdatera-80"
+                },
+                {
+                  "type": "string",
+                  "const": "uppdatera-60"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "rules": {
+      "type": "object",
+      "properties": {
+        "edge_margin": {
+          "type": "number",
+          "minimum": 0
+        },
+        "gap": {
+          "type": "number",
+          "minimum": 0
+        },
+        "angle_step": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 90
+        }
+      },
+      "additionalProperties": false
+    },
+    "items": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-z0-9][a-z0-9-]*$": {
+          "anyOf": [
+            {
+              "type": "object",
+              "required": [
+                "name",
+                "box"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "nest": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "How much each extra one adds to a stack, in mm."
+                },
+                "outlet": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "Diameter of a hole through its base, in mm."
+                },
+                "box": {
+                  "type": "array",
+                  "additionalItems": false,
+                  "items": [
+                    {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "mm"
+                    },
+                    {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "mm"
+                    },
+                    {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "mm"
+                    }
+                  ],
+                  "minItems": 3,
+                  "description": "[width, depth, height] as it sits flat."
+                },
+                "poses": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "const": "flat"
+                      },
+                      {
+                        "type": "string",
+                        "const": "upright"
+                      },
+                      {
+                        "type": "string",
+                        "const": "side"
+                      },
+                      {
+                        "type": "object",
+                        "required": [
+                          "tilt"
+                        ],
+                        "properties": {
+                          "tilt": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "exclusiveMaximum": 90
+                          }
+                        },
+                        "additionalProperties": false,
+                        "description": "Raised by this many degrees: a cylinder from lying, a box from flat towards upright."
+                      }
+                    ]
+                  },
+                  "minItems": 1
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "required": [
+                "name",
+                "cylinder"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "nest": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "How much each extra one adds to a stack, in mm."
+                },
+                "outlet": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "Diameter of a hole through its base, in mm."
+                },
+                "cylinder": {
+                  "type": "array",
+                  "additionalItems": false,
+                  "items": [
+                    {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "mm"
+                    },
+                    {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "mm"
+                    }
+                  ],
+                  "minItems": 2,
+                  "description": "[diameter, height] as it stands upright."
+                },
+                "handle": {
+                  "type": "array",
+                  "additionalItems": false,
+                  "items": [
+                    {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "mm"
+                    },
+                    {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "mm"
+                    }
+                  ],
+                  "minItems": 2,
+                  "description": "[width, reach] in mm."
+                },
+                "spout": {
+                  "type": "array",
+                  "additionalItems": false,
+                  "items": [
+                    {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "mm"
+                    },
+                    {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "mm"
+                    }
+                  ],
+                  "minItems": 2,
+                  "description": "[width, reach] in mm."
+                },
+                "poses": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "const": "upright"
+                      },
+                      {
+                        "type": "string",
+                        "const": "lying"
+                      },
+                      {
+                        "type": "object",
+                        "required": [
+                          "tilt"
+                        ],
+                        "properties": {
+                          "tilt": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "exclusiveMaximum": 90
+                          }
+                        },
+                        "additionalProperties": false,
+                        "description": "Raised by this many degrees: a cylinder from lying, a box from flat towards upright."
+                      }
+                    ]
+                  },
+                  "minItems": 1
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "description": "What each thing is, by item id."
+    },
+    "zones": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-z0-9][a-z0-9-]*$": {
+          "type": "object",
+          "required": [
+            "name"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "why": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "description": "Named parts of the layout."
+    },
+    "layout": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "description": "Lower case letters, digits and hyphens."
+          },
+          "item": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "description": "Lower case letters, digits and hyphens."
+          },
+          "zone": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "description": "Lower case letters, digits and hyphens."
+          },
+          "at": {
+            "type": "array",
+            "additionalItems": false,
+            "items": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "minItems": 2,
+            "description": "[x, y] in mm"
+          },
+          "pose": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "flat"
+              },
+              {
+                "type": "string",
+                "const": "upright"
+              },
+              {
+                "type": "string",
+                "const": "side"
+              },
+              {
+                "type": "string",
+                "const": "lying"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "tilt"
+                ],
+                "properties": {
+                  "tilt": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "exclusiveMaximum": 90
+                  }
+                },
+                "additionalProperties": false,
+                "description": "Raised by this many degrees: a cylinder from lying, a box from flat towards upright."
+              }
+            ]
+          },
+          "rotate": {
+            "type": "number",
+            "description": "Degrees, anticlockwise seen from above."
+          },
+          "stack": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "aside": {
+            "type": "boolean"
+          },
+          "why": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "holders": {
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "holds",
+              "method"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]*$",
+                "description": "Lower case letters, digits and hyphens."
+              },
+              "holds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*$",
+                  "description": "Lower case letters, digits and hyphens."
+                },
+                "minItems": 1
+              },
+              "floor": {
+                "type": "boolean"
+              },
+              "lock": {
+                "type": "object",
+                "required": [
+                  "at",
+                  "tool",
+                  "shape",
+                  "export",
+                  "sha256"
+                ],
+                "properties": {
+                  "at": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "description": "The date it was built."
+                  },
+                  "tool": {
+                    "type": "string",
+                    "description": "The dunnage version that made it."
+                  },
+                  "shape": {
+                    "type": "object",
+                    "required": [
+                      "at",
+                      "size",
+                      "height"
+                    ],
+                    "properties": {
+                      "at": {
+                        "type": "array",
+                        "additionalItems": false,
+                        "items": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ],
+                        "minItems": 2,
+                        "description": "[x, y] in mm"
+                      },
+                      "size": {
+                        "type": "array",
+                        "additionalItems": false,
+                        "items": [
+                          {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "description": "mm"
+                          },
+                          {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "description": "mm"
+                          }
+                        ],
+                        "minItems": 2
+                      },
+                      "height": {
+                        "type": "number",
+                        "exclusiveMinimum": 0,
+                        "description": "mm"
+                      },
+                      "rotate": {
+                        "type": "number"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "export": {
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]+$"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "why": {
+                "type": "string"
+              },
+              "method": {
+                "type": "string",
+                "const": "well"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "holds",
+              "method"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]*$",
+                "description": "Lower case letters, digits and hyphens."
+              },
+              "holds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*$",
+                  "description": "Lower case letters, digits and hyphens."
+                },
+                "minItems": 1
+              },
+              "floor": {
+                "type": "boolean"
+              },
+              "lock": {
+                "type": "object",
+                "required": [
+                  "at",
+                  "tool",
+                  "shape",
+                  "export",
+                  "sha256"
+                ],
+                "properties": {
+                  "at": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "description": "The date it was built."
+                  },
+                  "tool": {
+                    "type": "string",
+                    "description": "The dunnage version that made it."
+                  },
+                  "shape": {
+                    "type": "object",
+                    "required": [
+                      "at",
+                      "size",
+                      "height"
+                    ],
+                    "properties": {
+                      "at": {
+                        "type": "array",
+                        "additionalItems": false,
+                        "items": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ],
+                        "minItems": 2,
+                        "description": "[x, y] in mm"
+                      },
+                      "size": {
+                        "type": "array",
+                        "additionalItems": false,
+                        "items": [
+                          {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "description": "mm"
+                          },
+                          {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "description": "mm"
+                          }
+                        ],
+                        "minItems": 2
+                      },
+                      "height": {
+                        "type": "number",
+                        "exclusiveMinimum": 0,
+                        "description": "mm"
+                      },
+                      "rotate": {
+                        "type": "number"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "export": {
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]+$"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "why": {
+                "type": "string"
+              },
+              "method": {
+                "type": "string",
+                "const": "posts"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "holds",
+              "method"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]*$",
+                "description": "Lower case letters, digits and hyphens."
+              },
+              "holds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*$",
+                  "description": "Lower case letters, digits and hyphens."
+                },
+                "minItems": 1
+              },
+              "floor": {
+                "type": "boolean"
+              },
+              "lock": {
+                "type": "object",
+                "required": [
+                  "at",
+                  "tool",
+                  "shape",
+                  "export",
+                  "sha256"
+                ],
+                "properties": {
+                  "at": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "description": "The date it was built."
+                  },
+                  "tool": {
+                    "type": "string",
+                    "description": "The dunnage version that made it."
+                  },
+                  "shape": {
+                    "type": "object",
+                    "required": [
+                      "at",
+                      "size",
+                      "height"
+                    ],
+                    "properties": {
+                      "at": {
+                        "type": "array",
+                        "additionalItems": false,
+                        "items": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ],
+                        "minItems": 2,
+                        "description": "[x, y] in mm"
+                      },
+                      "size": {
+                        "type": "array",
+                        "additionalItems": false,
+                        "items": [
+                          {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "description": "mm"
+                          },
+                          {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "description": "mm"
+                          }
+                        ],
+                        "minItems": 2
+                      },
+                      "height": {
+                        "type": "number",
+                        "exclusiveMinimum": 0,
+                        "description": "mm"
+                      },
+                      "rotate": {
+                        "type": "number"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "export": {
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]+$"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "why": {
+                "type": "string"
+              },
+              "method": {
+                "type": "string",
+                "const": "slot"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "holds",
+              "method"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]*$",
+                "description": "Lower case letters, digits and hyphens."
+              },
+              "holds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*$",
+                  "description": "Lower case letters, digits and hyphens."
+                },
+                "minItems": 1
+              },
+              "floor": {
+                "type": "boolean"
+              },
+              "lock": {
+                "type": "object",
+                "required": [
+                  "at",
+                  "tool",
+                  "shape",
+                  "export",
+                  "sha256"
+                ],
+                "properties": {
+                  "at": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "description": "The date it was built."
+                  },
+                  "tool": {
+                    "type": "string",
+                    "description": "The dunnage version that made it."
+                  },
+                  "shape": {
+                    "type": "object",
+                    "required": [
+                      "at",
+                      "size",
+                      "height"
+                    ],
+                    "properties": {
+                      "at": {
+                        "type": "array",
+                        "additionalItems": false,
+                        "items": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ],
+                        "minItems": 2,
+                        "description": "[x, y] in mm"
+                      },
+                      "size": {
+                        "type": "array",
+                        "additionalItems": false,
+                        "items": [
+                          {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "description": "mm"
+                          },
+                          {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "description": "mm"
+                          }
+                        ],
+                        "minItems": 2
+                      },
+                      "height": {
+                        "type": "number",
+                        "exclusiveMinimum": 0,
+                        "description": "mm"
+                      },
+                      "rotate": {
+                        "type": "number"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "export": {
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]+$"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "why": {
+                "type": "string"
+              },
+              "method": {
+                "type": "string",
+                "const": "peg"
+              },
+              "peg": {
+                "type": "object",
+                "required": [
+                  "diameter",
+                  "height"
+                ],
+                "properties": {
+                  "diameter": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "description": "mm"
+                  },
+                  "height": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "description": "mm"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "holds",
+              "method"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]*$",
+                "description": "Lower case letters, digits and hyphens."
+              },
+              "holds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*$",
+                  "description": "Lower case letters, digits and hyphens."
+                },
+                "minItems": 1
+              },
+              "floor": {
+                "type": "boolean"
+              },
+              "lock": {
+                "type": "object",
+                "required": [
+                  "at",
+                  "tool",
+                  "shape",
+                  "export",
+                  "sha256"
+                ],
+                "properties": {
+                  "at": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "description": "The date it was built."
+                  },
+                  "tool": {
+                    "type": "string",
+                    "description": "The dunnage version that made it."
+                  },
+                  "shape": {
+                    "type": "object",
+                    "required": [
+                      "at",
+                      "size",
+                      "height"
+                    ],
+                    "properties": {
+                      "at": {
+                        "type": "array",
+                        "additionalItems": false,
+                        "items": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ],
+                        "minItems": 2,
+                        "description": "[x, y] in mm"
+                      },
+                      "size": {
+                        "type": "array",
+                        "additionalItems": false,
+                        "items": [
+                          {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "description": "mm"
+                          },
+                          {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "description": "mm"
+                          }
+                        ],
+                        "minItems": 2
+                      },
+                      "height": {
+                        "type": "number",
+                        "exclusiveMinimum": 0,
+                        "description": "mm"
+                      },
+                      "rotate": {
+                        "type": "number"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "export": {
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]+$"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "why": {
+                "type": "string"
+              },
+              "method": {
+                "type": "string",
+                "const": "gridfinity"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "holds",
+              "method"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]*$",
+                "description": "Lower case letters, digits and hyphens."
+              },
+              "holds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*$",
+                  "description": "Lower case letters, digits and hyphens."
+                },
+                "minItems": 1
+              },
+              "floor": {
+                "type": "boolean"
+              },
+              "lock": {
+                "type": "object",
+                "required": [
+                  "at",
+                  "tool",
+                  "shape",
+                  "export",
+                  "sha256"
+                ],
+                "properties": {
+                  "at": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "description": "The date it was built."
+                  },
+                  "tool": {
+                    "type": "string",
+                    "description": "The dunnage version that made it."
+                  },
+                  "shape": {
+                    "type": "object",
+                    "required": [
+                      "at",
+                      "size",
+                      "height"
+                    ],
+                    "properties": {
+                      "at": {
+                        "type": "array",
+                        "additionalItems": false,
+                        "items": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ],
+                        "minItems": 2,
+                        "description": "[x, y] in mm"
+                      },
+                      "size": {
+                        "type": "array",
+                        "additionalItems": false,
+                        "items": [
+                          {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "description": "mm"
+                          },
+                          {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "description": "mm"
+                          }
+                        ],
+                        "minItems": 2
+                      },
+                      "height": {
+                        "type": "number",
+                        "exclusiveMinimum": 0,
+                        "description": "mm"
+                      },
+                      "rotate": {
+                        "type": "number"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "export": {
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]+$"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "why": {
+                "type": "string"
+              },
+              "method": {
+                "type": "string",
+                "const": "pegs"
+              },
+              "fit": {
+                "type": "object",
+                "properties": {
+                  "play": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "spring": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "holds",
+              "method"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]*$",
+                "description": "Lower case letters, digits and hyphens."
+              },
+              "holds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*$",
+                  "description": "Lower case letters, digits and hyphens."
+                },
+                "minItems": 1
+              },
+              "floor": {
+                "type": "boolean"
+              },
+              "lock": {
+                "type": "object",
+                "required": [
+                  "at",
+                  "tool",
+                  "shape",
+                  "export",
+                  "sha256"
+                ],
+                "properties": {
+                  "at": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "description": "The date it was built."
+                  },
+                  "tool": {
+                    "type": "string",
+                    "description": "The dunnage version that made it."
+                  },
+                  "shape": {
+                    "type": "object",
+                    "required": [
+                      "at",
+                      "size",
+                      "height"
+                    ],
+                    "properties": {
+                      "at": {
+                        "type": "array",
+                        "additionalItems": false,
+                        "items": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ],
+                        "minItems": 2,
+                        "description": "[x, y] in mm"
+                      },
+                      "size": {
+                        "type": "array",
+                        "additionalItems": false,
+                        "items": [
+                          {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "description": "mm"
+                          },
+                          {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "description": "mm"
+                          }
+                        ],
+                        "minItems": 2
+                      },
+                      "height": {
+                        "type": "number",
+                        "exclusiveMinimum": 0,
+                        "description": "mm"
+                      },
+                      "rotate": {
+                        "type": "number"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "export": {
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]+$"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "why": {
+                "type": "string"
+              },
+              "method": {
+                "type": "string",
+                "const": "ply"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "holds",
+              "method",
+              "spec"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]*$",
+                "description": "Lower case letters, digits and hyphens."
+              },
+              "holds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*$",
+                  "description": "Lower case letters, digits and hyphens."
+                },
+                "minItems": 1
+              },
+              "floor": {
+                "type": "boolean"
+              },
+              "lock": {
+                "type": "object",
+                "required": [
+                  "at",
+                  "tool",
+                  "shape",
+                  "export",
+                  "sha256"
+                ],
+                "properties": {
+                  "at": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "description": "The date it was built."
+                  },
+                  "tool": {
+                    "type": "string",
+                    "description": "The dunnage version that made it."
+                  },
+                  "shape": {
+                    "type": "object",
+                    "required": [
+                      "at",
+                      "size",
+                      "height"
+                    ],
+                    "properties": {
+                      "at": {
+                        "type": "array",
+                        "additionalItems": false,
+                        "items": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ],
+                        "minItems": 2,
+                        "description": "[x, y] in mm"
+                      },
+                      "size": {
+                        "type": "array",
+                        "additionalItems": false,
+                        "items": [
+                          {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "description": "mm"
+                          },
+                          {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "description": "mm"
+                          }
+                        ],
+                        "minItems": 2
+                      },
+                      "height": {
+                        "type": "number",
+                        "exclusiveMinimum": 0,
+                        "description": "mm"
+                      },
+                      "rotate": {
+                        "type": "number"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "export": {
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]+$"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "why": {
+                "type": "string"
+              },
+              "method": {
+                "type": "string",
+                "const": "custom"
+              },
+              "spec": {
+                "type": "object",
+                "required": [
+                  "purpose"
+                ],
+                "properties": {
+                  "purpose": {
+                    "type": "string"
+                  },
+                  "contact": {
+                    "type": "string"
+                  },
+                  "clearance": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "build": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "review": {
+      "type": "object",
+      "properties": {
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "ask",
+              "status"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]*$",
+                "description": "Lower case letters, digits and hyphens."
+              },
+              "ask": {
+                "type": "string"
+              },
+              "answer": {
+                "type": "string"
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "const": "open"
+                  },
+                  {
+                    "type": "string",
+                    "const": "closed"
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "concerns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "on",
+              "says",
+              "status"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]*$",
+                "description": "Lower case letters, digits and hyphens."
+              },
+              "on": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*$",
+                  "description": "Lower case letters, digits and hyphens."
+                },
+                "minItems": 1
+              },
+              "says": {
+                "type": "string"
+              },
+              "suggest": {
+                "type": "string"
+              },
+              "act": {
+                "type": "object",
+                "properties": {
+                  "aside": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]*$",
+                      "description": "Lower case letters, digits and hyphens."
+                    },
+                    "minItems": 1
+                  }
+                },
+                "additionalProperties": false
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "const": "open"
+                  },
+                  {
+                    "type": "string",
+                    "const": "closed"
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "comments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "on",
+              "says",
+              "status"
+            ],
+            "properties": {
+              "on": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]*$",
+                "description": "Lower case letters, digits and hyphens."
+              },
+              "says": {
+                "type": "string"
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "const": "open"
+                  },
+                  {
+                    "type": "string",
+                    "const": "closed"
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,6 +1,6 @@
 {
   "name": "dunnage",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Printable holders that keep things still in a drawer, even on a rough road",
   "license": "MIT",
@@ -23,12 +23,14 @@
     "build:lib": "tsc -p tsconfig.build.json",
     "build:site": "vite build",
     "typecheck": "tsc -p tsconfig.core.json && tsc -p tsconfig.json && tsc -p tsconfig.ui.json",
+    "schema": "bun scripts/schema.ts",
     "test": "bun --bun vitest run",
     "validate": "bun src/cli/main.ts check fixtures/*.yml"
   },
   "dependencies": {
     "manifold-3d": "3.5.4",
     "three": "0.186.1",
+    "typebox": "1.3.34",
     "yaml": "2.9.1"
   },
   "devDependencies": {
@@ -37,6 +39,7 @@
     "@types/react-dom": "19.3.0",
     "@types/three": "0.186.0",
     "@vitejs/plugin-react": "6.1.1",
+    "ajv": "8.20.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "typescript": "7.0.2",

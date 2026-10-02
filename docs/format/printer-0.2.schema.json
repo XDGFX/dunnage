@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/XDGFX/dunnage/main/docs/format/printer-0.2.schema.json",
+  "title": "dunnage printer/0.2",
+  "description": "A dunnage printer file. docs/format/printer.md explains each field, and the checks a schema can't express.",
+  "type": "object",
+  "required": [
+    "format"
+  ],
+  "properties": {
+    "format": {
+      "type": "string",
+      "const": "printer/0.2"
+    },
+    "preset": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "bambu-a1"
+        },
+        {
+          "type": "string",
+          "const": "bambu-a1-mini"
+        },
+        {
+          "type": "string",
+          "const": "bambu-p1s"
+        },
+        {
+          "type": "string",
+          "const": "bambu-x1c"
+        },
+        {
+          "type": "string",
+          "const": "prusa-mk4"
+        }
+      ]
+    },
+    "bed": {
+      "type": "array",
+      "additionalItems": false,
+      "items": [
+        {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "mm"
+        },
+        {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "mm"
+        },
+        {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "mm"
+        }
+      ],
+      "minItems": 3
+    },
+    "clearance": {
+      "type": "number",
+      "minimum": 0
+    },
+    "colour": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}
