@@ -83,9 +83,8 @@ boss wall costs.
 The variant's dots are at the back left (1 standard, 2 light-thick, 3 light, 4 light-thin), the
 skin's at the back right (1 = 0.6 mm, 2 = 1.2 mm). In the middle row, the holes above 1–5 dots
 are 3.0, 3.2, 3.4, 3.6 and 3.8 mm: one of each per piece, two per variant. The edge holes are the
-nominal size, for the plates. Drive a 4×12
-wood screw into each test hole. Keep the smallest that goes in without splitting the boss and bites
-hard.
+nominal size, for the plates. Drive a 4×12 wood screw into each test hole. Keep the smallest that
+goes in without splitting the boss and bites hard.
 
 | Variant | 3.0 | 3.2 | 3.4 | 3.6 | 3.8 | Chosen |
 |---|---|---|---|---|---|---|
@@ -165,7 +164,7 @@ n dots into the column with n dots. Keep the one that's hard to pull out by hand
 Then update #6 with the final values and close its open questions on the clip and the `light`
 boss wall. It also needs these changes, from the design decided here:
 
-- §2: every variant has a closed top face (`light` loses its web of bars), the skin thickness
+- §2: every variant has a closed top face (the spec's `light` had none), the skin thickness
   chosen here, the variants kept, the low web along every row and column in place of ribs, and the
   weights.
 - §3: sleeved plates on the edge bosses replace the clip pockets, so any tile joins to any other at
