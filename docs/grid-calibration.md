@@ -69,8 +69,18 @@ The coupons lie back up, edge to edge. Each has 4 pockets, numbered by the dots 
   into a groove. Printed on its side, so the legs flex along the layers.
 
 Each clip has its type's dots at one end and its clearance's at the other. The clearances are 0.05,
-0.10, 0.15 and 0.20 mm, under 1–4 dots. Keep the one that snaps in, holds the join without play, and
-can still be prised out.
+0.10, 0.15 and 0.20 mm, under 1–4 dots. For each type, keep the clearance that:
+
+- holds the join without play;
+- stays in when the joined coupons are picked up and turned back down (the bow-tie has no snap, so
+  this is friction alone; the bar should click);
+- can still be prised out.
+
+The coupons are `light` only. A pocket is cut into its own solid cup, the same in every variant, so
+the fit doesn't depend on the variant. Round two's 2 × 2 sets check the chosen clip in each variant.
+
+The pockets reach 9.5 mm into the tile, past the 3 mm perimeter band in #6 §3: a clip head sits in the
+gap between four bosses, because there's no room for it between the edge bosses and the edge.
 
 | Type | 0.05 | 0.10 | 0.15 | 0.20 | Notes |
 |---|---|---|---|---|---|
@@ -89,12 +99,15 @@ Run with the variants that survived round one, each with its chosen hole. Parts 
 
 ### Pin interference
 
-The pegs are the chosen hole + 0.25 mm. The holes under 1–6 dots give 0.00–0.25 mm interference in
-0.05 mm steps. Press a peg into each and keep the one that's hard to pull out by hand.
+As in #6 §6, every hole is the chosen size and the pegs are bigger by the interference: 0.00–0.25 mm
+in 0.05 mm steps. The pegs are counted by the 1–6 rings at their top, two of each. Press the peg with
+n rings, rings up, into the column with n dots. Keep the one that's hard to pull out by hand.
 
 | Variant | 0.00 | 0.05 | 0.10 | 0.15 | 0.20 | 0.25 | Chosen |
 |---|---|---|---|---|---|---|---|
-| | | | | | | | |
+| standard | | | | | | | |
+| light | | | | | | | |
+| light-thick | | | | | | | |
 
 ### Print checks (#6 §10)
 
@@ -110,4 +123,13 @@ The pegs are the chosen hole + 0.25 mm. The holes under 1–6 dots give 0.00–0
 ### Outcome
 
 - Variants kept, and the default:
-- `fit:` for the `bambu-p1s` preset: `grid_hole`, `pin_interference`, `clip_clearance`.
+- `fit:` for the `bambu-p1s` preset: `grid_hole`, `pin_interference` (per variant, if they differ),
+  `clip_clearance`.
+
+Then update #6 with the final values and close its open questions on clip shape and the `light`
+boss wall. Also:
+
+- §2's weights;
+- §3's pockets, which sit past the band (above);
+- §1's tile size: 25 × 25 (237.5 mm) fits a 256 mm bed with 10 mm of margin in total, not 10 mm a
+  side.

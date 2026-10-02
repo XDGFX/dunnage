@@ -8,8 +8,8 @@ const BED = 1e-4;
 const SLACK = 1e-3;
 
 /** How many triangles would need support, printed as the mesh lies, with the bed at z = 0. */
-export function overhangs(mesh: TriangleMesh, maxDegrees = 45): number {
-  const limit = -Math.cos((maxDegrees * Math.PI) / 180) - SLACK;
+export function overhangs(mesh: TriangleMesh): number {
+  const limit = -Math.cos(Math.PI / 4) - SLACK;
   let count = 0;
   for (let t = 0; t < mesh.triVerts.length / 3; t++) {
     const [a, b, c] = triangle(mesh, t);

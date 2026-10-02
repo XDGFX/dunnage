@@ -3,13 +3,17 @@ import {
   BAND,
   CLIP_TYPES,
   PITCH,
+  THICKNESS,
+  VARIANTS,
   edgePockets,
+  holeCentre,
   onBed,
   pocketSteps,
   seatedClip,
   tile,
   topDots,
   type ClipType,
+  type Dots,
   type Variant,
 } from "./tile.ts";
 
@@ -35,38 +39,47 @@ const NOMINAL_HOLE: Record<Variant, number> = { standard: 3.4, light: 3.3, "ligh
 const VARIANT_DOTS: Record<Variant, number> = { standard: 1, light: 2, "light-thick": 3 };
 export const CLIP_CLEARANCES = [0.05, 0.1, 0.15, 0.2];
 export const PIN_INTERFERENCES = [0, 0.05, 0.1, 0.15, 0.2, 0.25];
-const PEG_LENGTH = 12;
+/** Long enough for the board, plus a handle carrying up to 6 rings. */
+const PEG_LENGTH = 14;
 const PEG_CHAMFER = 0.4;
+/** 45° V-grooves, so they print without support. */
+const RING_DEPTH = 0.25;
+const RING_PITCH = 0.8;
 /** Holders put at least this much plastic under a screw head (#6 §6). */
 const FLANGE = 4.5;
 const SCREW_CLEARANCE = 4.5;
 
-const centre = (i: number) => PITCH / 2 + PITCH * i;
+/**
+ * A 4-row tile with one column of test holes per value, labelled 1, 2, 3… dots along the front,
+ * and the variant's dots at the back-left corner. The outer columns keep `hole`, so every test
+ * hole has a boss on each side.
+ */
+function columnTest(wasm: ManifoldToplevel, variant: Variant, hole: number, testHoles: number[]): Manifold {
+  const ny = 4;
+  return tile(wasm, {
+    variant,
+    nx: testHoles.length + 2,
+    ny,
+    hole: (i) => testHoles[i - 1] ?? hole,
+    dots: [
+      ...testHoles.map((_, n): Dots => ({ at: [holeCentre(n + 1), BAND / 2], count: n + 1 })),
+      { at: [holeCentre(0), ny * PITCH - BAND / 2], count: VARIANT_DOTS[variant] },
+    ],
+  });
+}
 
 export function roundOne(wasm: ManifoldToplevel): Part[] {
-  const variants: Variant[] = ["standard", "light", "light-thick"];
-  const holeTests = variants.map((variant): Part => {
-    const nx = PILOT_HOLES.length + 2;
-    const ny = 4;
-    return {
+  const holeTests = (Object.keys(VARIANTS) as Variant[]).map(
+    (variant): Part => ({
       name: `holes-${variant}`,
-      solid: tile(wasm, {
-        variant,
-        nx,
-        ny,
-        hole: (i) => PILOT_HOLES[i - 1] ?? NOMINAL_HOLE[variant],
-        dots: [
-          ...PILOT_HOLES.map((_, n) => ({ at: [centre(n + 1), BAND / 2] as [number, number], count: n + 1 })),
-          { at: [centre(0), ny * PITCH - BAND / 2], count: VARIANT_DOTS[variant] },
-        ],
-      }),
+      solid: columnTest(wasm, variant, NOMINAL_HOLE[variant], PILOT_HOLES),
       copies: 1,
       note:
         `Screw pilot holes in the ${variant} boss wall (${VARIANT_DOTS[variant]} dot${VARIANT_DOTS[variant] > 1 ? "s" : ""} at the back-left corner). ` +
         `Columns with 1–5 dots under them are ${PILOT_HOLES.map((d) => d.toFixed(1)).join(", ")} mm. ` +
         "Drive a 4×12 wood screw into each; keep the smallest that goes in without splitting the boss and bites hard.",
-    };
-  });
+    }),
+  );
 
   const ny = 8;
   const steps = [1, 3, 5, 7];
@@ -76,7 +89,7 @@ export function roundOne(wasm: ManifoldToplevel): Part[] {
     ny,
     hole: NOMINAL_HOLE.light,
     pockets: CLIP_TYPES.map((type, n) => ({ edge: "+x" as const, step: steps[n]!, type })),
-    dots: CLIP_TYPES.map((_, n) => ({ at: [BAND / 2, steps[n]! * PITCH] as [number, number], count: n + 1, along: "y" as const })),
+    dots: CLIP_TYPES.map((_, n): Dots => ({ at: [BAND / 2, steps[n]! * PITCH], count: n + 1, along: "y" })),
   });
 
   const clips = CLIP_TYPES.flatMap((type, t) => CLIP_CLEARANCES.map((clearance, c) => printClip(wasm, type, clearance, t + 1, c + 1)));
@@ -114,36 +127,23 @@ export interface RoundTwoOptions {
 
 export function roundTwo(wasm: ManifoldToplevel, { variants, clip, clearance }: RoundTwoOptions): Part[] {
   const perVariant = variants.flatMap(({ variant, hole }): Part[] => {
-    const peg = hole + Math.max(...PIN_INTERFERENCES);
-    const nx = PIN_INTERFERENCES.length + 2;
-    const ny = 4;
+    // As in #6 §6: the hole stays at the calibrated size and the peg is bigger by the interference.
+    const pegs = PIN_INTERFERENCES.flatMap((interference, n) => [0, 1].map(() => pegShape(wasm, toMicron(hole + interference), n + 1)));
     return [
       {
         name: `pins-${variant}`,
-        solid: tile(wasm, {
-          variant,
-          nx,
-          ny,
-          hole: (i) => {
-            const interference = PIN_INTERFERENCES[i - 1];
-            return interference === undefined ? hole : round(peg - interference);
-          },
-          dots: [
-            ...PIN_INTERFERENCES.map((_, n) => ({ at: [centre(n + 1), BAND / 2] as [number, number], count: n + 1 })),
-            { at: [centre(0), ny * PITCH - BAND / 2], count: VARIANT_DOTS[variant] },
-          ],
-        }),
+        solid: columnTest(wasm, variant, hole, PIN_INTERFERENCES.map(() => hole)),
         copies: 1,
-        note:
-          `Pin holes in ${variant}, sized so the ${round(peg)} mm pegs press in with ` +
-          PIN_INTERFERENCES.map((v, n) => `${v.toFixed(2)} mm interference under ${n + 1} dot${n ? "s" : ""}`).join(", ") +
-          ". Keep the one that's hard to pull out by hand.",
+        note: `${hole} mm pin holes in ${variant}, a column for each peg size: put the peg with n rings in the column with n dots.`,
       },
       {
         name: `pegs-${variant}`,
-        solid: arrange(wasm, Array.from({ length: 12 }, () => pegShape(wasm, peg)), 4),
+        solid: arrange(wasm, pegs, 2),
         copies: 1,
-        note: `12 pegs, ${round(peg)} mm across and ${PEG_LENGTH} mm long, for pins-${variant}.`,
+        note:
+          `Two pegs of each size for pins-${variant}, ${PEG_LENGTH} mm long, counted by the rings at the top: ` +
+          PIN_INTERFERENCES.map((v, n) => `${n + 1} = ${toMicron(hole + v)} mm (${v.toFixed(2)} interference)`).join(", ") +
+          ". Press each into its hole, rings up; keep the one that's hard to pull out by hand.",
       },
       {
         name: `tile-8x8-${variant}`,
@@ -194,22 +194,31 @@ function printClip(wasm: ManifoldToplevel, type: ClipType, clearance: number, ty
   // The dots run along the bar, or the bow-tie's neck, either side of the middle.
   const middle = max[0] / 2;
   const y = type.shape === "bow-tie" ? max[1] / 2 : max[1] - type.depth / 2;
-  const dots = [
-    { at: [middle - PITCH / 2, y] as [number, number], count: typeDots },
-    { at: [middle + PITCH / 2, y] as [number, number], count: clearanceDots },
-  ].filter((d) => d.count > 0);
+  const both: Dots[] = [
+    { at: [middle - PITCH / 2, y], count: typeDots },
+    { at: [middle + PITCH / 2, y], count: clearanceDots },
+  ];
+  const dots = both.filter((d) => d.count > 0);
   return flat.subtract(wasm.Manifold.union(dots.map((d) => topDots(wasm, d, max[2]))));
 }
 
-/** An upright peg, chamfered at both ends. */
-function pegShape(wasm: ManifoldToplevel, diameter: number): Manifold {
-  const { Manifold } = wasm;
+/** An upright peg, chamfered at both ends, with `rings` V-grooves above the part that goes into the board. */
+function pegShape(wasm: ManifoldToplevel, diameter: number, rings: number): Manifold {
   const r = diameter / 2;
-  return Manifold.union([
-    Manifold.cylinder(PEG_CHAMFER, r - PEG_CHAMFER, r, 64),
-    Manifold.cylinder(PEG_LENGTH - 2 * PEG_CHAMFER, r, r, 64).translate([0, 0, PEG_CHAMFER]),
-    Manifold.cylinder(PEG_CHAMFER, r, r - PEG_CHAMFER, 64).translate([0, 0, PEG_LENGTH - PEG_CHAMFER]),
-  ]);
+  const c = PEG_CHAMFER;
+  const g = RING_DEPTH;
+  // The half-profile in (radius, height), revolved round the peg's axis.
+  const profile: [number, number][] = [
+    [0, 0],
+    [r - c, 0],
+    [r, c],
+  ];
+  for (let n = 0; n < rings; n++) {
+    const z = THICKNESS + 1 + n * RING_PITCH;
+    profile.push([r, z - g], [r - g, z], [r, z + g]);
+  }
+  profile.push([r, PEG_LENGTH - c], [r - c, PEG_LENGTH], [0, PEG_LENGTH]);
+  return wasm.CrossSection.ofPolygons([profile]).revolve(64);
 }
 
 /** A flange for one screw, and a wall with a diamond hole to hang a weight from or pull on. */
@@ -230,7 +239,8 @@ function testHolder(wasm: ManifoldToplevel): Manifold {
 }
 
 /** Lay parts out in rows on one plate. */
-function arrange(wasm: ManifoldToplevel, parts: Manifold[], perRow: number, gap = 4): Manifold {
+function arrange(wasm: ManifoldToplevel, parts: Manifold[], perRow: number): Manifold {
+  const gap = 4;
   const placed: Manifold[] = [];
   let y = 0;
   for (let row = 0; row * perRow < parts.length; row++) {
@@ -248,4 +258,4 @@ function arrange(wasm: ManifoldToplevel, parts: Manifold[], perRow: number, gap 
   return wasm.Manifold.union(placed);
 }
 
-const round = (mm: number) => Math.round(mm * 1000) / 1000;
+const toMicron = (mm: number) => Math.round(mm * 1000) / 1000;

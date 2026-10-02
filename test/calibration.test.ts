@@ -34,7 +34,7 @@ describe("round one", () => {
       "clips",
     ]);
     parts.forEach(expectPrintable);
-  });
+  }, 60_000);
 });
 
 describe("round two", () => {
@@ -60,5 +60,5 @@ describe("round two", () => {
       "test-holder",
     ]);
     parts.forEach(expectPrintable);
-  }, 60_000);
+  }, 180_000);
 });

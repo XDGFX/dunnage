@@ -16,6 +16,9 @@ const RIB = 1.2;
 const SEGMENTS = 64;
 const EPS = 0.01;
 
+/** Where hole `i` sits along an axis: half a pitch in from the tile's edge, then every pitch. */
+export const holeCentre = (i: number) => PITCH / 2 + PITCH * i;
+
 export type Variant = "standard" | "light" | "light-thick";
 
 export const VARIANTS: Record<Variant, { bossOd: number; face: "skin" | "web"; ribEvery?: number }> = {
@@ -68,15 +71,15 @@ export interface TileOptions {
 
 /**
  * Pocket positions along an edge of `n` holes, as gap lines from the corner: 2 in from each
- * end, then every 5, mirrored so a tile turned round still lines up with its neighbour.
+ * end and evenly spaced between, no more than 6 apart. Mirrored, so a tile turned round still
+ * lines up with its neighbour.
  */
 export function pocketSteps(n: number): number[] {
-  const steps = new Set<number>();
-  for (let k = 2; k <= n / 2; k += 5) steps.add(k).add(n - k);
-  let sorted = [...steps].sort((a, b) => a - b);
-  const widest = Math.max(...sorted.slice(1).map((k, i) => k - sorted[i]!));
-  if (widest > 6) sorted = [...steps.add(Math.floor(n / 2)).add(Math.ceil(n / 2))].sort((a, b) => a - b);
-  return sorted;
+  let count = Math.max(2, Math.ceil((n - 4) / 6) + 1);
+  // A pocket in the middle needs a gap line there.
+  if (count % 2 === 1 && n % 2 === 1) count++;
+  const spacing = (n - 4) / (count - 1);
+  return Array.from({ length: count }, (_, t) => (t < count / 2 ? Math.round(2 + t * spacing) : n - Math.round(2 + (count - 1 - t) * spacing)));
 }
 
 /** The same pockets on every edge of an `nx × ny` tile. */
@@ -97,7 +100,7 @@ export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
   for (let i = 0; i < nx; i++) {
     for (let j = 0; j < ny; j++) {
       const d = typeof options.hole === "number" ? options.hole : options.hole(i, j);
-      holes.push({ x: PITCH / 2 + PITCH * i, y: PITCH / 2 + PITCH * j, d });
+      holes.push({ x: holeCentre(i), y: holeCentre(j), d });
     }
   }
 
@@ -113,8 +116,8 @@ export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
     solids.push(Manifold.extrude(outline, FACE));
   } else {
     const bars = [
-      ...Array.from({ length: nx }, (_, i) => CrossSection.square([FACE, depth]).translate(PITCH / 2 + PITCH * i - FACE / 2, 0)),
-      ...Array.from({ length: ny }, (_, j) => CrossSection.square([width, FACE]).translate(0, PITCH / 2 + PITCH * j - FACE / 2)),
+      ...Array.from({ length: nx }, (_, i) => CrossSection.square([FACE, depth]).translate(holeCentre(i) - FACE / 2, 0)),
+      ...Array.from({ length: ny }, (_, j) => CrossSection.square([width, FACE]).translate(0, holeCentre(j) - FACE / 2)),
     ];
     solids.push(Manifold.extrude(CrossSection.union(bars), FACE));
   }
@@ -194,7 +197,8 @@ function pocketShape(wasm: ManifoldToplevel, type: ClipType): { cup: Manifold; c
   ]);
   const slot = CrossSection.square([-outer + EPS, type.depth + EPS]).translate(outer, THICKNESS - type.depth);
   return {
-    cup: Manifold.extrude(head(BAR_WIDTH / 2 + CUP_WALL + 1.6).add(strip(BAR_WIDTH / 2 + CUP_WALL, -PITCH)), THICKNESS),
+    // The same cup as a bow-tie's head, which clears the notch and its groove.
+    cup: Manifold.extrude(head(HEAD + CUP_WALL).add(strip(BAR_WIDTH / 2 + CUP_WALL, -PITCH)), THICKNESS),
     cut: profile(wasm, notch.add(slot), BAR_WIDTH),
   };
 }
@@ -240,7 +244,8 @@ export function seatedClip(wasm: ManifoldToplevel, type: ClipType, clearance: nu
 const DOT = 0.6;
 const DOT_SPACING = 1.6;
 
-function dotRow(wasm: ManifoldToplevel, { at, count, along = "x" }: Dots): Manifold {
+/** Dots debossed into the face (the bed side). */
+export function faceDots(wasm: ManifoldToplevel, { at, count, along = "x" }: Dots): Manifold {
   const cones = Array.from({ length: count }, (_, n) => {
     const offset = (n - (count - 1) / 2) * DOT_SPACING;
     const [x, y] = along === "x" ? [at[0] + offset, at[1]] : [at[0], at[1] + offset];
@@ -249,14 +254,9 @@ function dotRow(wasm: ManifoldToplevel, { at, count, along = "x" }: Dots): Manif
   return wasm.Manifold.union(cones);
 }
 
-/** Dots debossed into the face (the bed side). */
-export function faceDots(wasm: ManifoldToplevel, dots: Dots): Manifold {
-  return dotRow(wasm, dots);
-}
-
 /** Dots debossed into a top surface at height `z`. */
 export function topDots(wasm: ManifoldToplevel, dots: Dots, z: number): Manifold {
-  return dotRow(wasm, dots).mirror([0, 0, 1]).translate([0, 0, z]);
+  return faceDots(wasm, dots).mirror([0, 0, 1]).translate([0, 0, z]);
 }
 
 /** Lay a part on the bed at the origin. */
