@@ -124,14 +124,14 @@ bed: [256, 256, 256]
 ## Development
 
 ```sh
-npm install
-npm run dev      # the UI, served locally
-npm test         # Vitest
+bun install
+bun run dev      # the UI, served locally
+bun run test     # Vitest, on Bun
 ```
 
 Built with TypeScript, Vite, React and three.js. Holder geometry comes from [manifold-3d](https://github.com/elalish/manifold), which runs as WASM in both the browser and Node.
 
-**Releases are automatic.** A commit that changes behaviour bumps the version in `package.json`, and CI tags `vX.Y.Z` when it sees the version change. Every push to `main` deploys the hosted app.
+**Releases are automatic.** A commit that changes behaviour bumps the version in `package.json`, and CI tags `vX.Y.Z` on a release commit that carries the built CLI, so installing a tag with npm or Bun needs no build step. Every push to `main` deploys the hosted app.
 
 ## Licence
 

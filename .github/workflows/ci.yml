@@ -1,0 +1,102 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run test
+      - run: bun run build
+      - run: bun run validate
+      - if: github.event_name == 'push'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist-site
+
+  pages:
+    if: github.event_name == 'push'
+    needs: test
+    runs-on: ubuntu-latest
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v6
+      - id: deploy
+        uses: actions/deploy-pages@v5
+
+  # The first time main carries a version, tags vX.Y.Z on a release commit: main plus the built
+  # dist/. Installing a tag then needs no build step, so npm and Bun consumers get the same files
+  # and the `dunnage` bin with no install scripts to trust. If installing the tag fails with
+  # either, the tag is deleted again.
+  tag:
+    if: github.event_name == 'push'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG_URL: github:${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - id: version
+        run: |
+          version=$(jq -r .version package.json)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null; then
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+      - id: push
+        if: steps.version.outputs.new == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          bun install --frozen-lockfile
+          bun run build:lib
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --force dist
+          git commit --quiet --message "Release v$VERSION"
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
+      - if: steps.version.outputs.new == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir npm-consumer && cd npm-consumer
+          npm init -y > /dev/null
+          npm install "$TAG_URL#v$VERSION"
+          test "$(node_modules/.bin/dunnage --version)" = "$VERSION"
+          node_modules/.bin/dunnage check "$GITHUB_WORKSPACE/fixtures/coffee.drawer.yml"
+      - if: steps.version.outputs.new == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir bun-consumer && cd bun-consumer
+          bun init -y > /dev/null
+          bun add "$TAG_URL#v$VERSION"
+          test "$(node_modules/.bin/dunnage --version)" = "$VERSION"
+          node_modules/.bin/dunnage check "$GITHUB_WORKSPACE/fixtures/coffee.drawer.yml"
+      - if: failure() && steps.push.outcome == 'success'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: git push --delete origin "v$VERSION"

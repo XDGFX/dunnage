@@ -1,0 +1,9 @@
+{
+  // The core runs in the browser and in Node, so it sees neither the DOM nor Node's APIs.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["es2024"],
+    "types": []
+  },
+  "include": ["src/core"]
+}

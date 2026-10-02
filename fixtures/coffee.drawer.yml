@@ -1,0 +1,260 @@
+# PROTOTYPE for #160: the drawer file, second draft, after grilling on 2026-10-01 (the first draft is in git history at 024f903). Throwaway.
+#
+# The process this file serves:
+#   1. Inventory: what lives in the drawer and the ways each thing can sit.       items
+#   2. Arrange:   where each thing goes. The agent proposes; you adjust.          layout
+#   3. Hold:      how each thing, or a group you choose, is held.                 holders
+#   4. Make:      prints, router templates and spec sheets.                       (export)
+#   5. Lock:      what's built is frozen, and later layouts design around it.     lock
+# Arranging and holding are one plan: the agent arranges first, but choosing how something is
+# held can change its footprint and move things, and the plan shows that straight away.
+#
+# Units are mm. Origin is the front-left corner of the drawer floor: x runs left to right, y runs
+# front (your side) to back, z up. Rotation is degrees, anticlockwise seen from above.
+
+format: drawer/0.2
+name: Coffee and tableware
+printer: p1s                       # a printer profile, kept beside the drawer files
+
+drawer:
+  inside: [700, 500, 150]          # width, depth, height
+  obstructions: []                 # e.g. { name: Runner bracket, at: [0, 470], size: [700, 30], height: 12 }
+
+# One base per drawer. A drawer with both a grid and a pegboard is two drawers in this file's eyes.
+base:
+  kind: bare
+  # kind: gridfinity, pitch: 42
+  #   A grid of whole cells, as many as fit, centred in the drawer. Each Gridfinity holder claims
+  #   the smallest block of cells that covers what it holds, at the angle it sits; move or turn
+  #   the items and the block is worked out again. Items sit centred in their block by default.
+  # kind: pegboard, preset: uppdatera-80       # 675 × 500 board; uppdatera-60 is 475 × 500
+  #   The drawer height is measured from the top of the board, so the board takes none of it.
+  #   IKEA UPPDATERA, from docs/reference/uppdatera-pegboard.md. Holes on a 40 mm grid plus a
+  #   second 40 mm grid offset 20 mm both ways (a cross pattern). Holes are slots running across
+  #   the drawer; pegs are 12 × 6 mm, set across their slot, front to back. Pegs stand 132 mm.
+  #   A thing is held when its pegs (and any wall it rests on) stop it sliding every way, and
+  #   stop it turning too unless it's round all over.
+  #   Pegs go in fixed holes; things rest against them. Board edge distances still to be measured.
+
+rules:
+  edge_margin: 0                   # keep things this far off the walls
+  gap: 0                           # between neighbouring holders on a bare floor; 0 means they touch
+  angle_step: 15                   # rotations snap to multiples of this, and always to square
+
+# ---------------------------------------------------------------------------------------------
+# 1. Inventory: what each thing is. No positions.
+#    Shape is a box [w, d, h] or a cylinder [diameter, h], as it sits in its first pose.
+#    handle / spout: [width, reach], at the front / back of a cylinder at rotation 0.
+#    nest: how much each extra one adds to a stack.
+#    outlet: a hole through its base. On a pegboard, one peg through it holds the thing alone.
+#    poses: the ways it may sit. The first is how the shape is written.
+#      box:      flat (as written) | upright (on its long edge) | side (on its short edge)
+#      cylinder: upright (as written) | lying (on its side)
+#      either:   { tilt: 45 } on its side, raised by that angle
+items:
+  kettle:      { name: Kettle,       cylinder: [85, 145],  handle: [30, 70], spout: [10, 80], poses: [upright] }
+  scales:      { name: Scales,       box: [150, 130, 20],  poses: [flat, upright] }
+  mug-large:   { name: "Mug, large", cylinder: [100, 110], handle: [15, 35], poses: [upright] }
+  mug-small:   { name: "Mug, small", cylinder: [90, 90],   handle: [15, 30], poses: [upright] }
+  v60:         { name: V60,          cylinder: [120, 85],  outlet: 20, poses: [upright] }   # outlet guessed
+  filters:     { name: Filters,      box: [20, 200, 130],  poses: [flat] }
+  glass:       { name: Glass,        cylinder: [70, 160],  poses: [upright, lying] }
+  coaster:     { name: Coaster,      cylinder: [100, 20],  nest: 20, poses: [upright] }
+  plate:       { name: Plate,        cylinder: [250, 20],  nest: 8,  poses: [upright] }
+  plate-bowl:  { name: Plate bowl,   cylinder: [230, 20],  nest: 8,  poses: [upright] }
+  bowl:        { name: Bowl,         cylinder: [160, 20],  nest: 8,  poses: [upright] }
+
+# ---------------------------------------------------------------------------------------------
+# 2. Arrange: one entry per thing in the drawer. Things are placed themselves, never in a group.
+#    id names the thing; item says what it is, and defaults to the id.
+#    at: centre of its footprint, in drawer coordinates. stack: how many, one on another.
+#    zone: the agent's reasoning for where it sits. Zones explain the layout; they hold nothing.
+#    aside: true takes a thing out of the drawer for now. It stays in the file, and is skipped by
+#    the checks and the export.
+zones:
+  brew:     { name: Brew line, why: Along the front in the order you make a coffee, left to right. }
+  drink:    { name: Drinkware, why: Behind the brew line, so everything you drink from is in one band. }
+  crockery: { name: Crockery,  why: Heaviest against the back wall, near the runners when open. }
+
+layout:
+  - id: kettle
+    zone: brew
+    at: [50, 122.5]
+    why: Boiling is step one, so it starts the line. Handle to the front, spout running back.
+
+  - id: scales
+    zone: brew
+    pose: upright
+    rotate: 90
+    at: [117, 79]
+    why: Stood on edge it takes 20 mm of width instead of 150 × 130. At 130 mm tall it clears
+      the drawer. Next to the kettle, front to back, so you lift it out by its top edge.
+
+  - id: coasters
+    item: coaster
+    stack: 4
+    zone: brew
+    at: [195, 70]
+    why: Where the scales used to be. Set a drink down here before it goes on the scales.
+
+  - id: mug-large
+    zone: brew
+    at: [320, 95]
+    why: Handles to the front, tips on the brew line, so either mug comes out by its handle.
+
+  - id: mug-small
+    zone: brew
+    at: [425, 85]
+    why: Beside its pair, the smaller one nearer the V60.
+
+  - id: v60
+    zone: brew
+    at: [553, 70]
+    why: Its holder is locked (printed and in use), so it stays put and the line is built round it.
+
+  - id: filters
+    zone: brew
+    at: [638, 110]
+    why: Last step before the coffee. On edge, front to back; you pull one off the front.
+
+  - { id: glass-1, item: glass, zone: drink, pose: lying, rotate: 90, at: [200, 198], why: Lying, because 160 mm won't stand in a 150 mm drawer. }
+  - { id: glass-2, item: glass, zone: drink, pose: lying, rotate: 90, at: [370, 198], why: Beside the first, mouths the same way. }
+  - { id: glass-3, item: glass, zone: drink, pose: lying, rotate: 90, at: [540, 198], why: Third in the drinkware band. }
+  - { id: glass-4, item: glass, zone: drink, pose: lying, rotate: 90, at: [580, 275], why: No room left in the band; it sits between the bowls and the filters. See the concern below. }
+
+  - id: plates
+    item: plate
+    stack: 4
+    zone: crockery
+    at: [140, 367]
+    why: Largest stack in the back-left corner, so the row reads largest to smallest.
+
+  - id: plate-bowls
+    item: plate-bowl
+    stack: 4
+    zone: crockery
+    at: [395, 377]
+    why: Between plates and bowls, because in use they sit between them.
+
+  - id: bowls
+    item: bowl
+    stack: 4
+    zone: crockery
+    at: [605, 412]
+    why: Smallest at the end of the row.
+
+# ---------------------------------------------------------------------------------------------
+# 3. Hold: how things are held. A holder names the thing or things it holds. Grouping happens
+#    only here, because you chose to make one holder for several things: one print, one board.
+#    The tool works out each holder's shape from its method and what it holds. Only a locked
+#    holder stores its shape, because that's what was built.
+#
+#    method (the library)                                         makes
+#      well        printed tray shaped to what it holds             3MF
+#      posts       printed posts or fingers round it                3MF
+#      slot        printed slot for something on edge               3MF
+#      peg         printed peg through a hole in it                 3MF
+#      gridfinity  Gridfinity bin, whole cells (gridfinity base)    3MF
+#      pegs        IKEA pegs in fixed holes, 3 or more              list of holes
+#                  (pegboard base)
+#      ply         routed ply, cut against a printed template       template 3MF and cut sheet
+#      custom      specified here, built in Fusion or Blender       spec sheet
+#
+#    fit (pegs only): play is how far the thing may wander inside its pegs (default 2); spring
+#    is how far it pushes stock IKEA pegs outwards (default 0). A conflict is only reported when
+#    the worst case of either touches a neighbour.
+holders:
+  - id: kettle-fingers
+    method: posts
+    holds: [kettle]
+    floor: false
+    why: The kettle clears the drawer by 5 mm, so there's no floor under it; four fingers round the base.
+
+  - id: scales-slot
+    method: slot
+    holds: [scales]
+
+  - id: coaster-posts
+    method: posts
+    holds: [coasters]
+    why: Three posts round the stack, fingers free to lift the top one.
+
+  - id: mug-tray
+    method: well
+    holds: [mug-large, mug-small]
+    why: One print for the pair. Shallow wells with a notch for each handle.
+
+  - id: v60-peg
+    method: peg
+    holds: [v60]
+    peg: { diameter: 18, height: 30 }
+    lock:                                  # printed and in use: frozen as built
+      at: 2026-09-24
+      tool: 0.1.0
+      shape: { at: [488, 5], size: [130, 125], height: 4, rotate: 0 }
+      export: locked/v60-peg.3mf
+      sha256: 4be1c0a37e9d2f61
+
+  - id: filter-slot
+    method: slot
+    holds: [filters]
+
+  - id: glass-cradles-front
+    method: custom
+    holds: [glass-1, glass-2]
+    spec:
+      purpose: Hold two glasses on their sides so they can't roll or slide.
+      contact: Two saddles under each glass, near the base and near the rim, below the centreline.
+      clearance: 1.5
+      build: Fusion
+    why: There's no cradle in the library, so it's specified here and built elsewhere.
+
+  - id: glass-cradles-right
+    method: custom
+    holds: [glass-3, glass-4]
+    spec:
+      purpose: As glass-cradles-front, for the other two. They don't sit side by side, so two pieces or one bridged piece.
+      clearance: 1.5
+      build: Fusion
+
+  - id: crockery-board
+    method: ply
+    holds: [plates, plate-bowls, bowls]
+    why: Too big to print. One board with three circles routed part-depth; the template prints in tiles.
+
+  # On a pegboard base, the plates could instead be:
+  # - id: plate-pegs
+  #   method: pegs
+  #   holds: [plates]
+  #   fit: { play: 2, spring: 0 }
+
+# ---------------------------------------------------------------------------------------------
+# The conversation between you and the agent. It lives here so it travels with the drawer and
+# needs no server or GitHub. Dealt-with entries are closed, not deleted, so git keeps the history.
+review:
+  questions:
+    - id: q-inside
+      ask: Are 700 × 500 × 150 the inside or the outside of the drawer?
+      status: open
+    - id: q-nest
+      ask: How much does each extra plate or bowl add to its stack? I've guessed 8 mm.
+      status: open
+    - id: q-coffee
+      ask: Are the coffee beans and grinder in this drawer or elsewhere?
+      status: open
+    - id: q-v60
+      ask: How tall is the V60 on its peg, and how far up the outlet does the peg reach?
+      status: open
+  assumptions:
+    - Four each of plates, plate bowls and bowls; four glasses.
+    - Mug handles are 15 mm wide.
+  concerns:
+    - id: c-glasses
+      on: [glass-1, glass-2, glass-3, glass-4]
+      says: Four glasses lying down cover about 13% of the floor before their cradles, and the
+        fourth has no place in the drinkware band. They can't stand or tilt in here; at 45° a
+        glass is still 163 mm tall. A cupboard shelf holds them upright in a third of the area.
+      suggest: Keep two here for coffee and move two to a cupboard.
+      act: { aside: [glass-3, glass-4] }   # what accepting the suggestion does
+      status: open
+  comments: []                     # yours: { on: <id>, says: ..., status: open }
