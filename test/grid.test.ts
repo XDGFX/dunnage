@@ -1,7 +1,7 @@
 import Module, { type Manifold } from "manifold-3d";
 import { beforeAll, describe, expect, test } from "vitest";
 import { overhangs } from "../src/core/grid/printability.ts";
-import { JOINER, PITCH, THICKNESS, VARIANTS, WEB, holeCentre, seatedJoiner, tile, type Variant } from "../src/core/grid/tile.ts";
+import { BOSS_CHAMFER, JOINER, PITCH, THICKNESS, VARIANTS, WEB, holeCentre, seatedJoiner, tile, type Variant } from "../src/core/grid/tile.ts";
 
 type Wasm = Awaited<ReturnType<typeof Module>>;
 let wasm: Wasm;
@@ -61,6 +61,18 @@ describe("tile", () => {
       expect(solidIn(part, holeCentre(i), holeCentre(1), outer - 0.15, outer - 0.05, WEB.height + 0.1)).toBeGreaterThan(0);
       expect(solidIn(part, holeCentre(i), holeCentre(1), outer + 0.05, outer + 0.15, WEB.height + 0.1)).toBe(0);
     }
+  });
+
+  test.each([0.6, 1.2])("every boss flares out at its root with a 45° chamfer onto a %f mm top face", (skin) => {
+    const part = tile(wasm, { variant: "light-thin", nx: 4, ny: 4, hole: HOLE, skin });
+    const outer = HOLE / 2 + VARIANTS["light-thin"].wall;
+    // Probe beside an inner boss, off the web's lines: on the diagonal between holes.
+    const at = (out: number, z0: number, z1: number) =>
+      solidInBox(part, [holeCentre(1) + out / Math.SQRT2 - 0.05, holeCentre(1) + out / Math.SQRT2 - 0.05, z0], [holeCentre(1) + out / Math.SQRT2 + 0.05, holeCentre(1) + out / Math.SQRT2 + 0.05, z1]);
+    // Half the chamfer out from the wall: solid low down, clear higher up.
+    const half = BOSS_CHAMFER / 2;
+    expect(at(outer + half, skin, skin + half - 0.1)).toBeGreaterThan(0);
+    expect(at(outer + half, skin + half + 0.1, skin + BOSS_CHAMFER)).toBe(0);
   });
 
   test("a boss's wall can be set hole by hole", () => {

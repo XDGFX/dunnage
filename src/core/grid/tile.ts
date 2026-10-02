@@ -21,6 +21,8 @@ export const WEB = {
   /** From the top face. */
   height: 3,
 };
+/** A 45° flare where each boss meets the top face, to stiffen it where it bends. */
+export const BOSS_CHAMFER = 1;
 /** Segments round a hole: 64 keeps a 3.4 mm hole within 0.005 mm of its size. */
 const SEGMENTS = 64;
 const EPS = 0.01;
@@ -103,10 +105,14 @@ export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
     ...Array.from({ length: nx }, (_, i) => CrossSection.square([WEB.width, depth]).translate(holeCentre(i) - WEB.width / 2, 0)),
     ...Array.from({ length: ny }, (_, j) => CrossSection.square([width, WEB.width]).translate(0, holeCentre(j) - WEB.width / 2)),
   ]);
+  const flares = holes.map(({ x, y, boss }) =>
+    Manifold.extrude(CrossSection.circle(boss + BOSS_CHAMFER, SEGMENTS), BOSS_CHAMFER, 0, 0, boss / (boss + BOSS_CHAMFER)).translate([x, y, skin]),
+  );
   const solid = Manifold.union([
     Manifold.extrude(CrossSection.union([band, ...bosses]), THICKNESS),
     Manifold.extrude(outline, skin),
     Manifold.extrude(web, WEB.height),
+    ...flares,
   ]);
 
   const voids: Manifold[] = [];

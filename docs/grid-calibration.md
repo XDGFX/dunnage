@@ -69,15 +69,15 @@ each wall and skin, to weigh against how they feel.
 
 | Hole | 3.0 | 3.2 | 3.4 | 3.6 | 3.8 |
 |---|---|---|---|---|---|
-| Result | | | | | |
+| Result | grips firmly, too tight to drive through | **chosen** | | | grips only once threaded in, not at the bottom |
 
 | Wall | 0.5 | 0.9 | 1.2 |
 |---|---|---|---|
-| Result | | | |
+| Result | **chosen**: bends most easily, didn't break | bends, didn't break | bends, didn't break |
 
-(Per cell: splits / bites hard / bites / spins.)
-
-**Chosen:** wall (and so the variant), hole, skin.
+**Chosen:** a 3.2 mm hole and a 0.5 mm wall (`light-thin`). Every boss bent, so each now flares out
+at its root with a 1 mm 45° chamfer onto the top face, to stiffen it. Round two goes ahead with a
+0.6 mm top face, the lightest.
 
 ## Round two: joiner fit and pins
 
