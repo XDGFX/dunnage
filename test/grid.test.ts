@@ -1,7 +1,7 @@
 import Module, { type Manifold } from "manifold-3d";
 import { beforeAll, describe, expect, test } from "vitest";
 import { overhangs } from "../src/core/grid/printability.ts";
-import { PITCH, PLATE, THICKNESS, VARIANTS, holeCentre, seatedPlate, tile, type Variant } from "../src/core/grid/tile.ts";
+import { PITCH, PLATE, THICKNESS, VARIANTS, WEB, holeCentre, seatedPlate, tile, type Variant } from "../src/core/grid/tile.ts";
 
 type Wasm = Awaited<ReturnType<typeof Module>>;
 let wasm: Wasm;
@@ -53,14 +53,28 @@ describe("tile", () => {
 
   test.each(variants)("a %s boss keeps its wall thickness whatever the hole", (variant) => {
     const { wall } = VARIANTS[variant];
-    // Columns 1 and 3 of row 1: inner bosses, clear of standard's ribs on hole lines 2 and 6.
     const sizes: Record<number, number> = { 1: 3.0, 3: 3.8 };
     const part = tile(wasm, { variant, nx: 6, ny: 4, hole: (i) => sizes[i] ?? 3.4 });
     for (const i of [1, 3]) {
       const outer = sizes[i]! / 2 + wall;
-      // An inner boss, away from ribs: solid just inside its wall, nothing just outside.
-      expect(solidIn(part, holeCentre(i), holeCentre(1), outer - 0.15, outer - 0.05)).toBeGreaterThan(0);
-      expect(solidIn(part, holeCentre(i), holeCentre(1), outer + 0.05, outer + 0.15)).toBeLessThan(0.05);
+      // An inner boss, above the web: solid just inside its wall, nothing just outside.
+      expect(solidIn(part, holeCentre(i), holeCentre(1), outer - 0.15, outer - 0.05, WEB.height + 0.1)).toBeGreaterThan(0);
+      expect(solidIn(part, holeCentre(i), holeCentre(1), outer + 0.05, outer + 0.15, WEB.height + 0.1)).toBe(0);
+    }
+  });
+
+  test.each(variants)("a %s tile has a low, thin web along every row and column, joining the bosses", (variant) => {
+    const part = tile(wasm, { variant, nx: 6, ny: 6, hole: HOLE, skin: 0.6 });
+    const w = WEB.width;
+    // Halfway between two inner bosses, along a row and along a column.
+    for (const [x, y, dx, dy] of [
+      [PITCH * 3, holeCentre(2), 0.4, w / 2],
+      [holeCentre(2), PITCH * 3, w / 2, 0.4],
+    ] as const) {
+      expect(solidInBox(part, [x - dx, y - dy, 1], [x + dx, y + dy, WEB.height])).toBeCloseTo(4 * dx * dy * (WEB.height - 1));
+      expect(solidInBox(part, [x - 0.4, y - 0.4, WEB.height + 0.01], [x + 0.4, y + 0.4, THICKNESS])).toBe(0);
+      // Thin: nothing just beside it.
+      expect(solidInBox(part, [x - 0.4, y - 0.4, 1], [x + 0.4, y + 0.4, WEB.height]) - 4 * dx * dy * (WEB.height - 1)).toBeLessThan(1e-6);
     }
   });
 

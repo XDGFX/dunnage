@@ -18,14 +18,18 @@ Right way up, as it sits in the drawer:
   the outside of the bosses. It fits at any pair of edge holes on any edge, or where four tiles meet,
   out of sight. Its holes keep the grid usable: screws and pins go through it.
 
+Every variant has a low **web**, 0.8 mm wide and 3 mm up from the top face, along every row and
+column of holes, tying each boss to its neighbours. Round the edge bosses it's notched for the
+plates' sleeves.
+
 The variants differ in boss wall, which sets most of the weight along with the top face:
 
-| Variant | Boss wall | Band | Ribs |
-|---|---|---|---|
-| `standard` | 1.6 mm | 3 mm | every 4 holes, along hole lines, tying the bosses together |
-| `light-thick` | 1.2 mm | 1.2 mm | none |
-| `light` | 0.9 mm (2 lines) | 1.2 mm | none |
-| `light-thin` | 0.5 mm (1 line) | 1.2 mm | none |
+| Variant | Boss wall | Band |
+|---|---|---|
+| `standard` | 1.6 mm | 3 mm |
+| `light-thick` | 1.2 mm | 1.2 mm |
+| `light` | 0.9 mm (2 lines) | 1.2 mm |
+| `light-thin` | 0.5 mm (1 line) | 1.2 mm |
 
 The wall is the same whatever the hole size. Each variant is printed with a 0.6 mm (3 layers) and a
 1.2 mm (6 layers) top face.
@@ -77,8 +81,9 @@ boss wall costs.
 ### Screw pilot holes
 
 The variant's dots are at the back left (1 standard, 2 light-thick, 3 light, 4 light-thin), the
-skin's at the back right (1 = 0.6 mm, 2 = 1.2 mm). The middle two rows of the columns with 1–5 dots
-are 3.0, 3.2, 3.4, 3.6 and 3.8 mm. The edge holes are the nominal size, for the plates. Drive a 4×12
+skin's at the back right (1 = 0.6 mm, 2 = 1.2 mm). In the middle row, the holes above 1–5 dots
+are 3.0, 3.2, 3.4, 3.6 and 3.8 mm: one of each per piece, two per variant. The edge holes are the
+nominal size, for the plates. Drive a 4×12
 wood screw into each test hole. Keep the smallest that goes in without splitting the boss and bites
 hard.
 
@@ -161,7 +166,8 @@ Then update #6 with the final values and close its open questions on the clip an
 boss wall. It also needs these changes, from the design decided here:
 
 - §2: every variant has a closed top face (`light` loses its web of bars), the skin thickness
-  chosen here, the variants kept, `standard`'s ribs on hole lines, and the weights.
+  chosen here, the variants kept, the low web along every row and column in place of ribs, and the
+  weights.
 - §3: sleeved plates on the edge bosses replace the clip pockets, so any tile joins to any other at
   any edge hole, from below.
 - §6: pegs are round with a flat, printed lying down, not upright.

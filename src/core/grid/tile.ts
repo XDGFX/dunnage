@@ -14,7 +14,12 @@ export const PITCH = 9.5;
 export const THICKNESS = 8;
 const LEAD_IN = 0.4;
 const DEFAULT_SKIN = 1.2;
-const RIB = 1.2;
+/** A low web along every row and column of holes, tying each boss to its neighbours. */
+export const WEB = {
+  width: 0.8,
+  /** From the top face. */
+  height: 3,
+};
 /** Segments round a hole: 64 keeps a 3.4 mm hole within 0.005 mm of its size. */
 const SEGMENTS = 64;
 const EPS = 0.01;
@@ -25,8 +30,8 @@ export const holeCentre = (i: number) => PITCH / 2 + PITCH * i;
 export type Variant = "standard" | "light-thick" | "light" | "light-thin";
 
 /** `wall` is the boss wall round the hole, `band` the solid edge of the tile. */
-export const VARIANTS: Record<Variant, { wall: number; band: number; ribEvery?: number }> = {
-  standard: { wall: 1.6, band: 3, ribEvery: 4 },
+export const VARIANTS: Record<Variant, { wall: number; band: number }> = {
+  standard: { wall: 1.6, band: 3 },
   "light-thick": { wall: 1.2, band: 1.2 },
   light: { wall: 0.9, band: 1.2 },
   // A single extrusion line, to find out how thin a boss can go.
@@ -86,13 +91,15 @@ export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
   const inset = (by: number) => CrossSection.square([width - 2 * by, depth - 2 * by]).translate(by, by);
   const plan: CrossSection[] = [outline.subtract(inset(spec.band))];
   plan.push(...holes.map(({ x, y, r }) => CrossSection.circle(r + spec.wall, SEGMENTS).translate(x, y)));
-  if (spec.ribEvery) {
-    // Along hole lines, tying the bosses together.
-    const every = spec.ribEvery;
-    for (let i = every / 2; i < nx; i += every) plan.push(CrossSection.square([RIB, depth]).translate(holeCentre(i) - RIB / 2, 0));
-    for (let j = every / 2; j < ny; j += every) plan.push(CrossSection.square([width, RIB]).translate(0, holeCentre(j) - RIB / 2));
-  }
-  const solid = Manifold.union([Manifold.extrude(CrossSection.union(plan), THICKNESS), Manifold.extrude(outline, skin)]);
+  const web = CrossSection.union([
+    ...Array.from({ length: nx }, (_, i) => CrossSection.square([WEB.width, depth]).translate(holeCentre(i) - WEB.width / 2, 0)),
+    ...Array.from({ length: ny }, (_, j) => CrossSection.square([width, WEB.width]).translate(0, holeCentre(j) - WEB.width / 2)),
+  ]);
+  const solid = Manifold.union([
+    Manifold.extrude(CrossSection.union(plan), THICKNESS),
+    Manifold.extrude(outline, skin),
+    Manifold.extrude(web, WEB.height),
+  ]);
 
   // Room for plates: above the edge bosses' ends, and round each edge boss for a sleeve.
   const seat = THICKNESS - PLATE.thickness;

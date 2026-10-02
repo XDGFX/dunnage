@@ -41,13 +41,13 @@ const SCREW_CLEARANCE = 4.5;
 export const variantList = Object.keys(VARIANTS) as Variant[];
 
 /**
- * A 4-row tile with a column per test value, labelled 1, 2, 3… dots along the front. The test
- * holes are in the middle two rows; the edge holes keep `hole`, so plates fit them. The back band
+ * A 3-row tile with a column per test value, labelled 1, 2, 3… dots along the front. One test
+ * hole per value, in the middle row; the edge holes keep `hole`, so plates fit them. The back band
  * carries the variant's dots at the left and the skin's at the right (1 = thinnest). Dots sit over
  * the band, which runs full height, so they never go through a thin skin.
  */
 function columnTest(wasm: ManifoldToplevel, variant: Variant, hole: number, testHoles: number[], skin: number): Manifold {
-  const ny = 4;
+  const ny = 3;
   const nx = testHoles.length + 2;
   const band = VARIANTS[variant].band / 2;
   return tile(wasm, {
@@ -74,7 +74,7 @@ export function roundOne(wasm: ManifoldToplevel): Part[] {
         note:
           `Screw pilot holes in the ${variant} boss wall (${VARIANTS[variant].wall} mm), with a ${skin} mm top face. ` +
           `${dots(VARIANT_DOTS[variant])} at the back left for the variant, ${dots(SKINS.indexOf(skin) + 1)} at the back right for the skin. ` +
-          `The middle rows of the columns with 1–5 dots are ${PILOT_HOLES.map((d) => d.toFixed(1)).join(", ")} mm. ` +
+          `In the middle row, the holes above 1–5 dots are ${PILOT_HOLES.map((d) => d.toFixed(1)).join(", ")} mm. ` +
           "Drive a 4×12 wood screw into each; keep the smallest that goes in without splitting the boss and bites hard. " +
           `Then join it to the other ${variant} piece with the plates.`,
       }),
