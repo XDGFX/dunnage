@@ -264,7 +264,7 @@
                           }
                         },
                         "additionalProperties": false,
-                        "description": "On its side, raised by this many degrees."
+                        "description": "Raised by this many degrees: a cylinder from lying, a box from flat towards upright."
                       }
                     ]
                   },
@@ -372,7 +372,7 @@
                           }
                         },
                         "additionalProperties": false,
-                        "description": "On its side, raised by this many degrees."
+                        "description": "Raised by this many degrees: a cylinder from lying, a box from flat towards upright."
                       }
                     ]
                   },
@@ -478,7 +478,7 @@
                   }
                 },
                 "additionalProperties": false,
-                "description": "On its side, raised by this many degrees."
+                "description": "Raised by this many degrees: a cylinder from lying, a box from flat towards upright."
               }
             ]
           },

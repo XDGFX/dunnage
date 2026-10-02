@@ -97,12 +97,13 @@ The first pose is the one the shape is written in, so it must be `flat` for a bo
 | Pose | Box `[w, d, h]` | Cylinder `[D, h]` |
 |---|---|---|
 | `flat` | footprint w × d, h tall | |
-| `upright` | on its long edge: footprint w × h, d tall | footprint a circle of diameter D, h tall |
-| `side` | on its short edge: footprint d × h, w tall | |
+| `upright` | stood on the edge along its width: footprint w × h, d tall | footprint a circle of diameter D, h tall |
+| `side` | stood on the edge along its depth: footprint d × h, w tall | |
 | `lying` | | on its side, running front to back: footprint D × h, D tall |
 | `{ tilt: a }` | tipped a° from flat towards upright: footprint w × (d cos a + h sin a), d sin a + h cos a tall | raised by a° from lying: footprint D × (h cos a + D sin a), h sin a + D cos a tall |
 
-Footprints are given at rotation 0, as x × y. Only the first pose stacks.
+Footprints are given at rotation 0, as x × y. Only the first pose stacks. Write a box with its
+longer side as `w` and `upright` is on its long edge, `side` on its short one.
 
 ## `zones`
 
@@ -216,12 +217,12 @@ Beyond the schema, `dunnage check` reports:
 - **Things fit in the drawer.** Each thing's outline, turned by `rotate` and including its handle
   and spout, stays inside the walls less the `edge_margin`. Its height, stack included, is no
   more than the drawer's. It doesn't overlap an obstruction or another thing; a spout may
-  overhang a neighbour. Things set `aside` are skipped.
+  overhang a neighbour or an obstruction. Things set `aside` are skipped.
 - **Holders.** A thing is held by at most one holder. `gridfinity` holders need a gridfinity base
   and `pegs` holders a pegboard. A `peg` holder holds only things with an `outlet`.
 - **The printer profile** named by `printer` is beside the file (the CLI checks this; the core
   can't see files).
 
 Not checked yet, because they depend on holder shapes dunnage doesn't make yet: holder floors in
-the height check, the `gap` rule, holders fitting the printer's bed, and Gridfinity and pegboard
-placement.
+the height check, the `gap` rule, locked holders' shapes, holders fitting the printer's bed, and
+Gridfinity and pegboard placement. `angle_step` is a snapping rule for the UI, not a check.

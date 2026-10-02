@@ -35,7 +35,7 @@ export function readHeader(document: unknown): Header {
   if (typeof format !== "string") throw new Error("no `format:` line, so this is not a dunnage file");
 
   const [kind, version = ""] = format.split("/");
-  if (!Object.hasOwn(FORMATS, kind) || !/^\d+\.\d+$/.test(version)) {
+  if (!Object.hasOwn(FORMATS, kind) || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)) {
     throw new Error(`unknown format ${format}: dunnage reads ${Object.entries(FORMATS).map(([k, v]) => `${k}/${v}`).join(" and ")}`);
   }
   const current = FORMATS[kind as FormatKind];
@@ -57,7 +57,7 @@ export function migrate(document: Document, kind: FormatKind, version: string, m
     migrated = step.up(migrated);
     at = step.to;
   }
-  return migrated === document ? document : { ...migrated, format: `${kind}/${at}` };
+  return at === version ? document : { ...migrated, format: `${kind}/${at}` };
 }
 
 /** Compares two `major.minor` versions numerically, so 0.10 is newer than 0.2. */

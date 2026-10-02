@@ -2,7 +2,7 @@ import type { TSchema } from "typebox";
 import Value from "typebox/value";
 import { isMap, isScalar, isSeq, LineCounter, parseDocument, type Document } from "yaml";
 import { FORMATS, migrate, readHeader } from "./format.ts";
-import { Drawer, Printer, PRINTER_PRESETS } from "./schema.ts";
+import { Drawer, ID, Printer, PRINTER_PRESETS } from "./schema.ts";
 import { bounds, outline, overlap, poseName, posesOf, rectangle, samePose, writtenPose, type Part } from "./shape.ts";
 
 /** Something wrong with a file: where it is, as a path such as `layout[3].at` and a line, and what to fix. */
@@ -120,7 +120,7 @@ interface SchemaError {
   message: string;
 }
 
-const ID_PATTERN = "^[a-z0-9][a-z0-9-]*$";
+const BAD_ID = "isn't a valid id: use lower case letters, digits and hyphens";
 
 function schemaIssues(schema: TSchema, value: unknown): Issue[] {
   // TypeBox reports `additionalProperties: false` twice; the "boolean" copy says less.
@@ -247,7 +247,7 @@ function explain(error: SchemaError, root: TSchema, value: unknown): Issue[] {
         at,
         key,
         message: schema.patternProperties
-          ? `\`${key}\` isn't a valid id: use lower case letters, digits and hyphens`
+          ? `\`${key}\` ${BAD_ID}`
           : `unknown field \`${key}\`; the fields here are ${Object.keys(schema.properties ?? {}).join(", ")}`,
       }));
     }
@@ -258,7 +258,7 @@ function explain(error: SchemaError, root: TSchema, value: unknown): Issue[] {
     case "const":
       return [{ at, message: `must be ${JSON.stringify(params.allowedValue)}` }];
     case "pattern":
-      if (params.pattern === ID_PATTERN) return [{ at, message: `${JSON.stringify(valueAt(value, error.instancePath))} isn't a valid id: use lower case letters, digits and hyphens` }];
+      if (params.pattern === ID) return [{ at, message: `${JSON.stringify(valueAt(value, error.instancePath))} ${BAD_ID}` }];
   }
   return [{ at, message: error.message }];
 }

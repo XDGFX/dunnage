@@ -1,9 +1,11 @@
 import Type, { type Static, type TSchema } from "typebox";
+import { FORMATS } from "./format.ts";
 
 // The drawer/0.2 and printer/0.2 formats, as JSON Schema. docs/format/ holds the same schemas
 // written out (`bun run schema`), and the spec beside them explains each field.
 
-const ID = "^[a-z0-9][a-z0-9-]*$";
+/** Lower case letters, digits and hyphens. */
+export const ID = "^[a-z0-9][a-z0-9-]*$";
 const Id = Type.String({ pattern: ID, description: "Lower case letters, digits and hyphens." });
 const Length = Type.Number({ exclusiveMinimum: 0, description: "mm" });
 const Size2 = Type.Tuple([Length, Length]);
@@ -19,7 +21,7 @@ function map<T extends TSchema>(value: T, description: string) {
   return Type.Record(Type.String({ pattern: ID }), value, { additionalProperties: false, description });
 }
 
-const Tilt = strict({ tilt: Type.Number({ exclusiveMinimum: 0, exclusiveMaximum: 90 }) }, "On its side, raised by this many degrees.");
+const Tilt = strict({ tilt: Type.Number({ exclusiveMinimum: 0, exclusiveMaximum: 90 }) }, "Raised by this many degrees: a cylinder from lying, a box from flat towards upright.");
 const BoxPose = Type.Union([Type.Literal("flat"), Type.Literal("upright"), Type.Literal("side"), Tilt]);
 const CylinderPose = Type.Union([Type.Literal("upright"), Type.Literal("lying"), Tilt]);
 export const Pose = Type.Union([Type.Literal("flat"), Type.Literal("upright"), Type.Literal("side"), Type.Literal("lying"), Tilt]);
@@ -125,7 +127,7 @@ const Review = strict({
 });
 
 export const Drawer = strict({
-  format: Type.Literal("drawer/0.2"),
+  format: Type.Literal(`drawer/${FORMATS.drawer}` as const),
   name: Type.String(),
   printer: Type.Optional(Type.String({ description: "A printer profile, <printer>.printer.yml beside this file." })),
   drawer: strict({
@@ -159,7 +161,7 @@ export const PRINTER_PRESETS = {
 } as const satisfies Record<string, readonly [number, number, number]>;
 
 export const Printer = strict({
-  format: Type.Literal("printer/0.2"),
+  format: Type.Literal(`printer/${FORMATS.printer}` as const),
   preset: Type.Optional(Type.Union(Object.keys(PRINTER_PRESETS).map((key) => Type.Literal(key)))),
   bed: Type.Optional(Size3),
   clearance: Type.Optional(Type.Number({ minimum: 0 })),
@@ -175,11 +177,11 @@ export type Thing = Drawer["layout"][number];
 
 /** A format's schema as a standalone JSON Schema document, as published in docs/format/. */
 export function jsonSchema(kind: "drawer" | "printer"): object {
-  const name = `${kind}-0.2.schema.json`;
+  const name = `${kind}-${FORMATS[kind]}.schema.json`;
   return {
     $schema: "http://json-schema.org/draft-07/schema#",
     $id: `https://raw.githubusercontent.com/XDGFX/dunnage/main/docs/format/${name}`,
-    title: `dunnage ${kind}/0.2`,
+    title: `dunnage ${kind}/${FORMATS[kind]}`,
     description: `A dunnage ${kind} file. docs/format/${kind}.md explains each field, and the checks a schema can't express.`,
     ...(kind === "drawer" ? Drawer : Printer),
   };
