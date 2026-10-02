@@ -11,27 +11,37 @@ preset's `fit:` defaults; anyone else prints the same calibration and sets their
 Right way up, as it sits in the drawer:
 
 - **Top face:** always closed. It's what you see: a grid of holes, each with a small lead-in.
-- **Bottom:** always open, to save plastic. A boss runs down round every hole.
-- **Joining:** every tile has a rebate round the edge of its bottom, one pitch wide and
-  2.4 mm deep, in which the edge bosses stop as 2 mm stubs. A **plate** covering 2 × 2 holes
-  presses up over the stubs of two neighbouring tiles, flush with the bottom. It fits at any
-  pair of edge holes on any edge, or where four tiles meet. It's out of sight once the board is
-  in, and its holes keep the grid usable: screws and pins go through it.
+- **Bottom:** always open, to save plastic. A boss runs down round every hole, and a band runs round
+  the edge.
+- **Joining:** the edge bosses stop 1.6 mm short of the bottom. A **plate** covering 2 × 2 holes
+  across a join sits on their ends, flush with the bottom, and its four **sleeves** slide 5 mm down
+  the outside of the bosses. It fits at any pair of edge holes on any edge, or where four tiles meet,
+  out of sight. Its holes keep the grid usable: screws and pins go through it.
 
-`light` has thin bosses (0.9 mm wall) and no ribs; `standard` has 1.6 mm walls and ribs every 4
-holes; `light-thick` is `light` with a 1.2 mm wall. All three have the same 1.2 mm top face.
+The variants differ in boss wall, which sets most of the weight along with the top face:
+
+| Variant | Boss wall | Band | Ribs |
+|---|---|---|---|
+| `standard` | 1.6 mm | 3 mm | every 4 holes, along hole lines, tying the bosses together |
+| `light-thick` | 1.2 mm | 1.2 mm | none |
+| `light` | 0.9 mm (2 lines) | 1.2 mm | none |
+| `light-thin` | 0.5 mm (1 line) | 1.2 mm | none |
+
+The wall is the same whatever the hole size. Each variant is printed with a 0.6 mm (3 layers) and a
+1.2 mm (6 layers) top face.
 
 ## Printing
 
 ```sh
 bun scripts/grid-calibration.ts round-1
 # then, with round one's answers (negative fit is interference):
-bun scripts/grid-calibration.ts round-2 --variant light,3.3,0.05 --variant standard,3.4,0
+bun scripts/grid-calibration.ts round-2 --variant light,3.3,0.05,0.6 --variant standard,3.4,0,1.2
 ```
 
-STLs and a parts list (`README.md`, with copies to print and estimated weights) go to
-`out/grid-calibration/<round>/`. Every part is exported as it prints, top face down: don't rotate
-them. Labels are cone dots on the top face (the bed side). Count them.
+STLs and a parts list (`README.md`) go to `out/grid-calibration/<round>/`. The parts list gives each
+part's estimated weight, and for round one, what a full 25 × 25 tile of each variant and skin would
+weigh. Every part is exported as it prints, top face down: don't rotate them. Labels are cone dots on
+the top face (the bed side). Count them.
 
 Record the setup, since every number below depends on it:
 
@@ -43,35 +53,53 @@ Record the setup, since every number below depends on it:
 | Wall loops | default (2) |
 | Supports, brim | off, off |
 
-Check the slicer preview of the `light` bosses: the 0.9 mm wall should slice as 2 walls, not 1 wall
-and gap fill. If it doesn't, note what it does.
+In the slicer preview, check that `light` bosses slice as 2 walls and `light-thin` as 1, and that
+the 0.6 mm top face gets 3 solid layers.
 
 ## Round one
 
-Parts: two each of `holes-standard`, `holes-light` and `holes-light-thick`; one each of
-`plates-standard`, `plates-light` and `plates-light-thick`.
+Parts: `holes-<variant>-skin-0.6` and `holes-<variant>-skin-1.2` for each of the four variants, and
+`plates-<variant>` for each.
+
+### Weighing
+
+Weigh every `holes-` piece and compare it with the estimate in the parts list. The two pieces of a
+variant differ only in their top face, so they show what the skin costs; the variants show what the
+boss wall costs.
+
+| Variant | 0.6 skin: est. / weighed | 1.2 skin: est. / weighed |
+|---|---|---|
+| standard | | |
+| light-thick | | |
+| light | | |
+| light-thin | | |
 
 ### Screw pilot holes
 
-Each variant's piece has 1 (standard), 2 (light) or 3 (light-thick) dots at the back-left corner.
-The columns with 1–5 dots under them are 3.0, 3.2, 3.4, 3.6 and 3.8 mm. The middle two rows are
-ordinary bosses; the outer rows are edge bosses, which end in stubs. Drive a 4×12 wood screw into
-each. Keep the smallest that goes in without splitting the boss and bites hard.
+The variant's dots are at the back left (1 standard, 2 light-thick, 3 light, 4 light-thin), the
+skin's at the back right (1 = 0.6 mm, 2 = 1.2 mm). The middle two rows of the columns with 1–5 dots
+are 3.0, 3.2, 3.4, 3.6 and 3.8 mm. The edge holes are the nominal size, for the plates. Drive a 4×12
+wood screw into each test hole. Keep the smallest that goes in without splitting the boss and bites
+hard.
 
 | Variant | 3.0 | 3.2 | 3.4 | 3.6 | 3.8 | Chosen |
 |---|---|---|---|---|---|---|
 | standard | | | | | | |
-| light | | | | | | |
 | light-thick | | | | | | |
+| light | | | | | | |
+| light-thin | | | | | | |
 
 (Per cell: splits / bites hard / bites / spins.)
+
+Also judge the top faces: does 0.6 mm look and feel good enough, flex between bosses, or show the
+bosses through?
 
 ### Plates
 
 Lay a variant's two pieces bottom up, long edges together. Its plates are numbered 1–5 by the dots
-on their outer face:
+on their flat face:
 
-| Dots | Fit over the stubs |
+| Dots | Sleeve fit over the bosses |
 |---|---|
 | 1 | 0.05 mm interference |
 | 2 | line-to-line |
@@ -79,24 +107,25 @@ on their outer face:
 | 4 | 0.10 mm clearance |
 | 5 | 0.15 mm clearance |
 
-Press each over the join (three fit along the long edge at once). Keep the one that presses on
-firmly, holds the join without play, keeps the pieces together when lifted by one end, and can
-still be prised off.
+Press each over the join, sleeves down (three fit along the long edge at once). Keep the one that
+presses on firmly, holds the join without play, keeps the pieces together when lifted by one end,
+and can still be prised off.
 
 | Variant | 1 | 2 | 3 | 4 | 5 | Chosen |
 |---|---|---|---|---|---|---|
 | standard | | | | | | |
-| light | | | | | | |
 | light-thick | | | | | | |
+| light | | | | | | |
+| light-thin | | | | | | |
 
-Note too whether the stubs survive a few fittings, and whether 2.4 mm feels like the right depth.
+Note whether the thin bosses survive a few fittings.
 
 ## Round two
 
-Run with the variants that survived round one, each with its chosen hole and plate fit. Parts per
-variant: `pins-<variant>`, `pegs-<variant>`, 4 × `tile-8x8-<variant>`, `tile-25x25-<variant>` and
-`plates-<variant>` (10: 2 along each join of the 2 × 2 set, 1 where the four tiles meet, a spare).
-Shared: one `test-holder` per variant.
+Run with the variants that survived round one, each with its chosen hole, plate fit and skin. Parts
+per variant: `pins-<variant>`, `pegs-<variant>`, 4 × `tile-8x8-<variant>`, `tile-25x25-<variant>`
+and `plates-<variant>` (10: 2 along each join of the 2 × 2 set, 1 where the four tiles meet, a
+spare). Shared: one `test-holder` per variant.
 
 ### Pin interference
 
@@ -107,20 +136,20 @@ n dots into the column with n dots. Keep the one that's hard to pull out by hand
 
 | Variant | 0.00 | 0.05 | 0.10 | 0.15 | 0.20 | 0.25 | Chosen |
 |---|---|---|---|---|---|---|---|
-| standard | | | | | | | |
-| light | | | | | | | |
-| light-thick | | | | | | | |
+| | | | | | | | |
+| | | | | | | | |
 
 ### Print checks (#6 §10)
 
-| Check | standard | light | light-thick |
-|---|---|---|---|
-| No boss splits at the chosen hole | | | |
-| Test holder on one 4×12 resists a firm hand pull | | | |
-| A screw refits 5 times in one hole and still bites | | | |
-| The 2 × 2 set lifts as one piece by a corner | | | |
-| Holder on one screw with 1 kg doesn't move when shaken | | | |
-| `tile-25x25` weight (estimate: light 163 g, standard 252 g) | | | |
+| Check | | |
+|---|---|---|
+| Variant | | |
+| No boss splits at the chosen hole | | |
+| Test holder on one 4×12 resists a firm hand pull | | |
+| A screw refits 5 times in one hole and still bites | | |
+| The 2 × 2 set lifts as one piece by a corner | | |
+| Holder on one screw with 1 kg doesn't move when shaken | | |
+| `tile-25x25` weight, estimated / weighed | | |
 
 ### Outcome
 
@@ -131,9 +160,10 @@ n dots into the column with n dots. Keep the one that's hard to pull out by hand
 Then update #6 with the final values and close its open questions on the clip and the `light`
 boss wall. It also needs these changes, from the design decided here:
 
-- §2: every variant has a closed top face (`light` loses its web of bars), and the weights.
-- §3: plates over stubs in an edge rebate replace the clip pockets, so any tile joins to any
-  other at any edge hole, from below.
+- §2: every variant has a closed top face (`light` loses its web of bars), the skin thickness
+  chosen here, the variants kept, `standard`'s ribs on hole lines, and the weights.
+- §3: sleeved plates on the edge bosses replace the clip pockets, so any tile joins to any other at
+  any edge hole, from below.
 - §6: pegs are round with a flat, printed lying down, not upright.
 - §1's tile size: 25 × 25 (237.5 mm) fits a 256 mm bed with 10 mm of margin in total, not 10 mm a
   side.

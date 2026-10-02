@@ -26,12 +26,18 @@ describe("round one", () => {
   test("every part prints without supports and fits the bed", () => {
     const parts = roundOne(wasm);
     expect(parts.map((p) => p.name)).toEqual([
-      "holes-standard",
-      "holes-light",
-      "holes-light-thick",
+      "holes-standard-skin-0.6",
+      "holes-standard-skin-1.2",
+      "holes-light-thick-skin-0.6",
+      "holes-light-thick-skin-1.2",
+      "holes-light-skin-0.6",
+      "holes-light-skin-1.2",
+      "holes-light-thin-skin-0.6",
+      "holes-light-thin-skin-1.2",
       "plates-standard",
-      "plates-light",
       "plates-light-thick",
+      "plates-light",
+      "plates-light-thin",
     ]);
     parts.forEach(expectPrintable);
   }, 60_000);
@@ -41,8 +47,8 @@ describe("round two", () => {
   test("every part prints without supports and fits the bed, including a full 25 × 25 tile", () => {
     const parts = roundTwo(wasm, {
       variants: [
-        { variant: "light", hole: 3.3, fit: 0.05 },
-        { variant: "standard", hole: 3.4, fit: 0 },
+        { variant: "light", hole: 3.3, fit: 0.05, skin: 0.6 },
+        { variant: "standard", hole: 3.4, fit: 0, skin: 1.2 },
       ],
     });
     expect(parts.map((p) => p.name)).toEqual([
