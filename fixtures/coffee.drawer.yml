@@ -72,9 +72,9 @@ items:
 #    aside: true takes a thing out of the drawer for now. It stays in the file, and is skipped by
 #    the checks and the export.
 zones:
-  brew:     { name: Brew line, why: Along the front in the order you make a coffee, left to right. }
-  drink:    { name: Drinkware, why: Behind the brew line, so everything you drink from is in one band. }
-  crockery: { name: Crockery,  why: Heaviest against the back wall, near the runners when open. }
+  brew:     { name: Brew line, why: "Along the front in the order you make a coffee, left to right." }
+  drink:    { name: Drinkware, why: "Behind the brew line, so everything you drink from is in one band." }
+  crockery: { name: Crockery,  why: "Heaviest against the back wall, near the runners when open." }
 
 layout:
   - id: kettle
@@ -117,8 +117,8 @@ layout:
     at: [638, 110]
     why: Last step before the coffee. On edge, front to back; you pull one off the front.
 
-  - { id: glass-1, item: glass, zone: drink, pose: lying, rotate: 90, at: [200, 198], why: Lying, because 160 mm won't stand in a 150 mm drawer. }
-  - { id: glass-2, item: glass, zone: drink, pose: lying, rotate: 90, at: [370, 198], why: Beside the first, mouths the same way. }
+  - { id: glass-1, item: glass, zone: drink, pose: lying, rotate: 90, at: [200, 198], why: "Lying, because 160 mm won't stand in a 150 mm drawer." }
+  - { id: glass-2, item: glass, zone: drink, pose: lying, rotate: 90, at: [370, 198], why: "Beside the first, mouths the same way." }
   - { id: glass-3, item: glass, zone: drink, pose: lying, rotate: 90, at: [540, 198], why: Third in the drinkware band. }
   - { id: glass-4, item: glass, zone: drink, pose: lying, rotate: 90, at: [580, 275], why: No room left in the band; it sits between the bowls and the filters. See the concern below. }
 
