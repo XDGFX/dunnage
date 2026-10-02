@@ -6,17 +6,32 @@ for [#7](https://github.com/XDGFX/dunnage/issues/7). The geometry is in `src/cor
 The values found here are for one printer, filament and slicer profile. They become the `bambu-p1s`
 preset's `fit:` defaults; anyone else prints the same calibration and sets their own.
 
+## The design under test
+
+Right way up, as it sits in the drawer:
+
+- **Top face:** always closed. It's what you see: a grid of holes, each with a small lead-in.
+- **Bottom:** always open, to save plastic. A boss runs down round every hole.
+- **Joining:** every tile has a rebate round the edge of its bottom, one pitch wide and
+  2.4 mm deep, in which the edge bosses stop as 2 mm stubs. A **plate** covering 2 × 2 holes
+  presses up over the stubs of two neighbouring tiles, flush with the bottom. It fits at any
+  pair of edge holes on any edge, or where four tiles meet. It's out of sight once the board is
+  in, and its holes keep the grid usable: screws and pins go through it.
+
+`light` has thin bosses (0.9 mm wall) and no ribs; `standard` has 1.6 mm walls and ribs every 4
+holes; `light-thick` is `light` with a 1.2 mm wall. All three have the same 1.2 mm top face.
+
 ## Printing
 
 ```sh
 bun scripts/grid-calibration.ts round-1
-# then, with round one's answers:
-bun scripts/grid-calibration.ts round-2 --variant light=3.3 --variant standard=3.4 --clip bow-tie:3 --clearance 0.1
+# then, with round one's answers (negative fit is interference):
+bun scripts/grid-calibration.ts round-2 --variant light,3.3,0.05 --variant standard,3.4,0
 ```
 
-STLs and a parts list (`README.md`, with estimated weights) go to `out/grid-calibration/<round>/`.
-Every part is exported face-down, as it prints: drop the STLs in and don't rotate them. Labels are cone
-dots on the face (the bed side). Count them.
+STLs and a parts list (`README.md`, with copies to print and estimated weights) go to
+`out/grid-calibration/<round>/`. Every part is exported as it prints, top face down: don't rotate
+them. Labels are cone dots on the top face (the bed side). Count them.
 
 Record the setup, since every number below depends on it:
 
@@ -33,16 +48,15 @@ and gap fill. If it doesn't, note what it does.
 
 ## Round one
 
-Parts: `holes-standard`, `holes-light`, `holes-light-thick`, `clip-coupon-left`, `clip-coupon-right`, `clips`.
+Parts: two each of `holes-standard`, `holes-light` and `holes-light-thick`; one each of
+`plates-standard`, `plates-light` and `plates-light-thick`.
 
 ### Screw pilot holes
 
 Each variant's piece has 1 (standard), 2 (light) or 3 (light-thick) dots at the back-left corner.
-`light-thick` is `light` with a 1.2 mm boss wall instead of 0.9 mm (OD 5.8). It answers whether the
-thin wall is enough.
-
-The columns with 1–5 dots under them are 3.0, 3.2, 3.4, 3.6 and 3.8 mm, 4 holes each. Drive a 4×12 wood
-screw into each. Keep the smallest that goes in without splitting the boss and bites hard.
+The columns with 1–5 dots under them are 3.0, 3.2, 3.4, 3.6 and 3.8 mm. The middle two rows are
+ordinary bosses; the outer rows are edge bosses, which end in stubs. Drive a 4×12 wood screw into
+each. Keep the smallest that goes in without splitting the boss and bites hard.
 
 | Variant | 3.0 | 3.2 | 3.4 | 3.6 | 3.8 | Chosen |
 |---|---|---|---|---|---|---|
@@ -52,56 +66,44 @@ screw into each. Keep the smallest that goes in without splitting the boss and b
 
 (Per cell: splits / bites hard / bites / spins.)
 
-### Clips
+### Plates
 
-The coupons lie back up, edge to edge. Each has 4 pockets, numbered by the dots beside them:
+Lay a variant's two pieces bottom up, long edges together. Its plates are numbered 1–5 by the dots
+on their outer face:
 
-| Dots | Shape | Pocket depth |
-|---|---|---|
-| 1 | bow-tie | 3 mm |
-| 2 | bow-tie | 4 mm |
-| 3 | bar | 2.5 mm |
-| 4 | bar | 3.5 mm |
+| Dots | Fit over the stubs |
+|---|---|
+| 1 | 0.05 mm interference |
+| 2 | line-to-line |
+| 3 | 0.05 mm clearance |
+| 4 | 0.10 mm clearance |
+| 5 | 0.15 mm clearance |
 
-- **Bow-tie:** round heads in the gap squares either side of the join, and a neck between the edge
-  bosses. Its shape holds the tiles together; friction holds it in.
-- **Bar:** a bar across the join with a leg at each end. The legs drop into notches and snap a barb
-  into a groove. Printed on its side, so the legs flex along the layers.
+Press each over the join (three fit along the long edge at once). Keep the one that presses on
+firmly, holds the join without play, keeps the pieces together when lifted by one end, and can
+still be prised off.
 
-Each clip has its type's dots at one end and its clearance's at the other. The clearances are 0.05,
-0.10, 0.15 and 0.20 mm, under 1–4 dots. For each type, keep the clearance that:
+| Variant | 1 | 2 | 3 | 4 | 5 | Chosen |
+|---|---|---|---|---|---|---|
+| standard | | | | | | |
+| light | | | | | | |
+| light-thick | | | | | | |
 
-- holds the join without play;
-- stays in when the joined coupons are picked up and turned back down (the bow-tie has no snap, so
-  this is friction alone; the bar should click);
-- can still be prised out.
-
-The coupons are `light` only. A pocket is cut into its own solid cup, the same in every variant, so
-the fit doesn't depend on the variant. Round two's 2 × 2 sets check the chosen clip in each variant.
-
-The pockets reach 9.5 mm into the tile, past the 3 mm perimeter band in #6 §3: a clip head sits in the
-gap between four bosses, because there's no room for it between the edge bosses and the edge.
-
-| Type | 0.05 | 0.10 | 0.15 | 0.20 | Notes |
-|---|---|---|---|---|---|
-| 1 bow-tie 3 | | | | | |
-| 2 bow-tie 4 | | | | | |
-| 3 bar 2.5 | | | | | |
-| 4 bar 3.5 | | | | | |
-
-**Chosen:** shape, depth, clearance.
+Note too whether the stubs survive a few fittings, and whether 2.4 mm feels like the right depth.
 
 ## Round two
 
-Run with the variants that survived round one, each with its chosen hole. Parts per variant:
-`pins-<variant>`, `pegs-<variant>`, 4 × `tile-8x8-<variant>` and `tile-25x25-<variant>`. Shared:
-`clips` (10 per 2 × 2 set) and one `test-holder` per variant.
+Run with the variants that survived round one, each with its chosen hole and plate fit. Parts per
+variant: `pins-<variant>`, `pegs-<variant>`, 4 × `tile-8x8-<variant>`, `tile-25x25-<variant>` and
+`plates-<variant>` (10: 2 along each join of the 2 × 2 set, 1 where the four tiles meet, a spare).
+Shared: one `test-holder` per variant.
 
 ### Pin interference
 
-As in #6 §6, every hole is the chosen size and the pegs are bigger by the interference: 0.00–0.25 mm
-in 0.05 mm steps. The pegs are counted by the 1–6 rings at their top, two of each. Press the peg with
-n rings, rings up, into the column with n dots. Keep the one that's hard to pull out by hand.
+As in #6 §6, every hole is the chosen size and the pegs are bigger by the interference:
+0.00–0.25 mm in 0.05 mm steps. Pegs are round with one flat, printed lying on it so their layers
+run along their length; they're counted by the 1–6 dots on the flat, two of each. Press the peg with
+n dots into the column with n dots. Keep the one that's hard to pull out by hand.
 
 | Variant | 0.00 | 0.05 | 0.10 | 0.15 | 0.20 | 0.25 | Chosen |
 |---|---|---|---|---|---|---|---|
@@ -118,18 +120,20 @@ n rings, rings up, into the column with n dots. Keep the one that's hard to pull
 | A screw refits 5 times in one hole and still bites | | | |
 | The 2 × 2 set lifts as one piece by a corner | | | |
 | Holder on one screw with 1 kg doesn't move when shaken | | | |
-| `tile-25x25` weight (estimate: light 124 g, light-thick 154 g, standard 265 g) | | | |
+| `tile-25x25` weight (estimate: light 163 g, standard 252 g) | | | |
 
 ### Outcome
 
 - Variants kept, and the default:
-- `fit:` for the `bambu-p1s` preset: `grid_hole`, `pin_interference` (per variant, if they differ),
-  `clip_clearance`.
+- `fit:` for the `bambu-p1s` preset: `grid_hole`, `pin_interference` and the plate fit, per variant
+  where they differ.
 
-Then update #6 with the final values and close its open questions on clip shape and the `light`
-boss wall. Also:
+Then update #6 with the final values and close its open questions on the clip and the `light`
+boss wall. It also needs these changes, from the design decided here:
 
-- §2's weights;
-- §3's pockets, which sit past the band (above);
+- §2: every variant has a closed top face (`light` loses its web of bars), and the weights.
+- §3: plates over stubs in an edge rebate replace the clip pockets, so any tile joins to any
+  other at any edge hole, from below.
+- §6: pegs are round with a flat, printed lying down, not upright.
 - §1's tile size: 25 × 25 (237.5 mm) fits a 256 mm bed with 10 mm of margin in total, not 10 mm a
   side.

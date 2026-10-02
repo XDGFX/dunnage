@@ -1,7 +1,7 @@
 // Writes the grid base test prints for #7 as STLs, with a parts list.
 //
 //   bun scripts/grid-calibration.ts round-1
-//   bun scripts/grid-calibration.ts round-2 --variant light=3.3 --variant standard=3.4 --clip bow-tie:3 --clearance 0.1
+//   bun scripts/grid-calibration.ts round-2 --variant light,3.3,0.05 --variant standard,3.4,0
 //
 // Files go to out/grid-calibration/<round>/ unless --out says otherwise.
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -10,7 +10,7 @@ import { parseArgs } from "node:util";
 import Module from "manifold-3d";
 import { roundOne, roundTwo, type Part } from "../src/core/grid/calibration.ts";
 import { toStl } from "../src/core/grid/stl.ts";
-import { VARIANTS, type ClipShape, type Variant } from "../src/core/grid/tile.ts";
+import { VARIANTS, type Variant } from "../src/core/grid/tile.ts";
 
 /** g/cm³, for a rough weight before the scales say otherwise. */
 const PETG = 1.27;
@@ -20,8 +20,6 @@ const { positionals, values } = parseArgs({
   options: {
     out: { type: "string" },
     variant: { type: "string", multiple: true },
-    clip: { type: "string" },
-    clearance: { type: "string" },
   },
 });
 
@@ -35,17 +33,14 @@ let parts: Part[];
 if (round === "round-1") {
   parts = roundOne(wasm);
 } else {
+  const usage = "--variant takes <variant>,<hole mm>,<plate fit mm>, e.g. light,3.3,0.05 (negative fit is interference)";
   const variants = (values.variant ?? []).map((v) => {
-    const [variant, hole] = v.split("=");
-    if (!variant || !(variant in VARIANTS) || !Number(hole)) fail(`--variant takes <variant>=<hole mm>, e.g. light=3.3, not ${v}.`);
-    return { variant: variant as Variant, hole: Number(hole) };
+    const [variant, hole, fit] = v.split(",");
+    if (!variant || !(variant in VARIANTS) || !Number(hole) || fit === undefined || Number.isNaN(Number(fit))) fail(`${usage}, not ${v}.`);
+    return { variant: variant as Variant, hole: Number(hole), fit: Number(fit) };
   });
-  const [shape, depth] = (values.clip ?? "").split(":");
-  const clearance = Number(values.clearance);
-  if (!variants.length || (shape !== "bow-tie" && shape !== "bar") || !Number(depth) || Number.isNaN(clearance)) {
-    fail("round-2 needs --variant <variant>=<hole mm> (one or more), --clip <bow-tie|bar>:<depth mm> and --clearance <mm>.");
-  }
-  parts = roundTwo(wasm, { variants, clip: { shape: shape as ClipShape, depth: Number(depth) }, clearance });
+  if (!variants.length) fail(`round-2 needs at least one --variant. ${usage}.`);
+  parts = roundTwo(wasm, { variants });
 }
 
 const out = values.out ?? join("out", "grid-calibration", round);

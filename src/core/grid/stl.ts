@@ -36,9 +36,17 @@ export function triangle(mesh: TriangleMesh, t: number): [Vec3, Vec3, Vec3] {
 
 /** The unit normal of a counter-clockwise triangle, or zero for a degenerate one. */
 export function normal(a: Vec3, b: Vec3, c: Vec3): Vec3 {
-  const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
-  const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
-  const n: Vec3 = [u[1]! * v[2]! - u[2]! * v[1]!, u[2]! * v[0]! - u[0]! * v[2]!, u[0]! * v[1]! - u[1]! * v[0]!];
+  const n = cross(a, b, c);
   const length = Math.hypot(...n);
   return length === 0 ? [0, 0, 0] : [n[0] / length, n[1] / length, n[2] / length];
+}
+
+export function area(a: Vec3, b: Vec3, c: Vec3): number {
+  return Math.hypot(...cross(a, b, c)) / 2;
+}
+
+function cross(a: Vec3, b: Vec3, c: Vec3): Vec3 {
+  const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+  const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+  return [u[1]! * v[2]! - u[2]! * v[1]!, u[2]! * v[0]! - u[0]! * v[2]!, u[0]! * v[1]! - u[1]! * v[0]!];
 }
