@@ -25,14 +25,14 @@ export const samePose = (a: Pose, b: Pose) =>
 
 export const poseName = (pose: Pose) => (typeof pose === "string" ? pose : `{ tilt: ${pose.tilt} }`);
 
-const RAD = Math.PI / 180;
+export const RAD = Math.PI / 180;
 
 /**
  * The thing's footprint before turning, [x, y], and its height. A box is written [w, d, h]
  * flat; a cylinder [diameter, h] upright, and lying it runs front to back. A tilt is lying,
  * raised by that angle. Only the written pose stacks, each extra adding `nest` (or its height).
  */
-function footprint(item: Item, pose: Pose, stack: number): { size: Point; round: boolean; height: number } {
+export function footprint(item: Item, pose: Pose, stack: number): { size: Point; round: boolean; height: number } {
   const tilt = typeof pose === "object" ? pose.tilt * RAD : 0;
   const stacked = (height: number) => height + (stack - 1) * (item.nest ?? height);
   if ("cylinder" in item) {
@@ -62,24 +62,25 @@ export function rectangle(centre: Point, [w, d]: Point, angle = 0, offset: Point
   };
 }
 
-export function outline(thing: Thing, item: Item): Outline {
+/** The thing's outline, or with `grow`, the outline that far bigger all round. */
+export function outline(thing: Thing, item: Item, grow = 0): Outline {
   const pose = thing.pose ?? posesOf(item)[0];
   const angle = thing.rotate ?? 0;
   const { size, round, height } = footprint(item, pose, thing.stack ?? 1);
-  if (!round) return { parts: [rectangle(thing.at, size, angle)], overhang: [], height };
+  if (!round) return { parts: [rectangle(thing.at, [size[0] + 2 * grow, size[1] + 2 * grow], angle)], overhang: [], height };
 
   // A handle sits at the front at rotation 0 and a spout at the back, each reaching that far
   // past the body and 8 mm into it so the outline has no seam.
   const radius = size[0] / 2;
-  const parts: Part[] = [{ kind: "circle", centre: thing.at, radius }];
+  const parts: Part[] = [{ kind: "circle", centre: thing.at, radius: radius + grow }];
   const overhang: Part[] = [];
   if ("handle" in item && item.handle) {
     const [width, reach] = item.handle;
-    parts.push(rectangle(thing.at, [width, reach + 8], angle, [0, -(radius + reach / 2) + 4]));
+    parts.push(rectangle(thing.at, [width + 2 * grow, reach + 8 + 2 * grow], angle, [0, -(radius + reach / 2) + 4]));
   }
   if ("spout" in item && item.spout) {
     const [width, reach] = item.spout;
-    overhang.push(rectangle(thing.at, [width, reach + 8], angle, [0, radius + reach / 2 - 4]));
+    overhang.push(rectangle(thing.at, [width + 2 * grow, reach + 8 + 2 * grow], angle, [0, radius + reach / 2 - 4]));
   }
   return { parts, overhang, height };
 }
