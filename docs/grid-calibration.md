@@ -11,15 +11,13 @@ preset's `fit:` defaults; anyone else prints the same calibration and sets their
 Right way up, as it sits in the drawer:
 
 - **Top face:** always closed. It's what you see: a grid of holes, each with a small lead-in.
-- **Bottom:** always open, to save plastic. A boss runs down round every hole, and a band runs round
-  the edge.
-- **Joining:** the edge bosses stop 1.6 mm short of the bottom. A **plate** covering 2 × 2 holes
-  across a join sits on their ends, flush with the bottom, and its four **sleeves** slide 3 mm down
-  the outside of the bosses. It fits at any pair of edge holes on any edge, or where four tiles meet,
-  out of sight. Its holes keep the grid usable: screws and pins go through it.
-
-Every variant has a low **web**, 0.8 mm wide and 3 mm up from the top face, along every row and
-column of holes, tying each boss to its neighbours. The plates' sleeves stop just above it.
+- **Bottom:** always open, to save plastic. Every hole has a full-height boss, and a band runs round
+  the edge. A low **web**, 0.8 mm wide and 3 mm up from the top face, runs along every row and
+  column of holes, tying each boss to its neighbours.
+- **Joining:** a **joiner** is four rings tied by webs. Its rings slide over the ends of the four
+  bosses round a join and stop on the web, flush with the bottom. The band is cut away only where a
+  joiner's rings and webs pass through it, so a joiner fits at any pair of edge holes on any edge, or
+  where four tiles meet, and the edge bosses stay whole.
 
 The variants differ in boss wall, which sets most of the weight along with the top face:
 
@@ -30,21 +28,17 @@ The variants differ in boss wall, which sets most of the weight along with the t
 | `light` | 0.9 mm (2 lines) | 1.2 mm |
 | `light-thin` | 0.5 mm (1 line) | 1.2 mm |
 
-The wall is the same whatever the hole size. Each variant is printed with a 0.6 mm (3 layers) and a
-1.2 mm (6 layers) top face.
-
 ## Printing
 
 ```sh
 bun scripts/grid-calibration.ts round-1
-# then, with round one's answers (negative fit is interference):
-bun scripts/grid-calibration.ts round-2 --variant light,3.3,0.05,0.6 --variant standard,3.4,0,1.2
+bun scripts/grid-calibration.ts round-2 --variant light,3.3,0.6       # variant, hole, skin
+bun scripts/grid-calibration.ts round-3 --variant light,3.3,0.6,0.05  # and the joiner fit
 ```
 
-STLs and a parts list (`README.md`) go to `out/grid-calibration/<round>/`. The parts list gives each
-part's estimated weight, and for round one, what a full 25 × 25 tile of each variant and skin would
-weigh. Every part is exported as it prints, top face down: don't rotate them. Labels are cone dots on
-the top face (the bed side). Count them.
+STLs and a parts list (`README.md`, with estimated weights) go to `out/grid-calibration/<round>/`.
+Every part is exported as it prints: don't rotate them. Labels are cone dots on the top face (the
+bed side), or notches on a joiner's ring. Count them.
 
 Record the setup, since every number below depends on it:
 
@@ -56,53 +50,45 @@ Record the setup, since every number below depends on it:
 | Wall loops | default (2) |
 | Supports, brim | off, off |
 
-In the slicer preview, check that `light` bosses slice as 2 walls and `light-thin` as 1, and that
-the 0.6 mm top face gets 3 solid layers.
+In the slicer preview, check that the 0.5 mm wall slices as 1 line, the 0.9 mm as 2, and the 0.6 mm
+top face as 3 solid layers.
 
-## Round one
+## Round one: hole and wall
 
-Parts: `holes-<variant>-skin-0.6` and `holes-<variant>-skin-1.2` for each of the four variants, and
-`plates-<variant>` for each.
+Two strips, about 3 g in all.
 
-### Weighing
+- **`screw-holes`:** 5 holes in a 0.9 mm wall, 3.0, 3.2, 3.4, 3.6 and 3.8 mm by the 1–5 dots
+  beside them, under a 1.2 mm top face. Drive a 4×12 wood screw into each. Keep the smallest that
+  goes in without splitting the boss and bites hard.
+- **`boss-walls`:** 3 bosses round a 3.3 mm hole, 0.5, 0.9 and 1.2 mm walls by the 1–3 dots,
+  under a 0.6 mm top face. Drive a screw into each, take it out and put it back. Keep the thinnest
+  that doesn't split and still bites.
 
-Weigh every `holes-` piece and compare it with the estimate in the parts list. The two pieces of a
-variant differ only in their top face, so they show what the skin costs; the variants show what the
-boss wall costs.
+Between them the strips also show both top faces. The parts list estimates a full 25 × 25 tile for
+each wall and skin, to weigh against how they feel.
 
-| Variant | 0.6 skin: est. / weighed | 1.2 skin: est. / weighed |
-|---|---|---|
-| standard | | |
-| light-thick | | |
-| light | | |
-| light-thin | | |
+| Hole | 3.0 | 3.2 | 3.4 | 3.6 | 3.8 |
+|---|---|---|---|---|---|
+| Result | | | | | |
 
-### Screw pilot holes
-
-The variant's dots are at the back left (1 standard, 2 light-thick, 3 light, 4 light-thin), the
-skin's at the back right (1 = 0.6 mm, 2 = 1.2 mm). In the middle row, the holes above 1–5 dots
-are 3.0, 3.2, 3.4, 3.6 and 3.8 mm: one of each per piece, two per variant. The edge holes are the
-nominal size, for the plates. Drive a 4×12 wood screw into each test hole. Keep the smallest that
-goes in without splitting the boss and bites hard.
-
-| Variant | 3.0 | 3.2 | 3.4 | 3.6 | 3.8 | Chosen |
-|---|---|---|---|---|---|---|
-| standard | | | | | | |
-| light-thick | | | | | | |
-| light | | | | | | |
-| light-thin | | | | | | |
+| Wall | 0.5 | 0.9 | 1.2 |
+|---|---|---|---|
+| Result | | | |
 
 (Per cell: splits / bites hard / bites / spins.)
 
-Also judge the top faces: does 0.6 mm look and feel good enough, flex between bosses, or show the
-bosses through?
+**Chosen:** wall (and so the variant), hole, skin.
 
-### Plates
+## Round two: joiner fit and pins
 
-Lay a variant's two pieces bottom up, long edges together. Its plates are numbered 1–5 by the dots
-on their flat face:
+For the chosen variant: two small `joiner-tile`s, five `joiners` at different fits, a `pins` strip
+and its `pegs`. The joiner's fit depends on the wall, so it waits for round one.
 
-| Dots | Sleeve fit over the bosses |
+### Joiner fit
+
+The notches round the end of one ring count the fit:
+
+| Notches | Ring fit over the bosses |
 |---|---|
 | 1 | 0.05 mm interference |
 | 2 | line-to-line |
@@ -110,64 +96,51 @@ on their flat face:
 | 4 | 0.10 mm clearance |
 | 5 | 0.15 mm clearance |
 
-Press each over the join, sleeves down (three fit along the long edge at once). Keep the one that
-presses on firmly, holds the join without play, keeps the pieces together when lifted by one end,
-and can still be prised off.
+Lay the two tiles back up, long edges together, and press each joiner over the join. Keep the one
+that goes on firmly, holds without play, keeps the tiles together when lifted by one, and can still
+be prised off.
 
-| Variant | 1 | 2 | 3 | 4 | 5 | Chosen |
-|---|---|---|---|---|---|---|
-| standard | | | | | | |
-| light-thick | | | | | | |
-| light | | | | | | |
-| light-thin | | | | | | |
-
-Note whether the thin bosses survive a few fittings.
-
-## Round two
-
-Run with the variants that survived round one, each with its chosen hole, plate fit and skin. Parts
-per variant: `pins-<variant>`, `pegs-<variant>`, 4 × `tile-8x8-<variant>`, `tile-25x25-<variant>`
-and `plates-<variant>` (10: 2 along each join of the 2 × 2 set, 1 where the four tiles meet, a
-spare). Shared: one `test-holder` per variant.
+| Fit | 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|
+| Result | | | | | |
 
 ### Pin interference
 
 As in #6 §6, every hole is the chosen size and the pegs are bigger by the interference:
 0.00–0.25 mm in 0.05 mm steps. Pegs are round with one flat, printed lying on it so their layers
 run along their length; they're counted by the 1–6 dots on the flat, two of each. Press the peg with
-n dots into the column with n dots. Keep the one that's hard to pull out by hand.
+n dots into the hole with n dots. Keep the one that's hard to pull out by hand.
 
-| Variant | 0.00 | 0.05 | 0.10 | 0.15 | 0.20 | 0.25 | Chosen |
-|---|---|---|---|---|---|---|---|
-| | | | | | | | |
-| | | | | | | | |
+| Interference | 0.00 | 0.05 | 0.10 | 0.15 | 0.20 | 0.25 |
+|---|---|---|---|---|---|---|
+| Result | | | | | | |
 
-### Print checks (#6 §10)
+## Round three: the whole thing
 
-| Check | | |
-|---|---|---|
-| Variant | | |
-| No boss splits at the chosen hole | | |
-| Test holder on one 4×12 resists a firm hand pull | | |
-| A screw refits 5 times in one hole and still bites | | |
-| The 2 × 2 set lifts as one piece by a corner | | |
-| Holder on one screw with 1 kg doesn't move when shaken | | |
-| `tile-25x25` weight, estimated / weighed | | |
+For the chosen variant and fit: four `tile-8x8`s and their `joiners` (10: 2 along each join, 1
+where the four tiles meet, a spare), a `tile-25x25` to weigh, and a `test-holder`.
 
-### Outcome
+| Check (#6 §10) | Result |
+|---|---|
+| No boss splits at the chosen hole | |
+| Test holder on one 4×12 resists a firm hand pull | |
+| A screw refits 5 times in one hole and still bites | |
+| The 2 × 2 set lifts as one piece by a corner | |
+| Holder on one screw with 1 kg doesn't move when shaken | |
+| `tile-25x25` weight, estimated / weighed | |
 
-- Variants kept, and the default:
-- `fit:` for the `bambu-p1s` preset: `grid_hole`, `pin_interference` and the plate fit, per variant
-  where they differ.
+## Outcome
+
+- The variant, and the default:
+- `fit:` for the `bambu-p1s` preset: `grid_hole`, `pin_interference` and the joiner fit.
 
 Then update #6 with the final values and close its open questions on the clip and the `light`
 boss wall. It also needs these changes, from the design decided here:
 
-- §2: every variant has a closed top face (the spec's `light` had none), the skin thickness
-  chosen here, the variants kept, the low web along every row and column in place of ribs, and the
-  weights.
-- §3: sleeved plates on the edge bosses replace the clip pockets, so any tile joins to any other at
-  any edge hole, from below.
+- §2: every variant has a closed top face (the spec's `light` had none), the skin thickness chosen
+  here, the variants kept, the low web along every row and column in place of ribs, and the weights.
+- §3: joiners over the edge bosses replace the clip pockets, so any tile joins to any other at any
+  edge hole, from below.
 - §6: pegs are round with a flat, printed lying down, not upright.
 - §1's tile size: 25 × 25 (237.5 mm) fits a 256 mm bed with 10 mm of margin in total, not 10 mm a
   side.

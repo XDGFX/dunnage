@@ -1,13 +1,12 @@
 import type { Manifold, ManifoldToplevel } from "manifold-3d";
-import { PITCH, VARIANTS, faceDots, holeCentre, onBed, seatedPlate, tile, type Dots, type Variant } from "./tile.ts";
+import { JOINER, PITCH, VARIANTS, faceDots, holeCentre, onBed, seatedJoiner, tile, type Dots, type Variant } from "./tile.ts";
 
-// Test prints for #7, which settle the open numbers in the grid spec (#6 §7). Labels are cone
-// dots on the face: count them.
+// Test prints for #7, which settle the open numbers in the grid spec (#6 §7), each round as small
+// as it can be. Labels are cone dots on the top face: count them.
 //
-// Round one: screw pilot holes for each boss wall, and plate fits. Two of each hole-test tile, so
-// they can be joined with the plates.
-// Round two, once round one has chosen a hole size and plate fit per variant: pin interference,
-// 2 × 2 tile sets for the handling tests, a full tile per variant to weigh, and a test holder.
+// Round one: a strip of screw pilot holes, and a strip of boss walls.
+// Round two, with a wall and hole chosen: the joiner's fit, and pin interference.
+// Round three, with a joiner fit chosen: a 2 × 2 set, a full tile to weigh, and a test holder.
 
 export interface Part {
   name: string;
@@ -19,13 +18,17 @@ export interface Part {
 }
 
 export const PILOT_HOLES = [3.0, 3.2, 3.4, 3.6, 3.8];
-/** Each variant's starting hole, from #6, for holes that aren't under test. */
-export const NOMINAL_HOLE: Record<Variant, number> = { standard: 3.4, "light-thick": 3.3, light: 3.3, "light-thin": 3.3 };
-const VARIANT_DOTS: Record<Variant, number> = { standard: 1, "light-thick": 2, light: 3, "light-thin": 4 };
-/** Top face thicknesses to compare: 3 and 6 layers at 0.2 mm. */
-export const SKINS = [0.6, 1.2];
-/** Radial clearance of a plate's sleeves over the bosses; negative is interference. */
-export const PLATE_FITS = [-0.05, 0, 0.05, 0.1, 0.15];
+/** The pilot strip's wall, and the wall strip's hole: #6's starting point for `light`. */
+const PILOT_WALL = 0.9;
+const WALL_HOLE = 3.3;
+/** The boss walls to compare, and the variant each becomes. */
+export const WALLS: [number, Variant][] = [
+  [0.5, "light-thin"],
+  [0.9, "light"],
+  [1.2, "light-thick"],
+];
+/** Radial clearance of a joiner's rings over the bosses; negative is interference. */
+export const JOINER_FITS = [-0.05, 0, 0.05, 0.1, 0.15];
 export const PIN_INTERFERENCES = [0, 0.05, 0.1, 0.15, 0.2, 0.25];
 const PEG_LENGTH = 14;
 const PEG_CHAMFER = 0.4;
@@ -40,130 +43,145 @@ const SCREW_CLEARANCE = 4.5;
 
 export const variantList = Object.keys(VARIANTS) as Variant[];
 
-/**
- * A 3-row tile with a column per test value, labelled 1, 2, 3… dots along the front. One test
- * hole per value, in the middle row; the edge holes keep `hole`, so plates fit them. The back band
- * carries the variant's dots at the left and the skin's at the right (1 = thinnest). Dots sit over
- * the band, which runs full height, so they never go through a thin skin.
- */
-function columnTest(wasm: ManifoldToplevel, variant: Variant, hole: number, testHoles: number[], skin: number): Manifold {
-  const ny = 3;
-  const nx = testHoles.length + 2;
-  const band = VARIANTS[variant].band / 2;
+/** A single row of holes, labelled 1, 2, 3… dots beside them. It never joins, so its band stays whole. */
+function strip(wasm: ManifoldToplevel, count: number, hole: (i: number) => number, wall: (i: number) => number, skin: number): Manifold {
+  const band = VARIANTS.light.band / 2;
   return tile(wasm, {
-    variant,
-    nx,
-    ny,
+    variant: "light",
+    nx: count,
+    ny: 1,
+    hole: (i) => hole(i),
+    wall: (i) => wall(i),
     skin,
-    hole: (i, j) => (j > 0 && j < ny - 1 ? (testHoles[i - 1] ?? hole) : hole),
-    dots: [
-      ...testHoles.map((_, n): Dots => ({ at: [holeCentre(n + 1), band], count: n + 1 })),
-      { at: [holeCentre(0), ny * PITCH - band], count: VARIANT_DOTS[variant] },
-      { at: [holeCentre(nx - 1), ny * PITCH - band], count: SKINS.indexOf(skin) + 1 },
-    ],
+    joiners: false,
+    dots: Array.from({ length: count }, (_, n): Dots => ({ at: [holeCentre(n), band], count: n + 1 })),
   });
 }
 
 export function roundOne(wasm: ManifoldToplevel): Part[] {
-  const holeTests = variantList.flatMap((variant) =>
-    SKINS.map(
-      (skin): Part => ({
-        name: `holes-${variant}-skin-${skin}`,
-        solid: columnTest(wasm, variant, NOMINAL_HOLE[variant], PILOT_HOLES, skin),
-        copies: 1,
-        note:
-          `Screw pilot holes in the ${variant} boss wall (${VARIANTS[variant].wall} mm), with a ${skin} mm top face. ` +
-          `${dots(VARIANT_DOTS[variant])} at the back left for the variant, ${dots(SKINS.indexOf(skin) + 1)} at the back right for the skin. ` +
-          `In the middle row, the holes above 1–5 dots are ${PILOT_HOLES.map((d) => d.toFixed(1)).join(", ")} mm. ` +
-          "Drive a 4×12 wood screw into each; keep the smallest that goes in without splitting the boss and bites hard. " +
-          `Then join it to the other ${variant} piece with the plates.`,
-      }),
-    ),
-  );
-  const plates = variantList.map(
-    (variant): Part => ({
-      name: `plates-${variant}`,
-      solid: arrange(
+  return [
+    {
+      name: "screw-holes",
+      solid: strip(
         wasm,
-        PLATE_FITS.map((fit, n) => printPlate(wasm, variant, NOMINAL_HOLE[variant], fit, n + 1)),
-        5,
+        PILOT_HOLES.length,
+        (i) => PILOT_HOLES[i]!,
+        () => PILOT_WALL,
+        1.2,
       ),
       copies: 1,
       note:
-        `Plates to join the two ${variant} pieces, one per fit, by the dots on the plate's outer face: ` +
-        PLATE_FITS.map((fit, n) => `${n + 1} = ${describeFit(fit)}`).join(", ") +
-        ". Keep the one that presses on firmly, holds the join without play, and can still be prised off.",
-    }),
-  );
-  return [...holeTests, ...plates];
+        `Screw pilot holes in a ${PILOT_WALL} mm boss wall, under a 1.2 mm top face: ` +
+        PILOT_HOLES.map((d, n) => `${n + 1} = ${d.toFixed(1)} mm`).join(", ") +
+        ". Drive a 4×12 wood screw into each; keep the smallest that goes in without splitting the boss and bites hard.",
+    },
+    {
+      name: "boss-walls",
+      solid: strip(
+        wasm,
+        WALLS.length,
+        () => WALL_HOLE,
+        (i) => WALLS[i]![0],
+        0.6,
+      ),
+      copies: 1,
+      note:
+        `Boss walls round a ${WALL_HOLE} mm hole, under a 0.6 mm top face: ` +
+        WALLS.map(([wall, variant], n) => `${n + 1} = ${wall} mm (${variant})`).join(", ") +
+        ". Drive a 4×12 wood screw into each, take it out and put it back; keep the thinnest that doesn't split and still bites.",
+    },
+  ];
 }
 
-const dots = (n: number) => `${n} dot${n > 1 ? "s" : ""}`;
-
-export interface RoundTwoOptions {
-  /** The variants that survived round one, each with its chosen hole size, plate fit and skin. */
-  variants: { variant: Variant; hole: number; fit: number; skin: number }[];
+export interface Choice {
+  variant: Variant;
+  hole: number;
+  skin: number;
 }
 
-export function roundTwo(wasm: ManifoldToplevel, { variants }: RoundTwoOptions): Part[] {
-  // A 2 × 2 set of 8 × 8 tiles has 4 tile edges meeting along its joins: 2 plates on each, and one
-  // where the four tiles meet. Plus a spare.
-  const platesPerSet = 4 * 2 + 1 + 1;
-  const perVariant = variants.flatMap(({ variant, hole, fit, skin }): Part[] => {
+export function roundTwo(wasm: ManifoldToplevel, choices: Choice[]): Part[] {
+  return choices.flatMap(({ variant, hole, skin }): Part[] => {
     // As in #6 §6: the hole stays at the calibrated size and the peg is bigger by the interference.
     const pegs = PIN_INTERFERENCES.flatMap((interference, n) => [0, 1].map(() => pegShape(wasm, toMicron(hole + interference), n + 1)));
     return [
       {
-        name: `pins-${variant}`,
-        solid: columnTest(
+        name: `joiner-tile-${variant}`,
+        solid: tile(wasm, { variant, nx: 2, ny: 3, hole, skin }),
+        copies: 2,
+        note: `Two small ${variant} tiles to join along their long edges, back up.`,
+      },
+      {
+        name: `joiners-${variant}`,
+        solid: arrange(
           wasm,
-          variant,
-          hole,
-          PIN_INTERFERENCES.map(() => hole),
+          JOINER_FITS.map((fit, n) => printJoiner(wasm, variant, hole, fit, n + 1)),
+          5,
+        ),
+        copies: 1,
+        note:
+          `One joiner per fit, by the notches round the end of one ring: ` +
+          JOINER_FITS.map((fit, n) => `${n + 1} = ${describeFit(fit)}`).join(", ") +
+          ". Press each over the join; keep the one that goes on firmly, holds without play, keeps the tiles together when lifted by one, and can still be prised off.",
+      },
+      {
+        name: `pins-${variant}`,
+        solid: strip(
+          wasm,
+          PIN_INTERFERENCES.length,
+          () => hole,
+          () => VARIANTS[variant].wall,
           skin,
         ),
         copies: 1,
-        note: `${hole} mm pin holes in ${variant}, a column for each peg size: put the peg with n dots in the column with n dots.`,
+        note: `${hole} mm pin holes in ${variant}: put the peg with n dots in the hole with n dots.`,
       },
       {
         name: `pegs-${variant}`,
         solid: arrange(wasm, pegs, 2),
         copies: 1,
         note:
-          `Two pegs of each size for pins-${variant}, ${PEG_LENGTH} mm long, counted by the dots on the flat: ` +
+          `Two pegs of each size, ${PEG_LENGTH} mm long, counted by the dots on the flat: ` +
           PIN_INTERFERENCES.map((v, n) => `${n + 1} = ${toMicron(hole + v)} mm (${v.toFixed(2)} interference)`).join(", ") +
           ". Press each into its hole; keep the one that's hard to pull out by hand.",
       },
-      {
-        name: `tile-8x8-${variant}`,
-        solid: tile(wasm, { variant, nx: 8, ny: 8, hole, skin }),
-        copies: 4,
-        note: `Four make the 2 × 2 set for ${variant}: lift by a corner, refit a screw 5 times, shake with a 1 kg holder.`,
-      },
-      {
-        name: `tile-25x25-${variant}`,
-        solid: tile(wasm, { variant, nx: 25, ny: 25, hole, skin }),
-        copies: 1,
-        note: `A full-size ${variant} tile, to weigh.`,
-      },
-      {
-        name: `plates-${variant}`,
-        solid: arrange(
-          wasm,
-          Array.from({ length: platesPerSet }, () => printPlate(wasm, variant, hole, fit)),
-          5,
-        ),
-        copies: 1,
-        note: `${platesPerSet} plates at ${describeFit(fit)} for the ${variant} 2 × 2 set: 2 along each join, 1 where the four tiles meet, and a spare.`,
-      },
     ];
   });
+}
+
+export function roundThree(wasm: ManifoldToplevel, choices: (Choice & { fit: number })[]): Part[] {
+  // A 2 × 2 set of 8 × 8 tiles has 4 tile edges meeting along its joins: 2 joiners on each, and one
+  // where the four tiles meet. Plus a spare.
+  const joinersPerSet = 4 * 2 + 1 + 1;
+  const perVariant = choices.flatMap(({ variant, hole, skin, fit }): Part[] => [
+    {
+      name: `tile-8x8-${variant}`,
+      solid: tile(wasm, { variant, nx: 8, ny: 8, hole, skin }),
+      copies: 4,
+      note: `Four make the 2 × 2 set for ${variant}: lift by a corner, refit a screw 5 times, shake with a 1 kg holder.`,
+    },
+    {
+      name: `joiners-${variant}`,
+      solid: arrange(
+        wasm,
+        Array.from({ length: joinersPerSet }, () => printJoiner(wasm, variant, hole, fit)),
+        5,
+      ),
+      copies: 1,
+      note: `${joinersPerSet} joiners at ${describeFit(fit)} for the 2 × 2 set: 2 along each join, 1 where the four tiles meet, and a spare.`,
+    },
+    {
+      name: `tile-25x25-${variant}`,
+      solid: tile(wasm, { variant, nx: 25, ny: 25, hole, skin }),
+      copies: 1,
+      note: `A full-size ${variant} tile, to weigh.`,
+    },
+  ]);
   return [
     ...perVariant,
     {
       name: "test-holder",
       solid: testHolder(wasm),
-      copies: variants.length,
+      copies: choices.length,
       note: `A holder for one 4×12 screw, with a ${FLANGE} mm flange and a loop to hang 1 kg from.`,
     },
   ];
@@ -175,15 +193,23 @@ export function describeFit(fit: number): string {
 }
 
 /**
- * A plate turned over to print: its outer face, flush with the back in use, on the bed and carrying
- * the dots, with the sleeves standing up from it.
+ * A joiner turned over to print: its flat side, flush with the back in use, on the bed, and its rings
+ * standing up. The webs are too small for dots, so `notches` V-notches round the end of one ring
+ * label it.
  */
-function printPlate(wasm: ManifoldToplevel, variant: Variant, hole: number, fit: number, count = 0): Manifold {
-  const flat = onBed(seatedPlate(wasm, variant, hole, fit).rotate([180, 0, 0]));
-  if (!count) return flat;
-  const { max } = flat.boundingBox();
-  // In the middle, between the four holes.
-  return flat.subtract(faceDots(wasm, { at: [max[0] / 2, max[1] / 2], count, spacing: 1.25 }));
+export function printJoiner(wasm: ManifoldToplevel, variant: Variant, hole: number, fit: number, notches = 0): Manifold {
+  const { Manifold } = wasm;
+  let seated = seatedJoiner(wasm, variant, hole, fit);
+  if (notches) {
+    const { min } = seated.boundingBox();
+    const radius = hole / 2 + VARIANTS[variant].wall + fit + JOINER.wall / 2;
+    const side = 0.6;
+    // A square prism on its edge, along a radius, cuts a 45° V across the ring's end.
+    const notch = Manifold.cube([JOINER.wall + 2, side, side], true).rotate([45, 0, 0]).translate([radius, 0, min[2]]);
+    const cuts = Array.from({ length: notches }, (_, n) => notch.rotate([0, 0, (360 * n) / notches + 45]).translate([-PITCH / 2, -PITCH / 2, 0]));
+    seated = seated.subtract(Manifold.union(cuts));
+  }
+  return onBed(seated.rotate([180, 0, 0]));
 }
 
 /**

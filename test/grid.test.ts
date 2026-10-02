@@ -1,7 +1,7 @@
 import Module, { type Manifold } from "manifold-3d";
 import { beforeAll, describe, expect, test } from "vitest";
 import { overhangs } from "../src/core/grid/printability.ts";
-import { PITCH, PLATE, THICKNESS, VARIANTS, WEB, holeCentre, seatedPlate, tile, type Variant } from "../src/core/grid/tile.ts";
+import { JOINER, PITCH, THICKNESS, VARIANTS, WEB, holeCentre, seatedJoiner, tile, type Variant } from "../src/core/grid/tile.ts";
 
 type Wasm = Awaited<ReturnType<typeof Module>>;
 let wasm: Wasm;
@@ -63,6 +63,16 @@ describe("tile", () => {
     }
   });
 
+  test("a boss's wall can be set hole by hole", () => {
+    const walls = [0.5, 0.9, 1.2];
+    const part = tile(wasm, { variant: "light", nx: 3, ny: 1, hole: HOLE, wall: (i) => walls[i]!, joiners: false });
+    walls.forEach((wall, i) => {
+      const outer = HOLE / 2 + wall;
+      expect(solidIn(part, holeCentre(i), holeCentre(0), outer - 0.15, outer - 0.05, WEB.height + 0.1)).toBeGreaterThan(0);
+      expect(solidIn(part, holeCentre(i), holeCentre(0), outer + 0.05, outer + 0.15, WEB.height + 0.1)).toBe(0);
+    });
+  });
+
   test.each(variants)("a %s tile has a low, thin web along every row and column, joining the bosses", (variant) => {
     const part = tile(wasm, { variant, nx: 6, ny: 6, hole: HOLE, skin: 0.6 });
     const w = WEB.width;
@@ -78,14 +88,13 @@ describe("tile", () => {
     }
   });
 
-  test.each(variants)("a %s tile's web runs whole to the edge bosses, clear of the plates' sleeves", (variant) => {
+  test.each(variants)("a %s tile's web runs whole to the edge bosses", (variant) => {
     const part = tile(wasm, { variant, nx: 6, ny: 6, hole: HOLE, skin: 0.6 });
     const r = HOLE / 2 + VARIANTS[variant].wall;
     const w = WEB.width;
     // Along column 3, from the edge boss in row 0 to the boss in row 1, at full web height.
     const [y0, y1] = [holeCentre(0) + r - 0.1, holeCentre(1) - r + 0.1];
     expect(solidInBox(part, [holeCentre(3) - w / 2, y0, WEB.height - 0.5], [holeCentre(3) + w / 2, y1, WEB.height])).toBeCloseTo(w * (y1 - y0) * 0.5);
-    expect(THICKNESS - PLATE.thickness - PLATE.sleeve).toBeGreaterThan(WEB.height);
   });
 
   test.each([0.6, 1.2])("the top face is closed, %f mm thick", (skin) => {
@@ -96,21 +105,39 @@ describe("tile", () => {
     expect(solidInBox(part, [at - 0.5, at - 0.5, skin + 0.01], [at + 0.5, at + 0.5, THICKNESS])).toBe(0);
   });
 
-  test.each(variants)("a %s tile's edge bosses stop short of the back, with room round them for a plate's sleeves", (variant) => {
+  test.each(variants)("every %s boss runs the full height, edge bosses included", (variant) => {
     const part = tile(wasm, { variant, nx: 6, ny: 6, hole: HOLE });
     const r = HOLE / 2 + VARIANTS[variant].wall;
-    const seat = THICKNESS - PLATE.thickness;
-    const sleeveBottom = seat - PLATE.sleeve;
-    // An edge boss: solid to the seat, nothing above it, and a clear ring round it down to the sleeve's depth.
-    expect(solidIn(part, holeCentre(3), holeCentre(0), r - 0.3, r - 0.1, sleeveBottom, seat)).toBeGreaterThan(0);
-    expect(solidIn(part, holeCentre(3), holeCentre(0), 0, r + 0.5, seat + 0.01, THICKNESS)).toBe(0);
-    expect(solidIn(part, holeCentre(3), holeCentre(0), r + 0.01, r + PLATE.wall + 0.2, sleeveBottom + 0.01, THICKNESS)).toBeLessThan(1e-6);
-    // An inner boss runs full height.
-    expect(solidIn(part, holeCentre(3), holeCentre(3), r - 0.3, r - 0.1, seat, THICKNESS)).toBeGreaterThan(0);
+    for (const [i, j] of [
+      [3, 0],
+      [0, 0],
+      [3, 3],
+    ] as const) {
+      expect(solidIn(part, holeCentre(i), holeCentre(j), r - 0.3, r - 0.1, THICKNESS - 0.5, THICKNESS)).toBeGreaterThan(0);
+    }
+  });
+
+  test.each(variants)("a %s tile's band is cut only where a joiner passes through it", (variant) => {
+    const nx = 6;
+    const part = tile(wasm, { variant, nx, ny: 6, hole: HOLE });
+    // The band, short of the edge bosses, which stay whole where the band runs into them.
+    const { band, wall } = VARIANTS[variant];
+    const reach = Math.min(band, holeCentre(0) - HOLE / 2 - wall) - 0.1;
+    const inBand = (x: number, z0: number, z1: number) => solidInBox(part, [x - 0.2, 0.1, z0], [x + 0.2, reach, z1]);
+    // Between two edge holes, on a gap line, the band runs full height.
+    expect(inBand(PITCH * 3, THICKNESS - 0.5, THICKNESS)).toBeGreaterThan(0);
+    // On a hole line, a slot for the joiner's web comes down from the back, and the band carries on below it.
+    expect(inBand(holeCentre(3), THICKNESS - JOINER.webHeight + 0.01, THICKNESS)).toBe(0);
+    expect(inBand(holeCentre(3), WEB.height, THICKNESS - JOINER.webHeight - 0.01)).toBeGreaterThan(0);
+  });
+
+  test("a tile can leave the joiner cut-outs out, for a test piece", () => {
+    const part = tile(wasm, { variant: "light", nx: 3, ny: 1, hole: HOLE, joiners: false });
+    expect(solidInBox(part, [holeCentre(1) - 0.2, 0.1, THICKNESS - 0.5], [holeCentre(1) + 0.2, 1.1, THICKNESS])).toBeGreaterThan(0);
   });
 });
 
-describe("plates", () => {
+describe("joiners", () => {
   // Two tiles side by side, joined along x = nx * PITCH.
   const nx = 4;
   const ny = 6;
@@ -119,40 +146,41 @@ describe("plates", () => {
     return [left, left.translate([nx * PITCH, 0, 0])] as const;
   };
 
-  test.each(variants)("a %s plate sits flush on the edge bosses either side of a join, at any pair of edge holes", (variant) => {
+  test.each(variants)("a %s joiner sits over the bosses either side of a join, flush, at any pair of edge holes", (variant) => {
     const [left, right] = pair(variant);
     for (const j of [0, 2, 4]) {
-      // A plate is centred on the corner between 4 holes: the join, and the gap line between holes j and j + 1.
-      const plate = seatedPlate(wasm, variant, HOLE, 0).translate([nx * PITCH, (j + 1) * PITCH, 0]);
-      expect(plate.status()).toBe("NoError");
-      expect(plate.boundingBox().max[2]).toBeCloseTo(THICKNESS);
-      expect(plate.boundingBox().min[2]).toBeCloseTo(THICKNESS - PLATE.thickness - PLATE.sleeve);
-      expect(plate.intersect(left).volume()).toBeLessThan(1e-3);
-      expect(plate.intersect(right).volume()).toBeLessThan(1e-3);
+      // A joiner is centred on the corner between 4 holes: the join, and the gap line between holes j and j + 1.
+      const joiner = seatedJoiner(wasm, variant, HOLE, 0).translate([nx * PITCH, (j + 1) * PITCH, 0]);
+      expect(joiner.status()).toBe("NoError");
+      expect(joiner.boundingBox().max[2]).toBeCloseTo(THICKNESS);
+      // Its rings come down onto the tile's web.
+      expect(joiner.boundingBox().min[2]).toBeCloseTo(WEB.height);
+      expect(joiner.intersect(left).volume()).toBeLessThan(1e-3);
+      expect(joiner.intersect(right).volume()).toBeLessThan(1e-3);
     }
   });
 
-  test("a plate with interference grips the bosses, and one with clearance doesn't touch them", () => {
+  test("a joiner with interference grips the bosses, and one with clearance doesn't touch them", () => {
     const [left, right] = pair("standard");
-    const at = (fit: number) => seatedPlate(wasm, "standard", HOLE, fit).translate([nx * PITCH, 2 * PITCH, 0]);
+    const at = (fit: number) => seatedJoiner(wasm, "standard", HOLE, fit).translate([nx * PITCH, 2 * PITCH, 0]);
     expect(at(-0.05).intersect(left.add(right)).volume()).toBeGreaterThan(0);
     expect(at(0.1).intersect(left.add(right)).volume()).toBeLessThan(1e-6);
   });
 
-  test("a plate leaves the holes clear for a screw or pin", () => {
-    const plate = seatedPlate(wasm, "standard", HOLE, 0);
+  test("a joiner leaves the holes clear for a screw or pin", () => {
+    const joiner = seatedJoiner(wasm, "standard", HOLE, 0);
     for (const [x, y] of [
       [-PITCH / 2, -PITCH / 2],
       [PITCH / 2, PITCH / 2],
     ] as const) {
-      expect(solidIn(plate, x, y, 0, HOLE / 2, 0, THICKNESS)).toBe(0);
+      expect(solidIn(joiner, x, y, 0, HOLE / 2, 0, THICKNESS)).toBe(0);
     }
   });
 
-  test("a plate fits where four tiles meet", () => {
+  test("a joiner fits where four tiles meet", () => {
     const one = tile(wasm, { variant: "light", nx, ny: nx, hole: HOLE });
     const four = wasm.Manifold.union([0, 1].flatMap((a) => [0, 1].map((b) => one.translate([a * nx * PITCH, b * nx * PITCH, 0]))));
-    const plate = seatedPlate(wasm, "light", HOLE, 0).translate([nx * PITCH, nx * PITCH, 0]);
-    expect(plate.intersect(four).volume()).toBeLessThan(1e-3);
+    const joiner = seatedJoiner(wasm, "light", HOLE, 0).translate([nx * PITCH, nx * PITCH, 0]);
+    expect(joiner.intersect(four).volume()).toBeLessThan(1e-3);
   });
 });

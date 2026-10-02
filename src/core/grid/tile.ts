@@ -2,13 +2,14 @@ import type { CrossSection, Manifold, ManifoldToplevel, Vec2 } from "manifold-3d
 
 // The `grid` base from #6: a board of through holes on a 9.5 mm pitch, printed face-down. The top
 // face is what you see in the drawer: a closed skin with holes in it, lying on the bed at z = 0. The
-// back is open to save plastic, with a boss round every hole, and lies on the drawer floor at
-// z = THICKNESS.
+// back is open to save plastic, with a full-height boss round every hole and a band round the edge,
+// and lies on the drawer floor at z = THICKNESS. A low web along every row and column of holes ties
+// the bosses together.
 //
-// Tiles join from the back. The edge bosses stop short of the back, and a plate covering 2 × 2
-// holes across a join sits on their ends, flush. Sleeves under the plate slide down over the
-// bosses, which holds the tiles together. It fits at any pair of edge holes, and where four tiles
-// meet; its holes keep the grid usable.
+// Tiles join from the back with a joiner: four rings, one over each boss round the corner between
+// four holes, tied by webs along the hole lines. The rings slide over the bosses' ends and stop on
+// the web; the joiner is flush with the back. The band is cut away only where a joiner passes
+// through it, so a joiner fits at any pair of edge holes, or where four tiles meet.
 
 export const PITCH = 9.5;
 export const THICKNESS = 8;
@@ -38,21 +39,15 @@ export const VARIANTS: Record<Variant, { wall: number; band: number }> = {
   "light-thin": { wall: 0.5, band: 1.2 },
 };
 
-export const PLATE = {
-  /** The plate, flush with the back, sitting on the edge bosses' ends. */
-  thickness: 1.6,
-  /** How far its sleeves slide down the bosses: stopping 0.4 mm above the web. */
-  sleeve: 3,
-  /** The sleeves' wall. */
+export const JOINER = {
+  /** The rings' wall, round the bosses. */
   wall: 0.9,
+  /** The webs tying the rings together, flush with the back. */
+  webWidth: 1.2,
+  webHeight: 1.6,
 };
-/** Room round an edge boss for a sleeve, beyond its wall: covers the loosest fit. */
-const SLEEVE_ROOM = 0.3;
-/** Between neighbouring plates along an edge. */
-const PLATE_GAP = 0.2;
-/** Clearance round a plate's holes, so a screw or pin goes through. */
-const PLATE_HOLE_CLEARANCE = 0.2;
-const SLEEVE_LEAD_IN = 0.4;
+/** Room left in the band round a joiner: covers the loosest fit. */
+const JOINER_ROOM = 0.3;
 
 /** A row of debossed cone dots on the face, read by counting. */
 export interface Dots {
@@ -62,56 +57,74 @@ export interface Dots {
   spacing?: number;
 }
 
+type ByHole = number | ((i: number, j: number) => number);
+
 export interface TileOptions {
   variant: Variant;
   nx: number;
   ny: number;
   /** Hole diameter, for every hole or by hole `(i, j)`. */
-  hole: number | ((i: number, j: number) => number);
+  hole: ByHole;
+  /** Boss wall, if not the variant's. */
+  wall?: ByHole;
   /** The top face's thickness. */
   skin?: number;
+  /** Cut the band for joiners at the edge holes. A test piece that never joins can leave it whole. */
+  joiners?: boolean;
   dots?: readonly Dots[];
 }
 
 export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
   const { Manifold, CrossSection } = wasm;
-  const { variant, nx, ny, skin = DEFAULT_SKIN } = options;
+  const { variant, nx, ny, skin = DEFAULT_SKIN, joiners = true } = options;
   const spec = VARIANTS[variant];
+  const byHole = (value: ByHole | undefined, i: number, j: number, fallback: number) =>
+    value === undefined ? fallback : typeof value === "number" ? value : value(i, j);
   const width = nx * PITCH;
   const depth = ny * PITCH;
-  const holes: { x: number; y: number; r: number; edge: boolean }[] = [];
+  const holes: { x: number; y: number; r: number; boss: number; edges: Vec2[] }[] = [];
   for (let i = 0; i < nx; i++) {
     for (let j = 0; j < ny; j++) {
-      const d = typeof options.hole === "number" ? options.hole : options.hole(i, j);
-      holes.push({ x: holeCentre(i), y: holeCentre(j), r: d / 2, edge: i === 0 || j === 0 || i === nx - 1 || j === ny - 1 });
+      const r = byHole(options.hole, i, j, 0) / 2;
+      // Which way the band lies from an edge hole: one way, or two at a corner.
+      const edges: Vec2[] = [];
+      if (i === 0) edges.push([-1, 0]);
+      if (i === nx - 1) edges.push([1, 0]);
+      if (j === 0) edges.push([0, -1]);
+      if (j === ny - 1) edges.push([0, 1]);
+      holes.push({ x: holeCentre(i), y: holeCentre(j), r, boss: r + byHole(options.wall, i, j, spec.wall), edges });
     }
   }
 
   const outline = CrossSection.square([width, depth]);
-  const inset = (by: number) => CrossSection.square([width - 2 * by, depth - 2 * by]).translate(by, by);
-  const plan: CrossSection[] = [outline.subtract(inset(spec.band))];
-  plan.push(...holes.map(({ x, y, r }) => CrossSection.circle(r + spec.wall, SEGMENTS).translate(x, y)));
+  const band = outline.subtract(CrossSection.square([width - 2 * spec.band, depth - 2 * spec.band]).translate(spec.band, spec.band));
+  const bosses = holes.map(({ x, y, boss }) => CrossSection.circle(boss, SEGMENTS).translate(x, y));
   const web = CrossSection.union([
     ...Array.from({ length: nx }, (_, i) => CrossSection.square([WEB.width, depth]).translate(holeCentre(i) - WEB.width / 2, 0)),
     ...Array.from({ length: ny }, (_, j) => CrossSection.square([width, WEB.width]).translate(0, holeCentre(j) - WEB.width / 2)),
   ]);
   const solid = Manifold.union([
-    Manifold.extrude(CrossSection.union(plan), THICKNESS),
+    Manifold.extrude(CrossSection.union([band, ...bosses]), THICKNESS),
     Manifold.extrude(outline, skin),
     Manifold.extrude(web, WEB.height),
   ]);
 
-  // Room for plates: above the edge bosses' ends, and round each edge boss for a sleeve.
-  const seat = THICKNESS - PLATE.thickness;
-  const strip = PITCH + 0.3;
-  const room = [Manifold.extrude(outline.subtract(inset(strip)), PLATE.thickness + 1).translate([0, 0, seat])];
-  for (const { x, y, r } of holes.filter((h) => h.edge)) {
-    const inner = r + spec.wall;
-    const ring = CrossSection.circle(inner + PLATE.wall + SLEEVE_ROOM, SEGMENTS).subtract(CrossSection.circle(inner, SEGMENTS));
-    room.push(Manifold.extrude(ring, PLATE.sleeve + PLATE.thickness + 1).translate([x, y, seat - PLATE.sleeve]));
+  const voids: Manifold[] = [];
+  if (joiners) {
+    // Round each edge boss, room for a ring down to the web; and where the joiner's webs cross the
+    // band, a slot from the back. The bosses themselves are left whole.
+    for (const { x, y, boss, edges } of holes.filter((h) => h.edges.length)) {
+      const circle = CrossSection.circle(boss, SEGMENTS);
+      const ring = CrossSection.circle(boss + JOINER.wall + JOINER_ROOM, SEGMENTS).subtract(circle);
+      voids.push(Manifold.extrude(ring, THICKNESS - WEB.height + 1).translate([x, y, WEB.height]));
+      const slotWidth = JOINER.webWidth + 2 * JOINER_ROOM;
+      for (const [dx, dy] of edges) {
+        const length = PITCH;
+        const slot = dx ? CrossSection.square([length, slotWidth]).translate(dx > 0 ? 0 : -length, -slotWidth / 2) : CrossSection.square([slotWidth, length]).translate(-slotWidth / 2, dy > 0 ? 0 : -length);
+        voids.push(Manifold.extrude(slot.subtract(circle), JOINER.webHeight + 1).translate([x, y, THICKNESS - JOINER.webHeight]));
+      }
+    }
   }
-
-  const voids: Manifold[] = [...room];
   for (const { x, y, r } of holes) {
     voids.push(Manifold.cylinder(THICKNESS + 2, r, r, SEGMENTS).translate([x, y, -1]));
     // A 45° lead-in on the face, which also hides elephant's foot.
@@ -123,28 +136,28 @@ export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
 }
 
 /**
- * A plate as it sits in the tiles: centred on the corner between 4 holes (a join, and the gap line
- * between two edge holes), flush with the back. `hole` is the tiles' edge holes; `fit` is the
- * radial clearance of the sleeves over the bosses, and negative is interference.
+ * A joiner as it sits in the tiles: centred on the corner between 4 holes (a join, and the gap line
+ * between two edge holes), flush with the back. `hole` and `wall` are the tiles' edge bosses; `fit`
+ * is the radial clearance of the rings over them, and negative is interference.
  */
-export function seatedPlate(wasm: ManifoldToplevel, variant: Variant, hole: number, fit: number): Manifold {
+export function seatedJoiner(wasm: ManifoldToplevel, variant: Variant, hole: number, fit: number, wall = VARIANTS[variant].wall): Manifold {
   const { Manifold, CrossSection } = wasm;
-  const size = 2 * PITCH - 2 * PLATE_GAP;
-  const inner = hole / 2 + VARIANTS[variant].wall + fit;
-  const through = hole / 2 + PLATE_HOLE_CLEARANCE;
+  const bore = hole / 2 + wall + fit;
   const corners = [-1, 1].flatMap((sx) => [-1, 1].map((sy): Vec2 => [(sx * PITCH) / 2, (sy * PITCH) / 2]));
-
-  const plate = Manifold.extrude(CrossSection.square([size, size], true), PLATE.thickness).translate([0, 0, PLATE.sleeve]);
-  const sleeve = Manifold.extrude(CrossSection.circle(inner + PLATE.wall, SEGMENTS), PLATE.sleeve + EPS);
-  const solid = Manifold.union([plate, ...corners.map(([x, y]) => sleeve.translate([x, y, 0]))]);
-  const voids = corners.flatMap(([x, y]) => [
-    // From the same circle as the bosses, so the two line up.
-    Manifold.extrude(CrossSection.circle(inner, SEGMENTS), PLATE.sleeve + EPS).translate([x, y, -EPS]),
-    // A lead-in at the sleeve's tip, which goes on first.
-    Manifold.cylinder(SLEEVE_LEAD_IN + EPS, inner + SLEEVE_LEAD_IN + EPS, inner, SEGMENTS).translate([x, y, -EPS]),
-    Manifold.cylinder(PLATE.sleeve + PLATE.thickness + 2, through, through, SEGMENTS).translate([x, y, -1]),
+  const half = PITCH / 2;
+  const w = JOINER.webWidth;
+  const webs = CrossSection.union([
+    ...[-half, half].map((y) => CrossSection.square([PITCH, w]).translate(-half, y - w / 2)),
+    ...[-half, half].map((x) => CrossSection.square([w, PITCH]).translate(x - w / 2, -half)),
   ]);
-  return solid.subtract(Manifold.union(voids)).translate([0, 0, THICKNESS - PLATE.thickness - PLATE.sleeve]);
+  // The bores come from the same circle as the bosses, so the two line up.
+  const bores = CrossSection.union(corners.map(([x, y]) => CrossSection.circle(bore, SEGMENTS).translate(x, y)));
+  const rings = CrossSection.union(corners.map(([x, y]) => CrossSection.circle(bore + JOINER.wall, SEGMENTS).translate(x, y)));
+  const ringHeight = THICKNESS - WEB.height;
+  return Manifold.union([
+    Manifold.extrude(rings.subtract(bores), ringHeight),
+    Manifold.extrude(webs.subtract(bores), JOINER.webHeight).translate([0, 0, ringHeight - JOINER.webHeight]),
+  ]).translate([0, 0, WEB.height]);
 }
 
 /** Cone dots, 45° so the face prints without bridging. */

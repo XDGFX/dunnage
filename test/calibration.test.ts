@@ -1,6 +1,6 @@
 import Module from "manifold-3d";
 import { beforeAll, describe, expect, test } from "vitest";
-import { roundOne, roundTwo, type Part } from "../src/core/grid/calibration.ts";
+import { roundOne, roundThree, roundTwo, type Part } from "../src/core/grid/calibration.ts";
 import { overhangs } from "../src/core/grid/printability.ts";
 
 let wasm: Awaited<ReturnType<typeof Module>>;
@@ -22,48 +22,29 @@ function expectPrintable(part: Part) {
   expect(max[1] - min[1], part.name).toBeLessThanOrEqual(FITS);
 }
 
+
 describe("round one", () => {
-  test("every part prints without supports and fits the bed", () => {
+  test("is two small strips, and they print without supports", () => {
     const parts = roundOne(wasm);
-    expect(parts.map((p) => p.name)).toEqual([
-      "holes-standard-skin-0.6",
-      "holes-standard-skin-1.2",
-      "holes-light-thick-skin-0.6",
-      "holes-light-thick-skin-1.2",
-      "holes-light-skin-0.6",
-      "holes-light-skin-1.2",
-      "holes-light-thin-skin-0.6",
-      "holes-light-thin-skin-1.2",
-      "plates-standard",
-      "plates-light-thick",
-      "plates-light",
-      "plates-light-thin",
-    ]);
+    expect(parts.map((p) => p.name)).toEqual(["screw-holes", "boss-walls"]);
+    parts.forEach(expectPrintable);
+    // Small: a single row of holes each.
+    for (const part of parts) expect(part.solid.boundingBox().max[1]).toBeLessThan(10);
+  });
+});
+
+describe("round two", () => {
+  test("every part prints without supports", () => {
+    const parts = roundTwo(wasm, [{ variant: "light", hole: 3.3, skin: 0.6 }]);
+    expect(parts.map((p) => p.name)).toEqual(["joiner-tile-light", "joiners-light", "pins-light", "pegs-light"]);
     parts.forEach(expectPrintable);
   }, 60_000);
 });
 
-describe("round two", () => {
+describe("round three", () => {
   test("every part prints without supports and fits the bed, including a full 25 × 25 tile", () => {
-    const parts = roundTwo(wasm, {
-      variants: [
-        { variant: "light", hole: 3.3, fit: 0.05, skin: 0.6 },
-        { variant: "standard", hole: 3.4, fit: 0, skin: 1.2 },
-      ],
-    });
-    expect(parts.map((p) => p.name)).toEqual([
-      "pins-light",
-      "pegs-light",
-      "tile-8x8-light",
-      "tile-25x25-light",
-      "plates-light",
-      "pins-standard",
-      "pegs-standard",
-      "tile-8x8-standard",
-      "tile-25x25-standard",
-      "plates-standard",
-      "test-holder",
-    ]);
+    const parts = roundThree(wasm, [{ variant: "light", hole: 3.3, skin: 0.6, fit: 0.05 }]);
+    expect(parts.map((p) => p.name)).toEqual(["tile-8x8-light", "joiners-light", "tile-25x25-light", "test-holder"]);
     parts.forEach(expectPrintable);
   }, 180_000);
 });
