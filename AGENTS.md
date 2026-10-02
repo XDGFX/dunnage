@@ -32,7 +32,7 @@ Cal never thinks about releases, so every commit has to.
 - **A commit that changes behaviour bumps `version` in `package.json`** in the same commit.
   While on 0.x: minor for a feature, patch for a fix. Docs, tests, CI and refactors that
   change nothing for a user don't bump.
-- When `main` carries a version that has no tag, CI tags `vX.Y.Z` and checks that
-  `github:XDGFX/dunnage#vX.Y.Z` installs and its `dunnage` bin runs. Consumers such as Hailey
-  pin those tags. Don't tag by hand.
+- When `main` carries a version that has no tag, CI checks that the commit installs from
+  GitHub and its `dunnage` bin runs, then tags it `vX.Y.Z`. Consumers such as Hailey pin
+  `github:XDGFX/dunnage#vX.Y.Z`. Don't tag by hand.
 - Every push to `main` deploys the UI to GitHub Pages.

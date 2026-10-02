@@ -1,10 +1,11 @@
 import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { describe, expect, test } from "vitest";
 
 const run = promisify(execFile);
-const main = new URL("../src/cli/main.ts", import.meta.url).pathname;
+const main = fileURLToPath(new URL("../src/cli/main.ts", import.meta.url));
 
 async function dunnage(...args: string[]) {
   try {

@@ -27,6 +27,9 @@ jobs:
     if: github.event_name == 'push'
     needs: test
     runs-on: ubuntu-latest
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     permissions:
       pages: write
       id-token: write
@@ -38,8 +41,8 @@ jobs:
       - id: deploy
         uses: actions/deploy-pages@v5
 
-  # Tags vX.Y.Z the first time main carries that version, then installs the tag the way a
-  # consumer pins it (github:XDGFX/dunnage#vX.Y.Z) to check the bin builds and runs.
+  # The first time main carries a version, installs this commit the way a consumer pins it
+  # (github:XDGFX/dunnage#<ref>) to check the bin builds and runs, then tags it vX.Y.Z.
   tag:
     if: github.event_name == 'push'
     needs: test
@@ -63,16 +66,16 @@ jobs:
       - if: steps.version.outputs.new == 'true'
         env:
           VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          git tag "v$VERSION"
-          git push origin "v$VERSION"
-      - if: steps.version.outputs.new == 'true'
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
         working-directory: ${{ runner.temp }}
         run: |
           mkdir consumer && cd consumer
           npm init -y > /dev/null
-          npm install "github:${{ github.repository }}#v$VERSION"
+          npm install "github:${{ github.repository }}#${{ github.sha }}"
           test "$(node_modules/.bin/dunnage --version)" = "$VERSION"
           node_modules/.bin/dunnage check "$GITHUB_WORKSPACE/fixtures/coffee.drawer.yml"
+      - if: steps.version.outputs.new == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
