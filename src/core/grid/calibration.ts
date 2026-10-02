@@ -1,11 +1,11 @@
 import type { Manifold, ManifoldToplevel } from "manifold-3d";
-import { JOINER, PITCH, VARIANTS, faceDots, holeCentre, onBed, seatedJoiner, tile, type Dots, type Variant } from "./tile.ts";
+import { JOINER, PITCH, VARIANTS, holeCentre, onBed, seatedJoiner, tile, type Dots, type Variant } from "./tile.ts";
 
 // Test prints for #7, which settle the open numbers in the grid spec (#6 §7), each round as small
 // as it can be. Labels are cone dots on the top face: count them.
 //
 // Round one: a strip of screw pilot holes, and a strip of boss walls.
-// Round two, with a wall and hole chosen: the joiner's fit, and pin interference.
+// Round two, with a wall and hole chosen: the joiner's fit, and the pegs' fit.
 // Round three, with a joiner fit chosen: a 2 × 2 set, a full tile to weigh, and a test holder.
 
 export interface Part {
@@ -27,10 +27,20 @@ export const WALLS: [number, Variant][] = [
   [0.9, "light"],
   [1.2, "light-thick"],
 ];
-/** Radial clearance of a joiner's rings over the bosses; negative is interference. */
-export const JOINER_FITS = [-0.05, 0, 0.05, 0.1, 0.15];
-export const PIN_INTERFERENCES = [0, 0.05, 0.1, 0.15, 0.2, 0.25];
-const PEG_LENGTH = 14;
+/**
+ * Radial clearance of a joiner's rings over the bosses; negative is interference. Round two's first
+ * try, -0.05 to 0.15, was far too tight: at 0.15 a joiner went on only 1 mm.
+ */
+export const JOINER_FITS = [0.2, 0.3, 0.4, 0.5, 0.6];
+/**
+ * How much smaller a peg is than its hole, across the diameter. A peg the hole's size wasn't close to
+ * going in: the hole prints small and the peg big.
+ */
+export const PEG_CLEARANCES = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8];
+/** The tightest peg's length; each looser one is a step longer, so they sort by eye. */
+const PEG_LENGTH = 12;
+const PEG_STEP = 2;
+const pegLength = (n: number) => PEG_LENGTH + PEG_STEP * n;
 const PEG_CHAMFER = 0.4;
 /**
  * Where the flat is cut, as an angle up the peg from its bottom. Above 45°, so the curve rises off
@@ -101,8 +111,9 @@ export interface Choice {
 
 export function roundTwo(wasm: ManifoldToplevel, choices: Choice[]): Part[] {
   return choices.flatMap(({ variant, hole, skin }): Part[] => {
-    // As in #6 §6: the hole stays at the calibrated size and the peg is bigger by the interference.
-    const pegs = PIN_INTERFERENCES.flatMap((interference, n) => [0, 1].map(() => pegShape(wasm, toMicron(hole + interference), n + 1)));
+    // As in #6 §6: the hole stays at the calibrated size and only the peg changes. Dots on a peg's
+    // flat were too small to read, so each size is longer than the last instead.
+    const pegs = PEG_CLEARANCES.flatMap((clearance, n) => [0, 1].map(() => pegShape(wasm, toMicron(hole - clearance), pegLength(n))));
     return [
       {
         name: `joiner-tile-${variant}`,
@@ -124,25 +135,13 @@ export function roundTwo(wasm: ManifoldToplevel, choices: Choice[]): Part[] {
           ". Press each over the join; keep the one that goes on firmly, holds without play, keeps the tiles together when lifted by one, and can still be prised off.",
       },
       {
-        name: `pins-${variant}`,
-        solid: strip(
-          wasm,
-          PIN_INTERFERENCES.length,
-          () => hole,
-          () => VARIANTS[variant].wall,
-          skin,
-        ),
-        copies: 1,
-        note: `${hole} mm pin holes in ${variant}: put the peg with n dots in the hole with n dots.`,
-      },
-      {
         name: `pegs-${variant}`,
         solid: arrange(wasm, pegs, 2),
         copies: 1,
         note:
-          `Two pegs of each size, ${PEG_LENGTH} mm long, counted by the dots on the flat: ` +
-          PIN_INTERFERENCES.map((v, n) => `${n + 1} = ${toMicron(hole + v)} mm (${v.toFixed(2)} interference)`).join(", ") +
-          ". Press each into its hole; keep the one that's hard to pull out by hand.",
+          `Two pegs of each size, for the joiner tiles' ${hole} mm holes, the shortest the tightest: ` +
+          PEG_CLEARANCES.map((c, n) => `${pegLength(n)} mm long = ${toMicron(hole - c)} mm (${c.toFixed(1)} smaller)`).join(", ") +
+          ". Press each into a hole; keep the one that's hard to pull out by hand.",
       },
     ];
   });
@@ -213,10 +212,10 @@ export function printJoiner(wasm: ManifoldToplevel, variant: Variant, hole: numb
 }
 
 /**
- * A round peg with one flat, chamfered at both ends, lying on the flat: its layers run along its
- * length, and the flat carries `dots`.
+ * A round peg with one flat, chamfered at both ends, lying on the flat so its layers run along its
+ * length.
  */
-function pegShape(wasm: ManifoldToplevel, diameter: number, dots: number): Manifold {
+function pegShape(wasm: ManifoldToplevel, diameter: number, length: number): Manifold {
   const { Manifold, CrossSection } = wasm;
   const r = diameter / 2;
   const c = PEG_CHAMFER;
@@ -226,17 +225,15 @@ function pegShape(wasm: ManifoldToplevel, diameter: number, dots: number): Manif
       [0, 0],
       [r - c, 0],
       [r, c],
-      [r, PEG_LENGTH - c],
-      [r - c, PEG_LENGTH],
-      [0, PEG_LENGTH],
+      [r, length - c],
+      [r - c, length],
+      [0, length],
     ],
   ])
     .revolve(64)
     .rotate([0, 90, 0]);
   const cut = r * Math.cos((PEG_FLAT_ANGLE * Math.PI) / 180);
-  const peg = onBed(round.intersect(Manifold.cube([PEG_LENGTH + 2, 2 * r + 2, 2 * r], true).translate([PEG_LENGTH / 2, 0, r - cut])));
-  const { max } = peg.boundingBox();
-  return peg.subtract(faceDots(wasm, { at: [max[0] / 2, max[1] / 2], count: dots }));
+  return onBed(round.intersect(Manifold.cube([length + 2, 2 * r + 2, 2 * r], true).translate([length / 2, 0, r - cut])));
 }
 
 /** A flange for one screw, and a wall with a diamond hole to hang a weight from or pull on. */

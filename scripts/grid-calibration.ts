@@ -2,7 +2,7 @@
 //
 //   bun scripts/grid-calibration.ts round-1
 //   bun scripts/grid-calibration.ts round-2 --variant light,3.3,0.6
-//   bun scripts/grid-calibration.ts round-3 --variant light,3.3,0.6,0.05
+//   bun scripts/grid-calibration.ts round-3 --variant light,3.3,0.6,0.3
 //
 // A variant is <variant>,<hole mm>,<skin mm>, and for round 3 the joiner fit too (negative is
 // interference). Files go to out/grid-calibration/<round>/ unless --out says otherwise.
@@ -36,7 +36,7 @@ if (round === "round-1") {
   parts = roundOne(wasm);
 } else {
   const withFit = round === "round-3";
-  const usage = `--variant takes <variant>,<hole mm>,<skin mm>${withFit ? ",<joiner fit mm>" : ""}, e.g. light,3.3,0.6${withFit ? ",0.05" : ""}`;
+  const usage = `--variant takes <variant>,<hole mm>,<skin mm>${withFit ? ",<joiner fit mm>" : ""}, e.g. light,3.3,0.6${withFit ? ",0.3" : ""}`;
   const choices = (values.variant ?? []).map((v) => {
     const [variant, hole, skin, fit] = v.split(",");
     const bad = !variant || !(variant in VARIANTS) || !Number(hole) || !Number(skin) || (withFit && (fit === undefined || Number.isNaN(Number(fit))));

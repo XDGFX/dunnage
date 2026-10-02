@@ -36,7 +36,7 @@ describe("round one", () => {
 describe("round two", () => {
   test("every part prints without supports", () => {
     const parts = roundTwo(wasm, [{ variant: "light", hole: 3.3, skin: 0.6 }]);
-    expect(parts.map((p) => p.name)).toEqual(["joiner-tile-light", "joiners-light", "pins-light", "pegs-light"]);
+    expect(parts.map((p) => p.name)).toEqual(["joiner-tile-light", "joiners-light", "pegs-light"]);
     parts.forEach(expectPrintable);
   }, 60_000);
 });

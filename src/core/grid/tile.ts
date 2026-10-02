@@ -48,8 +48,10 @@ export const JOINER = {
   webWidth: 1.2,
   webHeight: 1.6,
 };
-/** Room left in the band round a joiner: covers the loosest fit. */
-const JOINER_ROOM = 0.3;
+/** Room left in the band round a joiner's rings: covers the loosest fit, 0.6 mm, with some to spare. */
+export const RING_ROOM = 0.8;
+/** Room either side of a joiner's webs where they cross the band. */
+const SLOT_ROOM = 0.3;
 
 /** A row of debossed cone dots on the face, read by counting. */
 export interface Dots {
@@ -121,9 +123,9 @@ export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
     // band, a slot from the back. The bosses themselves are left whole.
     for (const { x, y, boss, edges } of holes.filter((h) => h.edges.length)) {
       const circle = CrossSection.circle(boss, SEGMENTS);
-      const ring = CrossSection.circle(boss + JOINER.wall + JOINER_ROOM, SEGMENTS).subtract(circle);
+      const ring = CrossSection.circle(boss + JOINER.wall + RING_ROOM, SEGMENTS).subtract(circle);
       voids.push(Manifold.extrude(ring, THICKNESS - WEB.height + 1).translate([x, y, WEB.height]));
-      const slotWidth = JOINER.webWidth + 2 * JOINER_ROOM;
+      const slotWidth = JOINER.webWidth + 2 * SLOT_ROOM;
       for (const [dx, dy] of edges) {
         const length = PITCH;
         const slot = dx ? CrossSection.square([length, slotWidth]).translate(dx > 0 ? 0 : -length, -slotWidth / 2) : CrossSection.square([slotWidth, length]).translate(-slotWidth / 2, dy > 0 ? 0 : -length);

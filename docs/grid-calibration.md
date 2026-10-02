@@ -33,12 +33,12 @@ The variants differ in boss wall, which sets most of the weight along with the t
 ```sh
 bun scripts/grid-calibration.ts round-1
 bun scripts/grid-calibration.ts round-2 --variant light,3.3,0.6       # variant, hole, skin
-bun scripts/grid-calibration.ts round-3 --variant light,3.3,0.6,0.05  # and the joiner fit
+bun scripts/grid-calibration.ts round-3 --variant light,3.3,0.6,0.3   # and the joiner fit
 ```
 
 STLs and a parts list (`README.md`, with estimated weights) go to `out/grid-calibration/<round>/`.
 Every part is exported as it prints: don't rotate them. Labels are cone dots on the top face (the
-bed side), or notches on a joiner's ring. Count them.
+bed side), or notches on a joiner's ring: count them. Pegs are told apart by length.
 
 Record the setup, since every number below depends on it:
 
@@ -79,41 +79,45 @@ each wall and skin, to weigh against how they feel.
 at its root with a 1 mm 45° chamfer onto the top face, to stiffen it. Round two goes ahead with a
 0.6 mm top face, the lightest.
 
-## Round two: joiner fit and pins
+## Round two: joiner fit and pegs
 
-For the chosen variant: two small `joiner-tile`s, five `joiners` at different fits, a `pins` strip
-and its `pegs`. The joiner's fit depends on the wall, so it waits for round one.
+For the chosen variant: two small `joiner-tile`s, five `joiners` at different fits, and `pegs`. The
+joiner's fit depends on the wall, so it waits for round one. The pegs go in the joiner tiles' holes.
+
+The first try was far too tight on both counts, and the pegs' dots couldn't be read:
+
+- **Joiners**, from 0.05 mm interference to 0.15 mm clearance: none fitted. The loosest went on
+  about 1 mm.
+- **Pegs**, from the hole's size to 0.25 mm over it: none came close to going in.
+
+The second try, below, is looser all round, and labels the pegs by length.
 
 ### Joiner fit
 
-The notches round the end of one ring count the fit:
+The notches round the end of one ring count the fit, the radial clearance over the bosses:
 
-| Notches | Ring fit over the bosses |
-|---|---|
-| 1 | 0.05 mm interference |
-| 2 | line-to-line |
-| 3 | 0.05 mm clearance |
-| 4 | 0.10 mm clearance |
-| 5 | 0.15 mm clearance |
+| Notches | 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|
+| Clearance | 0.2 mm | 0.3 mm | 0.4 mm | 0.5 mm | 0.6 mm |
+| Result | | | | | |
 
 Lay the two tiles back up, long edges together, and press each joiner over the join. Keep the one
 that goes on firmly, holds without play, keeps the tiles together when lifted by one, and can still
-be prised off.
+be prised off. Try the joiners before the pegs: a peg that splits a boss spoils the tile.
 
-| Fit | 1 | 2 | 3 | 4 | 5 |
-|---|---|---|---|---|---|
-| Result | | | | | |
+### Peg fit
 
-### Pin interference
+As in #6 §6, every hole is the chosen size and only the peg changes, here smaller than the hole
+across its diameter. Pegs are round with one flat, printed lying on it so their layers run along
+their length. There are two of each, and each size is 2 mm longer than the last, so they sort by
+eye: the shortest is the tightest.
 
-As in #6 §6, every hole is the chosen size and the pegs are bigger by the interference:
-0.00–0.25 mm in 0.05 mm steps. Pegs are round with one flat, printed lying on it so their layers
-run along their length; they're counted by the 1–6 dots on the flat, two of each. Press the peg with
-n dots into the hole with n dots. Keep the one that's hard to pull out by hand.
-
-| Interference | 0.00 | 0.05 | 0.10 | 0.15 | 0.20 | 0.25 |
+| Length | 12 mm | 14 mm | 16 mm | 18 mm | 20 mm | 22 mm |
 |---|---|---|---|---|---|---|
+| Smaller by | 0.3 mm | 0.4 mm | 0.5 mm | 0.6 mm | 0.7 mm | 0.8 mm |
 | Result | | | | | | |
+
+Press each into a hole. Keep the one that goes in by hand and is hard to pull out.
 
 ## Round three: the whole thing
 
@@ -132,7 +136,8 @@ where the four tiles meet, a spare), a `tile-25x25` to weigh, and a `test-holder
 ## Outcome
 
 - The variant, and the default:
-- `fit:` for the `bambu-p1s` preset: `grid_hole`, `pin_interference` and the joiner fit.
+- `fit:` for the `bambu-p1s` preset: `grid_hole`, the peg fit (#6 calls it `pin_interference`; it
+  turned out to be a clearance) and the joiner fit.
 
 Then update #6 with the final values and close its open questions on the clip and the `light`
 boss wall. It also needs these changes, from the design decided here:

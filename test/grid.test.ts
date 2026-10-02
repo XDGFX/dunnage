@@ -1,7 +1,8 @@
 import Module, { type Manifold } from "manifold-3d";
 import { beforeAll, describe, expect, test } from "vitest";
+import { JOINER_FITS } from "../src/core/grid/calibration.ts";
 import { overhangs } from "../src/core/grid/printability.ts";
-import { BOSS_CHAMFER, JOINER, PITCH, THICKNESS, VARIANTS, WEB, holeCentre, seatedJoiner, tile, type Variant } from "../src/core/grid/tile.ts";
+import { BOSS_CHAMFER, JOINER, PITCH, RING_ROOM, THICKNESS, VARIANTS, WEB, holeCentre, seatedJoiner, tile, type Variant } from "../src/core/grid/tile.ts";
 
 type Wasm = Awaited<ReturnType<typeof Module>>;
 let wasm: Wasm;
@@ -138,9 +139,11 @@ describe("tile", () => {
     const inBand = (x: number, z0: number, z1: number) => solidInBox(part, [x - 0.2, 0.1, z0], [x + 0.2, reach, z1]);
     // Between two edge holes, on a gap line, the band runs full height.
     expect(inBand(PITCH * 3, THICKNESS - 0.5, THICKNESS)).toBeGreaterThan(0);
-    // On a hole line, a slot for the joiner's web comes down from the back, and the band carries on below it.
+    // On a hole line, a slot for the joiner's web comes down from the back, and the band carries on
+    // below it, unless the room round the ring reaches the edge, as it does round standard's big bosses.
     expect(inBand(holeCentre(3), THICKNESS - JOINER.webHeight + 0.01, THICKNESS)).toBe(0);
-    expect(inBand(holeCentre(3), WEB.height, THICKNESS - JOINER.webHeight - 0.01)).toBeGreaterThan(0);
+    const ringRoom = HOLE / 2 + wall + JOINER.wall + RING_ROOM;
+    if (ringRoom < holeCentre(0)) expect(inBand(holeCentre(3), WEB.height, THICKNESS - JOINER.webHeight - 0.01)).toBeGreaterThan(0);
   });
 
   test("a tile can leave the joiner cut-outs out, for a test piece", () => {
@@ -177,6 +180,13 @@ describe("joiners", () => {
     const at = (fit: number) => seatedJoiner(wasm, "standard", HOLE, fit).translate([nx * PITCH, 2 * PITCH, 0]);
     expect(at(-0.05).intersect(left.add(right)).volume()).toBeGreaterThan(0);
     expect(at(0.1).intersect(left.add(right)).volume()).toBeLessThan(1e-6);
+  });
+
+  test("the band leaves room for the loosest joiner under test", () => {
+    const [left, right] = pair("light-thin");
+    const loosest = Math.max(...JOINER_FITS);
+    const joiner = seatedJoiner(wasm, "light-thin", HOLE, loosest).translate([nx * PITCH, 2 * PITCH, 0]);
+    expect(joiner.intersect(left.add(right)).volume()).toBeLessThan(1e-3);
   });
 
   test("a joiner leaves the holes clear for a screw or pin", () => {
