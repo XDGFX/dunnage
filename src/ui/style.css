@@ -1,0 +1,42 @@
+:root {
+  color-scheme: light dark;
+  --ink: #1d2125;
+  --paper: #f6f4f0;
+  --muted: #6b6f73;
+  font-family: system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #f6f4f0;
+    --paper: #1d2125;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0 16px;
+}
+
+header p {
+  color: var(--muted);
+}
+
+.drawer-view {
+  flex: 1;
+  min-height: 0;
+}
