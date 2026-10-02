@@ -9,7 +9,7 @@ const main = fileURLToPath(new URL("../src/cli/main.ts", import.meta.url));
 
 async function dunnage(...args: string[]) {
   try {
-    const { stdout, stderr } = await run("node", [main, ...args]);
+    const { stdout, stderr } = await run(process.execPath, [main, ...args]);
     return { code: 0, stdout, stderr };
   } catch (error) {
     const { code, stdout, stderr } = error as { code: number; stdout: string; stderr: string };

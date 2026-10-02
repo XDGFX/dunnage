@@ -19,13 +19,12 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "npm run build:lib && npm run build:site",
+    "build": "bun run build:lib && bun run build:site",
     "build:lib": "tsc -p tsconfig.build.json",
     "build:site": "vite build",
-    "prepare": "npm run build:lib",
     "typecheck": "tsc -p tsconfig.core.json && tsc -p tsconfig.json && tsc -p tsconfig.ui.json",
-    "test": "vitest run",
-    "validate": "node src/cli/main.ts check fixtures/*.yml"
+    "test": "bun --bun vitest run",
+    "validate": "bun src/cli/main.ts check fixtures/*.yml"
   },
   "dependencies": {
     "manifold-3d": "3.5.4",

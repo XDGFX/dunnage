@@ -17,12 +17,16 @@ three.js draws; manifold-3d (WASM, browser and Node) makes holder geometry.
 
 ## Commands
 
+Bun is the package manager and runtime. The built CLI still runs on Node, so consumers can
+use either.
+
 ```sh
-npm run dev         # the UI
-npm run typecheck   # core, CLI and UI, each against its own tsconfig
-npm test            # Vitest
-npm run build       # dist/ (core and CLI) and dist-site/ (the UI)
-npm run validate    # dunnage check over fixtures/
+bun install
+bun run dev         # the UI
+bun run typecheck   # core, CLI and UI, each against its own tsconfig
+bun run test        # Vitest, on Bun (plain `bun test` is Bun's own runner: don't use it)
+bun run build       # dist/ (core and CLI) and dist-site/ (the UI)
+bun run validate    # dunnage check over fixtures/
 ```
 
 ## Releases
@@ -32,7 +36,9 @@ Cal never thinks about releases, so every commit has to.
 - **A commit that changes behaviour bumps `version` in `package.json`** in the same commit.
   While on 0.x: minor for a feature, patch for a fix. Docs, tests, CI and refactors that
   change nothing for a user don't bump.
-- When `main` carries a version that has no tag, CI checks that the commit installs from
-  GitHub and its `dunnage` bin runs, then tags it `vX.Y.Z`. Consumers such as Hailey pin
-  `github:XDGFX/dunnage#vX.Y.Z`. Don't tag by hand.
+- When `main` carries a version that has no tag, CI builds `dist/`, commits it on top of that
+  commit (off `main`; `dist/` stays out of `main`), and tags the result `vX.Y.Z`. It then
+  installs the tag with npm and with Bun and runs the `dunnage` bin, deleting the tag if either
+  fails. Consumers such as Hailey pin `github:XDGFX/dunnage#vX.Y.Z`. Don't tag by hand.
+- Only tags are installable: a branch or `main` has no `dist/`.
 - Every push to `main` deploys the UI to GitHub Pages.
