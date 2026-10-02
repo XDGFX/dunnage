@@ -41,8 +41,8 @@ export const VARIANTS: Record<Variant, { wall: number; band: number }> = {
 export const PLATE = {
   /** The plate, flush with the back, sitting on the edge bosses' ends. */
   thickness: 1.6,
-  /** How far its sleeves slide down the bosses. */
-  sleeve: 5,
+  /** How far its sleeves slide down the bosses: stopping 0.4 mm above the web. */
+  sleeve: 3,
   /** The sleeves' wall. */
   wall: 0.9,
 };

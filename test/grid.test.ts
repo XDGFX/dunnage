@@ -78,6 +78,16 @@ describe("tile", () => {
     }
   });
 
+  test.each(variants)("a %s tile's web runs whole to the edge bosses, clear of the plates' sleeves", (variant) => {
+    const part = tile(wasm, { variant, nx: 6, ny: 6, hole: HOLE, skin: 0.6 });
+    const r = HOLE / 2 + VARIANTS[variant].wall;
+    const w = WEB.width;
+    // Along column 3, from the edge boss in row 0 to the boss in row 1, at full web height.
+    const [y0, y1] = [holeCentre(0) + r - 0.1, holeCentre(1) - r + 0.1];
+    expect(solidInBox(part, [holeCentre(3) - w / 2, y0, WEB.height - 0.5], [holeCentre(3) + w / 2, y1, WEB.height])).toBeCloseTo(w * (y1 - y0) * 0.5);
+    expect(THICKNESS - PLATE.thickness - PLATE.sleeve).toBeGreaterThan(WEB.height);
+  });
+
   test.each([0.6, 1.2])("the top face is closed, %f mm thick", (skin) => {
     const part = tile(wasm, { variant: "light", nx: 6, ny: 6, hole: HOLE, skin });
     // The middle of a gap square: solid through the skin, and open above it.

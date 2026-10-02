@@ -14,13 +14,12 @@ Right way up, as it sits in the drawer:
 - **Bottom:** always open, to save plastic. A boss runs down round every hole, and a band runs round
   the edge.
 - **Joining:** the edge bosses stop 1.6 mm short of the bottom. A **plate** covering 2 × 2 holes
-  across a join sits on their ends, flush with the bottom, and its four **sleeves** slide 5 mm down
+  across a join sits on their ends, flush with the bottom, and its four **sleeves** slide 3 mm down
   the outside of the bosses. It fits at any pair of edge holes on any edge, or where four tiles meet,
   out of sight. Its holes keep the grid usable: screws and pins go through it.
 
 Every variant has a low **web**, 0.8 mm wide and 3 mm up from the top face, along every row and
-column of holes, tying each boss to its neighbours. Round the edge bosses it's notched for the
-plates' sleeves.
+column of holes, tying each boss to its neighbours. The plates' sleeves stop just above it.
 
 The variants differ in boss wall, which sets most of the weight along with the top face:
 
