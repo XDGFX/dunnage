@@ -54,6 +54,15 @@ export function load(text: string): DunnageFile {
   return file;
 }
 
+/**
+ * Reads a drawer or printer file for editing: everything wrong with it, and the file itself
+ * whenever its shape is right, so a drawer with things overlapping can still be shown and fixed.
+ */
+export function read(text: string, options: CheckOptions = {}): CheckResult & { file?: DunnageFile } {
+  const { result, file } = inspect(text, options);
+  return { ...result, file };
+}
+
 type Path = (string | number)[];
 
 /** A problem before it is placed in the file. `key` points at a field of `at` that should not be there. */
