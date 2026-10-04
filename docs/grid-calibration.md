@@ -99,11 +99,14 @@ The notches round the end of one ring count the fit, the radial clearance over t
 | Notches | 1 | 2 | 3 | 4 | 5 |
 |---|---|---|---|---|---|
 | Clearance | 0.2 mm | 0.3 mm | 0.4 mm | 0.5 mm | 0.6 mm |
-| Result | | | | | |
+| Result | Stuck a third of the way on | Almost right; a little loose on some bosses | | | |
 
 Lay the two tiles back up, long edges together, and press each joiner over the join. Keep the one
 that goes on firmly, holds without play, keeps the tiles together when lifted by one, and can still
 be prised off. Try the joiners before the pegs: a peg that splits a boss spoils the tile.
+
+**Chosen: 0.28 mm**, a fifth of the way from 2 notches towards 1, to take up the looseness on some
+bosses. Round three checks it.
 
 ### Peg fit
 
@@ -115,9 +118,13 @@ eye: the shortest is the tightest.
 | Length | 12 mm | 14 mm | 16 mm | 18 mm | 20 mm | 22 mm |
 |---|---|---|---|---|---|---|
 | Smaller by | 0.3 mm | 0.4 mm | 0.5 mm | 0.6 mm | 0.7 mm | 0.8 mm |
-| Result | | | | | | |
+| Result | | | Interference: presses in, hard to get out | Tight: hard to pull out | Clearance, a slight wiggle | |
 
 Press each into a hole. Keep the one that goes in by hand and is hard to pull out.
+
+**Chosen: 0.6 mm smaller** (a 2.6 mm peg in the 3.2 mm hole): it holds, and a holder can still be
+lifted off the board. 0.5 mm is a press fit for good. So a separate peg pressed into a holder's own
+hole, to stay there, wants that hole 0.5 mm bigger than the peg, not 0.6: 3.1 mm for a 2.6 mm peg.
 
 ## Round three: the whole thing
 
@@ -136,8 +143,9 @@ where the four tiles meet, a spare), a `tile-25x25` to weigh, and a `test-holder
 ## Outcome
 
 - The variant, and the default:
-- `fit:` for the `bambu-p1s` preset: `grid_hole`, the peg fit (#6 calls it `pin_interference`; it
-  turned out to be a clearance) and the joiner fit.
+- `fit:` for the `bambu-p1s` preset: `grid_hole` 3.2 mm, the peg fit 0.6 mm smaller than the hole
+  (#6 calls it `pin_interference`; it turned out to be a clearance), and the joiner fit 0.28 mm, if
+  round three bears it out. A peg fixed into a holder's hole wants 0.5 mm.
 
 Then update #6 with the final values and close its open questions on the clip and the `light`
 boss wall. It also needs these changes, from the design decided here:
