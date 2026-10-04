@@ -142,13 +142,14 @@ where the four tiles meet, a spare), a `tile-25x25` to weigh, and a `test-holder
 
 ## Outcome
 
-- The variant, and the default:
-- `fit:` for the `bambu-p1s` preset: `grid_hole` 3.2 mm, the peg fit 0.6 mm smaller than the hole
-  (#6 calls it `pin_interference`; it turned out to be a clearance), and the joiner fit 0.28 mm, if
-  round three bears it out. A peg fixed into a holder's hole wants 0.5 mm.
+These are working values: round three hasn't been printed yet, and they stand until it has.
 
-Then update #6 with the final values and close its open questions on the clip and the `light`
-boss wall. It also needs these changes, from the design decided here:
+- The variant, and the default: `light-thin`, with a 0.6 mm top face.
+- `fit:` for the `bambu-p1s` preset: `grid_hole` 3.2 mm, `peg` 0.6 mm smaller than the hole (#6
+  first called it `pin_interference`; it turned out to be a clearance), `peg_fixed` 0.5 mm for a
+  peg pressed into a holder's hole to stay, and `joiner` 0.28 mm.
+
+#6 has these values, and these changes from the design decided here:
 
 - §2: every variant has a closed top face (the spec's `light` had none), the skin thickness chosen
   here, the variants kept, the low web along every row and column in place of ribs, and the weights.
