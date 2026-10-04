@@ -12,7 +12,7 @@ what it does and the drawer file format.
 | `src/ui/` | The React app, built by Vite and deployed to GitHub Pages. |
 | `fixtures/` | Real drawer and printer files. CI runs `dunnage check` over all of them. |
 | `docs/format/` | The drawer and printer format specs, and their JSON Schemas (generated from `src/core/schema.ts`). |
-| `scripts/` | Dev scripts, run with Bun. |
+| `scripts/` | Dev scripts, run with Bun. `grid-calibration.ts` writes the grid base test prints (`docs/grid-calibration.md`) to `out/`. |
 | `test/` | Vitest. |
 
 three.js draws; manifold-3d (WASM, browser and Node) makes holder geometry.
