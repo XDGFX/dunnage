@@ -1,6 +1,10 @@
 export { check, FormatError, load, read } from "./check.ts";
 export type { CheckOptions, CheckResult, DunnageFile, LoadedPrinter, Problem } from "./check.ts";
+export { DRAWER_PRESETS, drawerShape } from "./drawers.ts";
+export type { DrawerPreset, DrawerShape, Side } from "./drawers.ts";
 export { FORMATS, MIGRATIONS, migrate, readHeader } from "./format.ts";
+export { GRID, gridFit, VARIANT_NAMES } from "./grid/parameters.ts";
+export type { Fit, Variant } from "./grid/parameters.ts";
 export type { FormatKind, Header, Migration, Migrations } from "./format.ts";
 export { Drawer, jsonSchema, Printer, PRINTER_PRESETS } from "./schema.ts";
 export type { Holder, Item, Pose, Thing } from "./schema.ts";

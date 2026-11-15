@@ -5,7 +5,7 @@
 <p align="center">
   <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-e5582a?style=flat-square"></a>
   <img alt="Status: building the first slice" src="https://img.shields.io/badge/status-building%20the%20first%20slice-1d2125?style=flat-square">
-  <img alt="Format drawer/0.2" src="https://img.shields.io/badge/format-drawer%2F0.2-6b6f73?style=flat-square">
+  <img alt="Format drawer/0.3" src="https://img.shields.io/badge/format-drawer%2F0.3-6b6f73?style=flat-square">
 </p>
 
 ---
@@ -45,15 +45,15 @@ One plan, five steps. You can go back and forth; changing how something is held 
 The source of truth is a plain YAML file you can read, diff and commit. The UI edits it by direct manipulation; an agent edits it from a description. Both are first-class.
 
 ```yaml
-format: drawer/0.2
+format: drawer/0.3
 name: Coffee and tableware
 printer: p1s
 
 drawer:
-  inside: [700, 500, 150]      # width, depth, height in mm
+  inside: [700, 500, 150]      # width, depth, height in mm; or a preset such as ikea-maximera-80x60-low
 
 base:
-  kind: bare                   # or gridfinity, or pegboard (IKEA UPPDATERA)
+  kind: bare                   # or gridfinity, pegboard (IKEA UPPDATERA), or grid (a printed board of holes)
 
 layout:
   - id: kettle
@@ -116,7 +116,7 @@ npx dunnage export drawers/coffee.drawer.yml     # write 3MFs and spec sheets
 A printer profile is a small file beside your drawers, not a setting inside dunnage. It mostly says what fits on the bed:
 
 ```yaml
-format: printer/0.2
+format: printer/0.3
 preset: bambu-p1s
 bed: [256, 256, 256]
 ```

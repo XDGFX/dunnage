@@ -2,13 +2,14 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
-import { check, type CheckResult } from "../core/index.ts";
+import { check, type CheckResult, type Problem } from "../core/index.ts";
 
 const usage = `Usage: dunnage <command> [--json] <file...>
 
 Commands:
   check   validate drawer and printer files, one problem per line as
-          file:line:column: path: message (or JSON with --json)
+          file:line:column: path: message (or JSON with --json). Warnings
+          are marked as such and don't fail the check.
   export  write 3MFs and spec sheets (not built yet)`;
 
 const { values, positionals } = parseArgs({
@@ -35,13 +36,15 @@ if (command === "check") {
   if (values.json) {
     console.log(JSON.stringify(results, null, 2));
   } else {
-    for (const { file, format, migratedFrom, problems } of results) {
-      for (const { path, message, line, column } of problems) {
-        console.log(`${[file, line, column].filter((part) => part !== undefined).join(":")}: ${path ? `${path}: ` : ""}${message}`);
-      }
+    for (const { file, format, migratedFrom, problems, warnings = [] } of results) {
+      const say = ({ path, message, line, column }: Problem, label = "") =>
+        console.log(`${[file, line, column].filter((part) => part !== undefined).join(":")}: ${label}${path ? `${path}: ` : ""}${message}`);
+      for (const problem of problems) say(problem);
+      for (const warning of warnings) say(warning, "warning: ");
       const migrated = migratedFrom ? `, migrated from ${migratedFrom}` : "";
       const count = problems.length === 1 ? "1 problem" : `${problems.length} problems`;
-      console.log(problems.length === 0 ? `${file}: ok, ${format}${migrated}` : `${file}: ${count}`);
+      const warned = warnings.length === 0 ? "" : warnings.length === 1 ? ", 1 warning" : `, ${warnings.length} warnings`;
+      console.log(problems.length === 0 ? `${file}: ok, ${format}${migrated}${warned}` : `${file}: ${count}${warned}`);
     }
   }
   process.exit(results.some((result) => result.problems.length > 0) ? 1 : 0);

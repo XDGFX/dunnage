@@ -300,6 +300,7 @@ function Overview({ plan: p, drawer, issues, general, select, apply, onAddThing,
   const baseText: Record<BaseKey, string> = {
     bare: "Holders sit on the floor and hold each other by touching.",
     gridfinity: `${p.base.grid?.nx ?? 0} × ${p.base.grid?.ny ?? 0} cells of ${p.base.grid?.pitch ?? 42} mm, centred. Each bin claims the cells its things cover.`,
+    grid: "A printed board of holes that holders screw or pin into. Board layout isn't drawn yet.",
     "uppdatera-60": "Things rest against IKEA pegs in fixed holes.",
     "uppdatera-80": "Things rest against IKEA pegs in fixed holes.",
   };

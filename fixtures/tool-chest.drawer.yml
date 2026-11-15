@@ -1,0 +1,50 @@
+# A metal tool chest drawer in the van, on a printed grid board (#6). Sizes are the spec's example,
+# to be replaced by measuring the real drawer.
+#
+# Tool chests vary too much by brand for a preset, so the drawer is described directly: `inside` at
+# the floor (on top of any liner), the folded steel's corner radius, and the bend where the floor
+# meets the walls. The walls are vertical, so `walls` is left out.
+#
+# For an IKEA MAXIMERA, name a preset instead and override what differs:
+#   drawer: { preset: ikea-maximera-80x60-low }
+
+format: drawer/0.3
+name: Tool chest, top drawer
+printer: p1s
+
+drawer:
+  inside: [560, 400, 75]           # width, depth, height
+  corner_radius: 3
+  floor_edge: 2
+
+base:
+  kind: grid
+  variant: light-thin              # the default
+  bumpers: { split: even }         # or e.g. { x: left, y: even }; `fit` sets the clearance to the wall
+  # tile: [24, 17]                 # in holes; default is the largest that fits the bed
+  # countersinks: [[0, 0], [56, 40]]
+
+items:
+  ratchet:    { name: "Ratchet, 3/8 in", box: [200, 35, 30] }
+  socket-rail: { name: Socket rail,      box: [250, 30, 45] }
+  tape:       { name: Tape measure,      box: [75, 40, 75], poses: [flat, upright] }
+
+layout:
+  - { id: ratchet, at: [130, 60] }
+  - { id: socket-rail, at: [150, 150] }
+  - { id: tape, pose: upright, at: [400, 60] }
+
+# Each holder says how it's fixed, hole by hole: a 4×12 screw, or a printed peg that lets it lift off.
+holders:
+  - id: ratchet-cradle
+    method: posts
+    holds: [ratchet]
+    fix:
+      - { hole: [6, 5], by: screw }
+      - { hole: [20, 5], by: pin }
+  - id: rail-clip
+    method: slot
+    holds: [socket-rail]
+    fix:
+      - { hole: [4, 15], by: screw }
+      - { hole: [26, 15], by: screw }

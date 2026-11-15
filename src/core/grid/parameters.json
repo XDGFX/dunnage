@@ -1,0 +1,28 @@
+{
+  "$comment": "The grid base's numbers, in mm and degrees: dunnage and the Fusion grid master both load this file (ADR 0001). docs/grid-calibration.md explains each.",
+  "pitch": 9.5,
+  "thickness": 8,
+  "face": 0.6,
+  "lead_in": 0.4,
+  "boss_chamfer": 1,
+  "web": { "width": 0.8, "height": 3 },
+  "variant": "light-thin",
+  "variants": {
+    "standard": { "wall": 1.6, "band": 3 },
+    "light-thick": { "wall": 1.2, "band": 1.2 },
+    "light": { "wall": 0.9, "band": 1.2 },
+    "light-thin": { "wall": 0.5, "band": 1.2 }
+  },
+  "joiner": { "wall": 0.9, "web_width": 1.2, "web_height": 1.6, "ring_room": 0.8, "slot_room": 0.3 },
+  "fit": {
+    "grid_hole": { "light-thin": 3.2 },
+    "peg": 0.6,
+    "peg_fixed": 0.5,
+    "joiner": 0.28
+  },
+  "peg": { "chamfer": 0.4, "flat_angle": 50 },
+  "screw": { "clearance": 4.5, "flange": 4.5 },
+  "label": { "dot": 0.6, "spacing": 1.6 },
+  "tile": { "bed_margin": 10 },
+  "bumper": { "fit": 0.3, "min": 5, "max": 10 }
+}

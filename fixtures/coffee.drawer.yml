@@ -12,7 +12,7 @@
 # Units are mm. Origin is the front-left corner of the drawer floor: x runs left to right, y runs
 # front (your side) to back, z up. Rotation is degrees, anticlockwise seen from above.
 
-format: drawer/0.2
+format: drawer/0.3
 name: Coffee and tableware
 printer: p1s                       # a printer profile, kept beside the drawer files
 

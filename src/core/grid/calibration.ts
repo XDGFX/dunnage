@@ -1,4 +1,5 @@
 import type { Manifold, ManifoldToplevel } from "manifold-3d";
+import { GRID } from "./parameters.ts";
 import { JOINER, PITCH, VARIANTS, holeCentre, onBed, seatedJoiner, tile, type Dots, type Variant } from "./tile.ts";
 
 // Test prints for #7, which settle the open numbers in the grid spec (#6 §7), each round as small
@@ -41,15 +42,15 @@ export const PEG_CLEARANCES = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8];
 const PEG_LENGTH = 12;
 const PEG_STEP = 2;
 const pegLength = (n: number) => PEG_LENGTH + PEG_STEP * n;
-const PEG_CHAMFER = 0.4;
+const PEG_CHAMFER = GRID.peg.chamfer;
 /**
  * Where the flat is cut, as an angle up the peg from its bottom. Above 45°, so the curve rises off
  * the flat steeply enough to print without support.
  */
-const PEG_FLAT_ANGLE = 50;
+const PEG_FLAT_ANGLE = GRID.peg.flat_angle;
 /** Holders put at least this much plastic under a screw head (#6 §6). */
-const FLANGE = 4.5;
-const SCREW_CLEARANCE = 4.5;
+const FLANGE = GRID.screw.flange;
+const SCREW_CLEARANCE = GRID.screw.clearance;
 
 export const variantList = Object.keys(VARIANTS) as Variant[];
 

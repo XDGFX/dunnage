@@ -5,12 +5,14 @@
 //   bun scripts/grid-calibration.ts round-3 --variant light,3.3,0.6,0.3
 //
 // A variant is <variant>,<hole mm>,<skin mm>, and for round 3 the joiner fit too (negative is
-// interference). Files go to out/grid-calibration/<round>/ unless --out says otherwise.
+// interference). Without --variant, rounds 2 and 3 use the grid parameters file's values. Files go
+// to out/grid-calibration/<round>/ unless --out says otherwise.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import Module from "manifold-3d";
 import { roundOne, roundThree, roundTwo, variantList, type Part } from "../src/core/grid/calibration.ts";
+import { GRID } from "../src/core/grid/parameters.ts";
 import { toStl } from "../src/core/grid/stl.ts";
 import { VARIANTS, tile, type Variant } from "../src/core/grid/tile.ts";
 
@@ -37,13 +39,12 @@ if (round === "round-1") {
 } else {
   const withFit = round === "round-3";
   const usage = `--variant takes <variant>,<hole mm>,<skin mm>${withFit ? ",<joiner fit mm>" : ""}, e.g. light,3.3,0.6${withFit ? ",0.3" : ""}`;
-  const choices = (values.variant ?? []).map((v) => {
+  const choices = (values.variant ?? [defaultChoice()]).map((v) => {
     const [variant, hole, skin, fit] = v.split(",");
     const bad = !variant || !(variant in VARIANTS) || !Number(hole) || !Number(skin) || (withFit && (fit === undefined || Number.isNaN(Number(fit))));
     if (bad) fail(`${usage}, not ${v}.`);
     return { variant: variant as Variant, hole: Number(hole), skin: Number(skin), fit: Number(fit) };
   });
-  if (!choices.length) fail(`${round} needs at least one --variant. ${usage}.`);
   parts = withFit ? roundThree(wasm, choices) : roundTwo(wasm, choices);
 }
 
@@ -67,6 +68,13 @@ if (round === "round-1") {
 }
 writeFileSync(join(out, "README.md"), `${lines.join("\n")}\n`);
 console.log(`Wrote ${parts.length} parts to ${out}`);
+
+/** The working values in the grid parameters file, as a --variant. */
+function defaultChoice(): string {
+  const { variant, face, fit } = GRID;
+  const hole = fit.grid_hole[variant] ?? fail(`the grid parameters file has no hole size for its variant, ${variant}: pass --variant`);
+  return [variant, hole, face, fit.joiner].join(",");
+}
 
 function fail(message: string): never {
   console.error(message);

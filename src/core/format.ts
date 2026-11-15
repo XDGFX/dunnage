@@ -1,7 +1,7 @@
 /** The file formats this copy of dunnage reads, each at the version it writes. */
 export const FORMATS = {
-  drawer: "0.2",
-  printer: "0.2",
+  drawer: "0.3",
+  printer: "0.3",
 } as const;
 
 export type FormatKind = keyof typeof FORMATS;
@@ -23,7 +23,9 @@ export type Migrations = Partial<Record<FormatKind, Record<string, Migration>>>;
 
 /** Steps from each older version of a format to the next, keyed by the version they start from. */
 export const MIGRATIONS: Migrations = {
-  // None yet: drawer/0.2 and printer/0.2 are the first published formats.
+  // 0.3 only adds optional fields, so a 0.2 file is already a valid 0.3 one.
+  drawer: { "0.2": { to: "0.3", up: (document) => document } },
+  printer: { "0.2": { to: "0.3", up: (document) => document } },
 };
 
 /**

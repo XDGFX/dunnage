@@ -1,7 +1,9 @@
 import Type, { type Static, type TSchema } from "typebox";
+import { DRAWER_PRESETS } from "./drawers.ts";
 import { FORMATS } from "./format.ts";
+import { VARIANT_NAMES } from "./grid/parameters.ts";
 
-// The drawer/0.2 and printer/0.2 formats, as JSON Schema. docs/format/ holds the same schemas
+// The drawer and printer formats, as JSON Schema. docs/format/ holds the same schemas
 // written out (`bun run schema`), and the spec beside them explains each field.
 
 /** Lower case letters, digits and hyphens. */
@@ -12,6 +14,8 @@ const Size2 = Type.Tuple([Length, Length]);
 const Size3 = Type.Tuple([Length, Length, Length]);
 const Point = Type.Tuple([Type.Number(), Type.Number()], { description: "[x, y] in mm" });
 const Status = Type.Union([Type.Literal("open"), Type.Literal("closed")]);
+const Angle = Type.Number({ minimum: 0, exclusiveMaximum: 90, description: "Degrees." });
+const VariantName = Type.Union(VARIANT_NAMES.map((variant) => Type.Literal(variant)), { description: "The grid board's variant." });
 
 function strict<T extends Parameters<typeof Type.Object>[0]>(properties: T, description?: string) {
   return Type.Object(properties, { additionalProperties: false, ...(description ? { description } : {}) });
@@ -70,10 +74,18 @@ const Lock = strict({
   sha256: Type.String({ pattern: "^[0-9a-f]+$" }),
 });
 
+const Hole = Type.Tuple([Type.Integer({ minimum: 0 }), Type.Integer({ minimum: 0 })], { description: "[i, j], a grid hole counted from the drawer's origin hole." });
+
 const holderFields = {
   id: Id,
   holds: Type.Array(Id, { minItems: 1 }),
   floor: Type.Optional(Type.Boolean()),
+  fix: Type.Optional(
+    Type.Array(strict({ hole: Hole, by: Type.Union([Type.Literal("screw"), Type.Literal("pin")]) }), {
+      minItems: 1,
+      description: "How the holder is fixed to a grid base, hole by hole.",
+    }),
+  ),
   lock: Type.Optional(Lock),
   why: Type.Optional(Type.String()),
 };
@@ -106,6 +118,26 @@ const Base = Type.Union([
   strict({ kind: Type.Literal("bare") }),
   strict({ kind: Type.Literal("gridfinity"), pitch: Type.Optional(Length) }),
   strict({ kind: Type.Literal("pegboard"), preset: Type.Union([Type.Literal("uppdatera-80"), Type.Literal("uppdatera-60")]) }),
+  strict({
+    kind: Type.Literal("grid"),
+    variant: Type.Optional(VariantName),
+    tile: Type.Optional(Type.Tuple([Type.Integer({ minimum: 1 }), Type.Integer({ minimum: 1 })], { description: "[x, y] in holes." })),
+    bumpers: Type.Optional(
+      strict({
+        split: Type.Optional(
+          Type.Union([
+            Type.Literal("even"),
+            strict({
+              x: Type.Optional(Type.Union([Type.Literal("even"), Type.Literal("left"), Type.Literal("right")])),
+              y: Type.Optional(Type.Union([Type.Literal("even"), Type.Literal("front"), Type.Literal("back")])),
+            }),
+          ]),
+        ),
+        fit: Type.Optional(Type.Number({ minimum: 0, description: "Clearance to the wall per side, in mm." })),
+      }),
+    ),
+    countersinks: Type.Optional(Type.Array(Hole)),
+  }),
 ]);
 
 const Review = strict({
@@ -131,7 +163,16 @@ export const Drawer = strict({
   name: Type.String(),
   printer: Type.Optional(Type.String({ description: "A printer profile, <printer>.printer.yml beside this file." })),
   drawer: strict({
-    inside: Type.Tuple([Length, Length, Length], { description: "[width, depth, height] in mm." }),
+    preset: Type.Optional(Type.Union(Object.keys(DRAWER_PRESETS).map((key) => Type.Literal(key)), { description: "A built-in drawer, which fills in the shape." })),
+    inside: Type.Optional(Type.Tuple([Length, Length, Length], { description: "[width, depth, height] in mm: the floor, and the usable height." })),
+    walls: Type.Optional(
+      strict(
+        { sides: Type.Optional(Angle), ends: Type.Optional(Angle), left: Type.Optional(Angle), right: Type.Optional(Angle), front: Type.Optional(Angle), back: Type.Optional(Angle) },
+        "Each wall's slope, outward from vertical. `sides` sets left and right, `ends` front and back.",
+      ),
+    ),
+    corner_radius: Type.Optional(Type.Number({ minimum: 0, description: "The vertical corners' radius, seen from above, in mm." })),
+    floor_edge: Type.Optional(Type.Number({ minimum: 0, description: "The fillet or chamfer where the floor meets the walls, in mm." })),
     obstructions: Type.Optional(
       Type.Array(strict({ name: Type.Optional(Type.String()), at: Point, size: Size2, height: Type.Optional(Length) })),
     ),
@@ -166,6 +207,17 @@ export const Printer = strict({
   bed: Type.Optional(Size3),
   clearance: Type.Optional(Type.Number({ minimum: 0 })),
   colour: Type.Optional(Type.String()),
+  fit: Type.Optional(
+    strict(
+      {
+        grid_hole: Type.Optional(strict(Object.fromEntries(VARIANT_NAMES.map((variant) => [variant, Type.Optional(Length)])), "Grid hole diameter by variant, in mm.")),
+        peg: Type.Optional(Type.Number({ minimum: 0, description: "How much smaller a peg is than a grid hole, across the diameter, in mm." })),
+        peg_fixed: Type.Optional(Type.Number({ minimum: 0, description: "How much smaller a peg is than a holder's hole, for a peg that stays put, in mm." })),
+        joiner: Type.Optional(Type.Number({ description: "Radial clearance of a joiner's rings over the bosses, in mm; negative is interference." })),
+      },
+      "Calibrated fits for the grid base. Each defaults to the grid parameters file's.",
+    ),
+  ),
 });
 
 export type Drawer = Static<typeof Drawer>;
