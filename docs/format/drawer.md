@@ -1,11 +1,12 @@
-# drawer/0.2
+# drawer/0.3
 
 A drawer file describes one drawer: what's in it, where each thing sits, and how each thing is
 held. It's the source of truth. The UI edits it by direct manipulation and an agent edits it from
 a description, so every field is meant to be read and written by hand.
 
-The JSON Schema is [drawer-0.2.schema.json](drawer-0.2.schema.json). The worked example is
-[`fixtures/coffee.drawer.yml`](../../fixtures/coffee.drawer.yml).
+The JSON Schema is [drawer-0.3.schema.json](drawer-0.3.schema.json). The worked examples are
+[`fixtures/coffee.drawer.yml`](../../fixtures/coffee.drawer.yml), and
+[`fixtures/tool-chest.drawer.yml`](../../fixtures/tool-chest.drawer.yml) for a grid base.
 
 ## Conventions
 
@@ -23,7 +24,7 @@ The JSON Schema is [drawer-0.2.schema.json](drawer-0.2.schema.json). The worked 
 
 | Field | Required | What |
 |---|---|---|
-| `format` | yes | `drawer/0.2` |
+| `format` | yes | `drawer/0.3` |
 | `name` | yes | What the drawer is called. |
 | `printer` | no | A printer profile, `<printer>.printer.yml` in the same folder. See [printer.md](printer.md). |
 | `drawer` | yes | The drawer's inside. |
@@ -44,9 +45,57 @@ drawer:
     - { name: Runner bracket, at: [0, 470], size: [700, 30], height: 12 }
 ```
 
-- `inside`: `[width, depth, height]` of the space inside the drawer.
+- `inside`: `[width, depth, height]` of the space inside the drawer: the floor's width and depth,
+  and the usable height.
 - `obstructions`: things in the drawer that aren't yours to move, each a rectangle with an
   optional `name` and `height`.
+
+The drawer's shape, from the floor up. Each is optional; the board and bumpers of a `grid` base
+follow it.
+
+| Field | Default | What |
+|---|---|---|
+| `preset` | | A built-in drawer, which fills in the fields below. Any of them can still be set to override it. |
+| `walls` | 0 | Each wall's slope in degrees, outward from vertical: `{ sides, ends, left, right, front, back }`. `sides` sets left and right, `ends` front and back, and a single wall overrides either. |
+| `corner_radius` | 0 | The radius of the vertical corners, seen from above. |
+| `floor_edge` | 0 | The size of the fillet or chamfer where the floor meets the walls. |
+
+A drawer needs an `inside`, a `preset`, or both; an `inside` overrides the preset's.
+
+```yaml
+drawer:
+  preset: ikea-maximera-80x60-low
+  walls: { left: 18 }              # measured: overrides the preset's 20°
+```
+
+### Built-in drawers
+
+IKEA MAXIMERA, as `ikea-maximera-<size>-<height>`. Each has its sides sloping 20°, its ends
+vertical, square corners and a 2 mm `floor_edge`.
+
+| `<size>` | Floor (w × d) |
+|---|---|
+| `40x60` | 281 × 505 |
+| `60x60` | 481 × 505 |
+| `80x60` | 681 × 505 |
+| `40x37` | 281 × 309 |
+| `60x37` | 481 × 309 |
+| `80x37` | 681 × 309 |
+| `us-18` | 335 × 504 |
+
+| `<height>` | Height |
+|---|---|
+| `low` | 78 |
+| `medium` | 144 |
+| `high` | 212 |
+
+These come from drawer mats, published Gridfinity baseplates and inserts, not from a drawer, so
+every one is **unverified** and `dunnage check` warns when a file uses one. Measure the drawer and
+set any field that differs.
+
+A metal tool chest has no preset, as they vary too much by brand. Measure `inside` at the floor (on
+top of any liner), set `corner_radius` for the folded steel and `floor_edge` for the bend at the
+floor, and leave `walls` at 0. `fixtures/tool-chest.drawer.yml` is one.
 
 ## `base`
 
@@ -57,6 +106,30 @@ One base per drawer. A drawer with both a grid and a pegboard is two drawers in 
 | `bare` | | Holders sit on the drawer floor. |
 | `gridfinity` | `pitch` (default 42) | A grid of whole cells, as many as fit, centred in the drawer. Each Gridfinity holder claims the smallest block of cells that covers what it holds. |
 | `pegboard` | `preset`: `uppdatera-80` or `uppdatera-60` | IKEA UPPDATERA, 675 × 500 or 475 × 500. The drawer height is measured from the top of the board. |
+| `grid` | See below | A printed board of holes on a 9.5 mm pitch, in tiles joined from the back, wedged against the walls by bumpers. Holders screw or pin into its holes. |
+
+### `grid`
+
+```yaml
+base:
+  kind: grid
+  variant: light-thin
+  tile: [24, 17]
+  bumpers: { split: even, fit: 0.3 }
+  countersinks: [[0, 0], [69, 51]]
+```
+
+| Field | Default | What |
+|---|---|---|
+| `variant` | `light-thin` | The board's build: `standard`, `light-thick`, `light` or `light-thin`, which differ in boss wall. |
+| `tile` | the largest that fits the bed | `[x, y]` tile size, in holes. |
+| `bumpers.split` | `even` | How the gap to the walls is shared between the bumpers on each axis: `even`, or `{ x, y }` with `x` one of `even`, `left` or `right`, and `y` one of `even`, `front` or `back`, to weight that side. |
+| `bumpers.fit` | 0.3 | Clearance to the wall per side, in mm. |
+| `countersinks` | none | Holes to countersink for a screw into the drawer floor, by hole. |
+
+Holes are numbered `[i, j]` from the drawer's origin hole, the one nearest the front-left corner.
+The pitch, hole sizes and every other grid number come from the grid parameters file and the
+printer's `fit` ([printer.md](printer.md)), not from the drawer.
 
 ## `rules`
 
@@ -161,6 +234,7 @@ holders:
 | `method` | One of the methods below. |
 | `holds` | The ids of the things it holds, from `layout`. |
 | `floor` | `false` for a holder with no floor under the thing. |
+| `fix` | On a `grid` base, how it's fixed, hole by hole: `[{ hole: [i, j], by: screw }]`. `by` is `screw` (a 4×12 wood screw through the holder) or `pin` (a printed peg, so the holder lifts off). |
 | `lock` | Set once it's built. See below. |
 
 | `method` | Makes | Extra fields |
@@ -218,11 +292,15 @@ Beyond the schema, `dunnage check` reports:
   and spout, stays inside the walls less the `edge_margin`. Its height, stack included, is no
   more than the drawer's. It doesn't overlap an obstruction or another thing; a spout may
   overhang a neighbour or an obstruction. Things set `aside` are skipped.
+- **The drawer's shape.** It has an `inside`, from the file or its `preset`. A preset that's
+  unverified gets a warning, which doesn't fail the check.
 - **Holders.** A thing is held by at most one holder. `gridfinity` holders need a gridfinity base
-  and `pegs` holders a pegboard. A `peg` holder holds only things with an `outlet`.
+  and `pegs` holders a pegboard. A `peg` holder holds only things with an `outlet`. `fix` needs a
+  grid base.
 - **The printer profile** named by `printer` is beside the file (the CLI checks this; the core
   can't see files).
 
 Not checked yet, because they depend on holder shapes dunnage doesn't make yet: holder floors in
 the height check, the `gap` rule, locked holders' shapes, holders fitting the printer's bed, and
-Gridfinity and pegboard placement. `angle_step` is a snapping rule for the UI, not a check.
+Gridfinity and pegboard placement. Nor, until the grid board is laid out, whether a `fix` or
+`countersinks` hole is on the board. `angle_step` is a snapping rule for the UI, not a check.

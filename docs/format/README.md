@@ -5,8 +5,10 @@ from dunnage's.
 
 | Format | File | Spec | JSON Schema |
 |---|---|---|---|
-| `drawer/0.2` | `<name>.drawer.yml` | [drawer.md](drawer.md) | [drawer-0.2.schema.json](drawer-0.2.schema.json) |
-| `printer/0.2` | `<name>.printer.yml` | [printer.md](printer.md) | [printer-0.2.schema.json](printer-0.2.schema.json) |
+| `drawer/0.3` | `<name>.drawer.yml` | [drawer.md](drawer.md) | [drawer-0.3.schema.json](drawer-0.3.schema.json) |
+| `printer/0.3` | `<name>.printer.yml` | [printer.md](printer.md) | [printer-0.3.schema.json](printer-0.3.schema.json) |
+
+The 0.2 schemas stay here for files that still name them.
 
 Every file starts with a `format: <kind>/<version>` line.
 
@@ -20,8 +22,12 @@ A format version is `major.minor`, compared as numbers, so `0.10` is newer than 
 - The format version changes only when the file changes. A dunnage release that reads and writes
   the same files leaves it alone.
 
-`drawer/0.2` and `printer/0.2` are the first published formats, so there are no migrations yet.
-They're kept in `MIGRATIONS` in `src/core/format.ts`.
+Migrations are kept in `MIGRATIONS` in `src/core/format.ts`.
+
+| From | To | What changed |
+|---|---|---|
+| `drawer/0.2` | `drawer/0.3` | Added the drawer's shape (`preset`, `walls`, `corner_radius`, `floor_edge`; `inside` may come from a preset), `base.kind: grid`, and holders' `fix`. Nothing to rewrite. |
+| `printer/0.2` | `printer/0.3` | Added `fit`. Nothing to rewrite. |
 
 ## Checking a file
 
@@ -36,9 +42,13 @@ drawers/coffee.drawer.yml:94:5: layout[2].item: coastr is not an item. Items are
 drawers/coffee.drawer.yml: 1 problem
 ```
 
+A warning is something worth knowing that isn't wrong, such as a built-in drawer nobody has
+measured yet. It's printed the same way, marked `warning:`, and doesn't fail the check.
+
 `--json` prints the same as a JSON array of `{ file, format, migratedFrom?, problems: [{ path,
-message, line?, column? }] }`. Paths are written `layout[3].at`, the empty path meaning the
-whole file. The command exits 1 if any file has a problem.
+message, line?, column? }], warnings? }`, `warnings` shaped like `problems`. Paths are written
+`layout[3].at`, the empty path meaning the whole file. The command exits 1 if any file has a
+problem.
 
 A check runs in three stages, and stops at the first that finds a problem:
 
@@ -57,7 +67,7 @@ The YAML language server (VS Code's YAML extension, among others) validates as y
 first line such as:
 
 ```yaml
-# yaml-language-server: $schema=https://raw.githubusercontent.com/XDGFX/dunnage/main/docs/format/drawer-0.2.schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/XDGFX/dunnage/main/docs/format/drawer-0.3.schema.json
 ```
 
 ## Changing a format

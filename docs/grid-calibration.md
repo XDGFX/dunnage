@@ -3,8 +3,33 @@
 Test prints that settle the open numbers in the `grid` base spec ([#6](https://github.com/XDGFX/dunnage/issues/6)),
 for [#7](https://github.com/XDGFX/dunnage/issues/7). The geometry is in `src/core/grid/`, so #8 can build on it.
 
-The values found here are for one printer, filament and slicer profile. They become the `bambu-p1s`
-preset's `fit:` defaults; anyone else prints the same calibration and sets their own.
+The values found here are for one printer, filament and slicer profile. They're the defaults in the
+grid parameters file (below); anyone else prints the same calibration and sets their own in their
+printer file's `fit:` ([printer.md](format/printer.md)).
+
+## The grid parameters file
+
+[`src/core/grid/parameters.json`](../src/core/grid/parameters.json) holds every grid number, in mm
+and degrees. dunnage's code and the calibration script read it, and the Fusion grid master loads it
+([ADR 0001](adr/0001-holder-parts-from-a-library.md)). It's JSON because a Fusion script can read
+that with Python's standard library. Change a number there, never in code.
+
+| Field | What |
+|---|---|
+| `pitch` | Hole to hole. Edge holes sit half a pitch in from a tile's edge. |
+| `thickness` | The board, face to back. |
+| `face` | The closed top face (the skin), printed on the bed. |
+| `lead_in` | The 45° chamfer round each hole on the face. |
+| `boss_chamfer` | The 45° flare where each boss meets the face. |
+| `web` | The low web along every row and column: `width`, and `height` from the face. |
+| `variant`, `variants` | The default variant, and each one's boss `wall` and edge `band`. |
+| `joiner` | The joiner's ring `wall` and `web_width` × `web_height`; the `ring_room` and `slot_room` cut in a tile's band to let one in. |
+| `fit` | The calibrated fits: `grid_hole` by variant, `peg`, `peg_fixed` and `joiner`. A printer file's `fit` overrides them. |
+| `peg` | A peg's end `chamfer`, and the `flat_angle` its flat is cut at. |
+| `screw` | The `clearance` hole in a holder, and the `flange` under the head. |
+| `label` | Cone dot labels: `dot` size and `spacing`. |
+| `tile` | `bed_margin`, the total margin a tile leaves on the bed. |
+| `bumper` | The default `fit` to the wall per side, and the `min` and `max` bumper thickness at the floor. |
 
 ## The design under test
 
@@ -36,7 +61,8 @@ bun scripts/grid-calibration.ts round-2 --variant light,3.3,0.6       # variant,
 bun scripts/grid-calibration.ts round-3 --variant light,3.3,0.6,0.3   # and the joiner fit
 ```
 
-STLs and a parts list (`README.md`, with estimated weights) go to `out/grid-calibration/<round>/`.
+Without `--variant`, rounds two and three use the parameters file's variant, hole, face and joiner
+fit. STLs and a parts list (`README.md`, with estimated weights) go to `out/grid-calibration/<round>/`.
 Every part is exported as it prints: don't rotate them. Labels are cone dots on the top face (the
 bed side), or notches on a joiner's ring: count them. Pegs are told apart by length.
 
@@ -142,10 +168,11 @@ where the four tiles meet, a spare), a `tile-25x25` to weigh, and a `test-holder
 
 ## Outcome
 
-These are working values: round three hasn't been printed yet, and they stand until it has.
+These are working values: round three hasn't been printed yet, and they stand until it has. They're
+in the grid parameters file.
 
 - The variant, and the default: `light-thin`, with a 0.6 mm top face.
-- `fit:` for the `bambu-p1s` preset: `grid_hole` 3.2 mm, `peg` 0.6 mm smaller than the hole (#6
+- `fit:`, the defaults for every printer: `grid_hole` 3.2 mm, `peg` 0.6 mm smaller than the hole (#6
   first called it `pin_interference`; it turned out to be a clearance), `peg_fixed` 0.5 mm for a
   peg pressed into a holder's hole to stay, and `joiner` 0.28 mm.
 

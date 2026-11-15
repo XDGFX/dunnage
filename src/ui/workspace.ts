@@ -188,7 +188,7 @@ export function download(name: string, text: string) {
 
 /** A new, empty drawer file. */
 export function blankDrawer(name: string, printer?: string): string {
-  return `format: drawer/0.2
+  return `format: drawer/0.3
 name: ${flow(name)}
 ${printer ? `printer: ${flow(printer)}\n` : ""}
 drawer:

@@ -208,7 +208,7 @@ export function setBase(text: string, key: BaseKey): string {
   const base = BASES[key].base;
   if (!drawerOf(text).base) return setIn(text, ["base"], base);
   text = setIn(text, ["base", "kind"], base.kind);
-  for (const field of ["pitch", "preset"]) text = deleteIn(text, ["base", field]);
+  for (const field of ["pitch", "preset", "variant", "tile", "bumpers", "countersinks"]) text = deleteIn(text, ["base", field]);
   return "preset" in base ? setIn(text, ["base", "preset"], base.preset) : text;
 }
 

@@ -1,7 +1,10 @@
 import type { TSchema } from "typebox";
+import { Settings } from "typebox/system";
 import Value from "typebox/value";
 import { isMap, isScalar, isSeq, LineCounter, parseDocument, type Document } from "yaml";
+import { DRAWER_PRESETS, drawerShape } from "./drawers.ts";
 import { FORMATS, migrate, readHeader } from "./format.ts";
+import { GRID, gridFit, type Fit } from "./grid/parameters.ts";
 import { Drawer, ID, Printer, PRINTER_PRESETS } from "./schema.ts";
 import { bounds, outline, overlap, poseName, posesOf, rectangle, samePose, writtenPose, type Part } from "./shape.ts";
 
@@ -14,14 +17,16 @@ export interface Problem {
 }
 
 export interface CheckResult {
-  /** The format the file is in once read, such as `drawer/0.2`. Absent when the format line is unreadable. */
+  /** The format the file is in once read, such as `drawer/0.3`. Absent when the format line is unreadable. */
   format?: string;
   /** The format the file was written in, when it was older and has been migrated. */
   migratedFrom?: string;
   problems: Problem[];
+  /** What's worth knowing but isn't wrong, such as a built-in drawer that hasn't been measured. Absent when there are none. */
+  warnings?: Problem[];
 }
 
-export type LoadedPrinter = Printer & { bed: [number, number, number] };
+export type LoadedPrinter = Printer & { bed: [number, number, number]; fit: Fit };
 export type DunnageFile = { kind: "drawer"; drawer: Drawer } | { kind: "printer"; printer: LoadedPrinter };
 
 export class FormatError extends Error {
@@ -109,14 +114,41 @@ function inspect(text: string, options: CheckOptions): { result: CheckResult; fi
 
   if (kind === "drawer") {
     const drawer = document as Drawer;
-    return { result: { format, migratedFrom, problems: place(drawerIssues(drawer, options)) }, file: { kind, drawer } };
+    if (!drawerShape(drawer.drawer)) {
+      const message = "needs an `inside`, or a `preset` to take one from, such as ikea-maximera-80x60-low";
+      return { result: { format, migratedFrom, problems: place([{ at: ["drawer"], message }]) } };
+    }
+    const warnings = place(drawerWarnings(drawer));
+    return {
+      result: { format, migratedFrom, problems: place(drawerIssues(drawer, options)), ...(warnings.length > 0 ? { warnings } : {}) },
+      file: { kind, drawer },
+    };
   }
   const printer = document as Printer;
   const bed = printer.bed ?? (printer.preset ? PRINTER_PRESETS[printer.preset as keyof typeof PRINTER_PRESETS] : undefined);
   const problems = place(
     bed ? [] : [{ at: [], message: `needs a \`bed\`, or a \`preset\` to take one from: ${Object.keys(PRINTER_PRESETS).join(", ")}` }],
   );
-  return { result: { format, migratedFrom, problems }, file: bed ? { kind, printer: { ...printer, bed: [...bed] } } : undefined };
+  return { result: { format, migratedFrom, problems }, file: bed ? { kind, printer: { ...printer, bed: [...bed], fit: gridFit(printer.fit) } } : undefined };
+}
+
+/** A built-in drawer whose sizes haven't been checked against a real one, or a grid variant never calibrated. */
+function drawerWarnings(drawer: Drawer): Issue[] {
+  const warnings: Issue[] = [];
+  const { preset } = drawer.drawer;
+  if (preset !== undefined && DRAWER_PRESETS[preset]?.unverified) {
+    warnings.push({ at: ["drawer", "preset"], message: `${preset}'s sizes are unverified: measure the drawer, and set any that differ` });
+  }
+  if (drawer.base?.kind === "grid") {
+    const variant = drawer.base.variant ?? GRID.variant;
+    if (GRID.fit.grid_hole[variant] === undefined) {
+      warnings.push({
+        at: drawer.base.variant === undefined ? ["base"] : ["base", "variant"],
+        message: `${variant} has no calibrated hole size: print the calibration, and set \`fit.grid_hole.${variant}\` in the printer profile`,
+      });
+    }
+  }
+  return warnings;
 }
 
 // --- Schema --------------------------------------------------------------------------------
@@ -134,7 +166,16 @@ const BAD_ID = "isn't a valid id: use lower case letters, digits and hyphens";
 function schemaIssues(schema: TSchema, value: unknown): Issue[] {
   // TypeBox reports `additionalProperties: false` twice; the "boolean" copy says less.
   // An unmatched union is reported through its branches, so its own error adds nothing.
-  const errors = (Value.Errors(schema, value) as SchemaError[]).filter((error) => error.keyword !== "boolean" && error.keyword !== "anyOf");
+  // TypeBox stops at 8 errors, too few to reach a union's later branches, so lift it for this call.
+  const { maxErrors } = Settings.Get();
+  Settings.Set({ maxErrors: 1000 });
+  let all: SchemaError[];
+  try {
+    all = Value.Errors(schema, value) as SchemaError[];
+  } finally {
+    Settings.Set({ maxErrors });
+  }
+  const errors = all.filter((error) => error.keyword !== "boolean" && error.keyword !== "anyOf");
   return narrowUnions(errors, schema, value).flatMap((error) => explain(error, schema, value));
 }
 
@@ -360,7 +401,7 @@ function drawerIssues(drawer: Drawer, options: CheckOptions): Issue[] {
   }
 
   // Things fit inside the drawer, clear of its obstructions and of each other.
-  const [width, depth, height] = drawer.drawer.inside;
+  const [width, depth, height] = drawerShape(drawer.drawer)!.inside;
   const margin = drawer.rules?.edge_margin ?? 0;
   const obstructions = (drawer.drawer.obstructions ?? []).map((obstruction, index) => ({
     name: obstruction.name ?? `obstruction ${index + 1}`,
@@ -404,6 +445,7 @@ function drawerIssues(drawer: Drawer, options: CheckOptions): Issue[] {
     if (needs && needs !== base) {
       say(["holders", index, "method"], `a ${holder.method} holder needs a ${needs} base, and this drawer's base is ${base}`);
     }
+    if (holder.fix && base !== "grid") say(["holders", index, "fix"], `fixings go in grid holes, and this drawer's base is ${base}`);
     for (const [slot, id] of holder.holds.entries()) {
       const at = ["holders", index, "holds", slot];
       const held = things.get(id);

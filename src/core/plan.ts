@@ -1,4 +1,6 @@
 import { boxesOverlap, boxOf, boxPart, grow, polygon, push, RAD, spansOverlap, turn, unionOf, type Box, type Point } from "./geometry.ts";
+import { drawerShape } from "./drawers.ts";
+import { GRID } from "./grid/parameters.ts";
 import type { Drawer, Holder, Item, Pose, Thing } from "./schema.ts";
 import { footprint, outline, overlap, posesOf, rectangle, samePose, type Part } from "./shape.ts";
 
@@ -27,10 +29,11 @@ export const METHODS: Record<Method, { name: string; short: string; makes: strin
   custom: { name: "Custom", short: "Custom", makes: "a spec sheet", pad: 4, floor: 0, height: 0, printed: false, about: "Something dunnage can't make, like a cradle for a glass on its side. You get a spec sheet to build it in Fusion or Blender." },
 };
 
-export type BaseKey = "bare" | "gridfinity" | "uppdatera-60" | "uppdatera-80";
+export type BaseKey = "bare" | "gridfinity" | "grid" | "uppdatera-60" | "uppdatera-80";
 export const BASES: Record<BaseKey, { name: string; base: NonNullable<Drawer["base"]>; z: number; board?: [number, number] }> = {
   bare: { name: "Bare drawer floor", base: { kind: "bare" }, z: 0 },
   gridfinity: { name: "Gridfinity baseplate", base: { kind: "gridfinity" }, z: 5 },
+  grid: { name: "Grid board", base: { kind: "grid" }, z: GRID.thickness },
   // The drawer height is measured from the top of a pegboard, so the board takes none of it.
   "uppdatera-60": { name: "UPPDATERA pegboard, 60 cm", base: { kind: "pegboard", preset: "uppdatera-60" }, z: 0, board: [475, 500] },
   "uppdatera-80": { name: "UPPDATERA pegboard, 80 cm", base: { kind: "pegboard", preset: "uppdatera-80" }, z: 0, board: [675, 500] },
@@ -167,11 +170,12 @@ export interface Plan {
 }
 
 export const baseKey = (base: Drawer["base"]): BaseKey =>
-  !base || base.kind === "bare" ? "bare" : base.kind === "gridfinity" ? "gridfinity" : base.preset;
+  !base || base.kind === "bare" ? "bare" : base.kind === "pegboard" ? base.preset : base.kind;
 
 /** Works out the plan for a drawer, for a printer with this bed. */
 export function plan(drawer: Drawer, bed: readonly [number, number, number]): Plan {
-  const [width, depth, height] = drawer.drawer.inside;
+  // `read` gives a drawer to plan only once its shape resolves.
+  const [width, depth, height] = drawerShape(drawer.drawer)!.inside;
   const rules = { edge_margin: 0, gap: 0, angle_step: 15, ...drawer.rules };
   const base = baseOf(drawer, width, depth, rules.edge_margin);
 

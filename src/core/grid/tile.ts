@@ -1,4 +1,5 @@
 import type { CrossSection, Manifold, ManifoldToplevel, Vec2 } from "manifold-3d";
+import { GRID, type Variant } from "./parameters.ts";
 
 // The `grid` base from #6: a board of through holes on a 9.5 mm pitch, printed face-down. The top
 // face is what you see in the drawer: a closed skin with holes in it, lying on the bed at z = 0. The
@@ -11,18 +12,14 @@ import type { CrossSection, Manifold, ManifoldToplevel, Vec2 } from "manifold-3d
 // the web; the joiner is flush with the back. The band is cut away only where a joiner passes
 // through it, so a joiner fits at any pair of edge holes, or where four tiles meet.
 
-export const PITCH = 9.5;
-export const THICKNESS = 8;
-const LEAD_IN = 0.4;
-const DEFAULT_SKIN = 1.2;
-/** A low web along every row and column of holes, tying each boss to its neighbours. */
-export const WEB = {
-  width: 0.8,
-  /** From the top face. */
-  height: 3,
-};
+export type { Variant };
+export const PITCH = GRID.pitch;
+export const THICKNESS = GRID.thickness;
+const LEAD_IN = GRID.lead_in;
+/** A low web along every row and column of holes, tying each boss to its neighbours; `height` is from the top face. */
+export const WEB = GRID.web;
 /** A 45° flare where each boss meets the top face, to stiffen it where it bends. */
-export const BOSS_CHAMFER = 1;
+export const BOSS_CHAMFER = GRID.boss_chamfer;
 /** Segments round a hole: 64 keeps a 3.4 mm hole within 0.005 mm of its size. */
 const SEGMENTS = 64;
 const EPS = 0.01;
@@ -30,28 +27,15 @@ const EPS = 0.01;
 /** Where hole `i` sits along an axis: half a pitch in from the tile's edge, then every pitch. */
 export const holeCentre = (i: number) => PITCH / 2 + PITCH * i;
 
-export type Variant = "standard" | "light-thick" | "light" | "light-thin";
-
 /** `wall` is the boss wall round the hole, `band` the solid edge of the tile. */
-export const VARIANTS: Record<Variant, { wall: number; band: number }> = {
-  standard: { wall: 1.6, band: 3 },
-  "light-thick": { wall: 1.2, band: 1.2 },
-  light: { wall: 0.9, band: 1.2 },
-  // A single extrusion line, to find out how thin a boss can go.
-  "light-thin": { wall: 0.5, band: 1.2 },
-};
+export const VARIANTS: Record<Variant, { wall: number; band: number }> = GRID.variants;
 
-export const JOINER = {
-  /** The rings' wall, round the bosses. */
-  wall: 0.9,
-  /** The webs tying the rings together, flush with the back. */
-  webWidth: 1.2,
-  webHeight: 1.6,
-};
-/** Room left in the band round a joiner's rings: covers the loosest fit, 0.6 mm, with some to spare. */
-export const RING_ROOM = 0.8;
+/** The rings' wall round the bosses, and the webs tying the rings together, flush with the back. */
+export const JOINER = { wall: GRID.joiner.wall, webWidth: GRID.joiner.web_width, webHeight: GRID.joiner.web_height };
+/** Room left in the band round a joiner's rings: more than the loosest joiner fit in the calibration print. */
+export const RING_ROOM = GRID.joiner.ring_room;
 /** Room either side of a joiner's webs where they cross the band. */
-const SLOT_ROOM = 0.3;
+const SLOT_ROOM = GRID.joiner.slot_room;
 
 /** A row of debossed cone dots on the face, read by counting. */
 export interface Dots {
@@ -80,7 +64,7 @@ export interface TileOptions {
 
 export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
   const { Manifold, CrossSection } = wasm;
-  const { variant, nx, ny, skin = DEFAULT_SKIN, joiners = true } = options;
+  const { variant, nx, ny, skin = GRID.face, joiners = true } = options;
   const spec = VARIANTS[variant];
   const byHole = (value: ByHole | undefined, i: number, j: number, fallback: number) =>
     value === undefined ? fallback : typeof value === "number" ? value : value(i, j);
@@ -169,8 +153,8 @@ export function seatedJoiner(wasm: ManifoldToplevel, variant: Variant, hole: num
 }
 
 /** Cone dots, 45° so the face prints without bridging. */
-const DOT = 0.6;
-const DOT_SPACING = 1.6;
+const DOT = GRID.label.dot;
+const DOT_SPACING = GRID.label.spacing;
 
 /** Dots debossed into the face (the bed side). */
 export function faceDots(wasm: ManifoldToplevel, { at, count, along = "x", spacing = DOT_SPACING }: Dots): Manifold {

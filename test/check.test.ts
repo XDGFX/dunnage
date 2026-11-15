@@ -1,14 +1,14 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { stringify } from "yaml";
-import { check, load, migrate, type Problem } from "../src/core/index.ts";
+import { check, DRAWER_PRESETS, drawerShape, FORMATS, GRID, load, migrate, type Problem } from "../src/core/index.ts";
 
 const fixture = (name: string) => readFileSync(new URL(`../fixtures/${name}`, import.meta.url), "utf8");
 
 /** A small drawer that passes every check, to break one piece at a time. */
 function drawer() {
   return {
-    format: "drawer/0.2",
+    format: "drawer/0.3",
     name: "Test",
     drawer: { inside: [420, 320, 150] },
     items: {
@@ -30,8 +30,12 @@ const paths = (found: Problem[]) => found.map((problem) => problem.path);
 
 describe("check", () => {
   test("accepts the coffee drawer and the P1S printer", () => {
-    expect(check(fixture("coffee.drawer.yml"))).toMatchObject({ format: "drawer/0.2", problems: [] });
-    expect(check(fixture("p1s.printer.yml"))).toMatchObject({ format: "printer/0.2", problems: [] });
+    expect(check(fixture("coffee.drawer.yml"))).toMatchObject({ format: "drawer/0.3", problems: [] });
+    expect(check(fixture("p1s.printer.yml"))).toMatchObject({ format: "printer/0.3", problems: [] });
+  });
+
+  test("accepts the tool chest's grid drawer, with no warnings", () => {
+    expect(check(fixture("tool-chest.drawer.yml"))).toEqual({ format: "drawer/0.3", problems: [] });
   });
 
   test("accepts the small drawer", () => {
@@ -57,7 +61,13 @@ describe("check", () => {
     test("refuses a format newer than this copy of dunnage", () => {
       const [problem] = check("format: drawer/0.10\n").problems;
       expect(problem.message).toContain("newer than this copy of dunnage");
-      expect(problem.message).toContain("drawer/0.2");
+      expect(problem.message).toContain(`drawer/${FORMATS.drawer}`);
+    });
+
+    test("migrates a 0.2 file", () => {
+      const old = stringify({ ...drawer(), format: "drawer/0.2" });
+      expect(check(old)).toMatchObject({ format: "drawer/0.3", migratedFrom: "drawer/0.2", problems: [] });
+      expect(check("format: printer/0.2\npreset: bambu-p1s\n")).toMatchObject({ format: "printer/0.3", migratedFrom: "printer/0.2", problems: [] });
     });
 
     test("refuses an older format it has no migration for", () => {
@@ -261,6 +271,65 @@ describe("check", () => {
       expect(problems({ ...document, base: { kind: "gridfinity" } })).toEqual([]);
     });
 
+    test("are fixed by hole only on a grid base", () => {
+      const document = drawer();
+      document.holders = [{ id: "mug-well", method: "well", holds: ["mug"], fix: [{ hole: [3, 4], by: "screw" }] }];
+      expect(paths(problems(document))).toEqual(["holders[0].fix"]);
+      expect(problems({ ...document, base: { kind: "grid" } })).toEqual([]);
+    });
+  });
+
+  describe("grid base", () => {
+    test("takes a variant, tile, bumpers and countersinks", () => {
+      const base = { kind: "grid", variant: "light", tile: [24, 17], bumpers: { split: { x: "left" }, fit: 0.5 }, countersinks: [[0, 0]] };
+      expect(problems({ ...drawer(), base })).toEqual([]);
+    });
+
+    test("refuses a variant the grid parameters don't have", () => {
+      expect(paths(problems({ ...drawer(), base: { kind: "grid", variant: "heavy" } }))).toEqual(["base.variant"]);
+    });
+
+    test("warns about a variant with no calibrated hole size", () => {
+      const uncalibrated = check(stringify({ ...drawer(), base: { kind: "grid", variant: "light" } }));
+      expect(uncalibrated.problems).toEqual([]);
+      expect(paths(uncalibrated.warnings ?? [])).toEqual(["base.variant"]);
+      expect(check(stringify({ ...drawer(), base: { kind: "grid", variant: "light-thin" } })).warnings ?? []).toEqual([]);
+    });
+  });
+
+  describe("drawer shape", () => {
+    const shaped = (shape: object) => ({ ...drawer(), drawer: shape });
+
+    test("needs an inside or a preset, and isn't given to plan without one", () => {
+      const text = stringify(shaped({ corner_radius: 3 }));
+      expect(paths(check(text).problems)).toEqual(["drawer"]);
+      expect(() => load(text)).toThrow();
+    });
+
+    test("a preset fills in the shape, and the file's fields override it", () => {
+      const preset = DRAWER_PRESETS["ikea-maximera-80x60-low"];
+      expect(drawerShape({ preset: "ikea-maximera-80x60-low" })).toMatchObject({ walls: { left: 20, right: 20, front: 0, back: 0 }, floor_edge: 2 });
+      const overridden = drawerShape({ preset: "ikea-maximera-80x60-low", inside: [680, 500, 70], walls: { sides: 15, left: 18 }, floor_edge: 1 })!;
+      expect(overridden).toMatchObject({ inside: [680, 500, 70], walls: { left: 18, right: 15, front: preset.walls.front, back: preset.walls.back }, floor_edge: 1 });
+    });
+
+    test("walls default to vertical; `ends` sets front and back", () => {
+      expect(drawerShape({ inside: [100, 100, 50], walls: { ends: 5 } })!.walls).toEqual({ left: 0, right: 0, front: 5, back: 5 });
+    });
+
+    test("every MAXIMERA preset is unverified, and check warns when one is used", () => {
+      const maximera = Object.entries(DRAWER_PRESETS).filter(([name]) => name.startsWith("ikea-maximera-"));
+      expect(maximera.length).toBeGreaterThan(0);
+      for (const [, preset] of maximera) expect(preset.unverified).toBe(true);
+      const result = check(stringify(shaped({ preset: "ikea-maximera-80x60-high" })));
+      expect(result.problems).toEqual([]);
+      expect(paths(result.warnings ?? [])).toEqual(["drawer.preset"]);
+    });
+
+    test("refuses a preset that isn't built in", () => {
+      expect(paths(problems(shaped({ preset: "ikea-alex" })))).toEqual(["drawer.preset"]);
+    });
+
     test("a peg goes through an outlet", () => {
       const document = drawer();
       document.holders = [{ id: "mug-peg", method: "peg", holds: ["mug"] }];
@@ -291,6 +360,12 @@ describe("load", () => {
     expect(load("format: printer/0.2\npreset: prusa-mk4\n")).toMatchObject({ kind: "printer", printer: { bed: [250, 210, 220] } });
   });
 
+  test("fills a printer's grid fits from the grid parameters, under any it sets", () => {
+    expect(load("format: printer/0.3\npreset: bambu-p1s\n")).toMatchObject({ printer: { fit: GRID.fit } });
+    const file = load("format: printer/0.3\npreset: bambu-p1s\nfit: { grid_hole: { light: 3.4 }, joiner: 0.3 }\n");
+    expect(file).toMatchObject({ printer: { fit: { ...GRID.fit, grid_hole: { ...GRID.fit.grid_hole, light: 3.4 }, joiner: 0.3 } } });
+  });
+
   test("throws with the problems when the file is wrong", () => {
     expect(() => load("format: drawer/0.2\n")).toThrow(/name/);
   });
@@ -301,12 +376,13 @@ describe("migrate", () => {
     drawer: {
       "0.0": { to: "0.1", up: (document: Record<string, unknown>) => ({ ...document, title: undefined, name: document.title }) },
       "0.1": { to: "0.2", up: (document: Record<string, unknown>) => ({ ...document, layout: document.layout ?? [] }) },
+      "0.2": { to: "0.3", up: (document: Record<string, unknown>) => document },
     },
   };
 
   test("steps an older file up to the current format", () => {
     expect(migrate({ format: "drawer/0.0", title: "Old" }, "drawer", "0.0", migrations)).toEqual({
-      format: "drawer/0.2",
+      format: `drawer/${FORMATS.drawer}`,
       name: "Old",
       title: undefined,
       layout: [],
@@ -314,8 +390,8 @@ describe("migrate", () => {
   });
 
   test("leaves a current file alone", () => {
-    const document = { format: "drawer/0.2" };
-    expect(migrate(document, "drawer", "0.2", migrations)).toBe(document);
+    const document = { format: `drawer/${FORMATS.drawer}` };
+    expect(migrate(document, "drawer", FORMATS.drawer, migrations)).toBe(document);
   });
 
   test("refuses a version with no migration", () => {
