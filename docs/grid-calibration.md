@@ -25,8 +25,9 @@ that with Python's standard library. Change a number there, never in code.
 | `variant`, `variants` | The default variant, and each one's boss `wall` and edge `band`. |
 | `joiner` | The joiner's ring `wall` and `web_width` × `web_height`; the `ring_room` and `slot_room` cut in a tile's band to let one in. |
 | `fit` | The calibrated fits: `grid_hole` by variant, `peg`, `peg_fixed` and `joiner`. A printer file's `fit` overrides them. |
-| `peg` | A peg's end `chamfer`, and the `flat_angle` its flat is cut at. |
+| `peg` | A peg's end `chamfer`, the `flat_angle` its flat is cut at, and its `length`: the screw's, so it stays inside the board under a holder's flange. |
 | `screw` | The `clearance` hole in a holder, and the `flange` under the head. |
+| `countersink` | A floor screw's countersink in the face: the `head` diameter and the cone's `angle`. |
 | `label` | Cone dot labels: `dot` size and `spacing`. |
 | `tile` | `bed_margin`, the total margin a tile leaves on the bed. |
 | `bumper` | The default `fit` to the wall per side, and the `min` and `max` bumper thickness at the floor. |

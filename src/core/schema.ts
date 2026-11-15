@@ -121,7 +121,7 @@ const Base = Type.Union([
   strict({
     kind: Type.Literal("grid"),
     variant: Type.Optional(VariantName),
-    tile: Type.Optional(Type.Tuple([Type.Integer({ minimum: 1 }), Type.Integer({ minimum: 1 })], { description: "[x, y] in holes." })),
+    tile: Type.Optional(Type.Tuple([Type.Integer({ minimum: 1 }), Type.Integer({ minimum: 1 })], { description: "The largest tile, [x, y] in holes; tiles are balanced under it." })),
     bumpers: Type.Optional(
       strict({
         split: Type.Optional(

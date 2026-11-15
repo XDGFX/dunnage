@@ -4,6 +4,7 @@ import Value from "typebox/value";
 import { isMap, isScalar, isSeq, LineCounter, parseDocument, type Document } from "yaml";
 import { DRAWER_PRESETS, drawerShape } from "./drawers.ts";
 import { FORMATS, migrate, readHeader } from "./format.ts";
+import { holeProblem, layoutBoard } from "./grid/layout.ts";
 import { GRID, gridFit, type Fit } from "./grid/parameters.ts";
 import { Drawer, ID, Printer, PRINTER_PRESETS } from "./schema.ts";
 import { bounds, outline, overlap, poseName, posesOf, rectangle, samePose, writtenPose, type Part } from "./shape.ts";
@@ -45,6 +46,10 @@ export interface CheckOptions {
    * can't look at files, so without this the name goes unchecked.
    */
   printerExists?: (name: string) => boolean;
+  /** The printer's bed, which a grid board's tiles must fit. Default: the Bambu P1S's. */
+  bed?: readonly [number, number, number];
+  /** The printer's grid fits, over the calibrated defaults. */
+  fit?: Partial<Fit>;
 }
 
 /** Reads a drawer or printer file and reports everything wrong with it. */
@@ -436,6 +441,10 @@ function drawerIssues(drawer: Drawer, options: CheckOptions): Issue[] {
     }
   }
 
+  // A grid board lays out on the printer's bed, and holes named for fixings are on it.
+  const board = drawer.base?.kind === "grid" ? layoutBoard(drawerShape(drawer.drawer)!, drawer.base, { bed: options.bed, fit: options.fit }) : undefined;
+  for (const problem of board?.problems ?? []) say(problem.at, problem.message);
+
   // Holders hold real things, each thing once, in a way the base allows.
   const base = drawer.base?.kind ?? "bare";
   const holderIds = new Set(holders.map((holder) => holder.id));
@@ -446,6 +455,12 @@ function drawerIssues(drawer: Drawer, options: CheckOptions): Issue[] {
       say(["holders", index, "method"], `a ${holder.method} holder needs a ${needs} base, and this drawer's base is ${base}`);
     }
     if (holder.fix && base !== "grid") say(["holders", index, "fix"], `fixings go in grid holes, and this drawer's base is ${base}`);
+    if (board) {
+      for (const [slot, { hole }] of (holder.fix ?? []).entries()) {
+        const problem = holeProblem(board, hole);
+        if (problem) say(["holders", index, "fix", slot, "hole"], problem);
+      }
+    }
     for (const [slot, id] of holder.holds.entries()) {
       const at = ["holders", index, "holds", slot];
       const held = things.get(id);

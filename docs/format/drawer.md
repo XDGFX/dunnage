@@ -122,12 +122,20 @@ base:
 | Field | Default | What |
 |---|---|---|
 | `variant` | `light-thin` | The board's build: `standard`, `light-thick`, `light` or `light-thin`, which differ in boss wall. |
-| `tile` | the largest that fits the bed | `[x, y]` tile size, in holes. |
-| `bumpers.split` | `even` | How the gap to the walls is shared between the bumpers on each axis: `even`, or `{ x, y }` with `x` one of `even`, `left` or `right`, and `y` one of `even`, `front` or `back`, to weight that side. |
+| `tile` | the largest that fits the bed | `[x, y]`, the largest tile, in holes. Each axis is split into as few tiles as fit under it, balanced so none is more than a hole bigger than another. |
+| `bumpers.split` | `even` | How the gap to the walls is shared between the bumpers on each axis: `even`, or `{ x, y }` with `x` one of `even`, `left` or `right`, and `y` one of `even`, `front` or `back`. A named side takes all it can, up to the thickest bumper (10 mm), and the other side the rest, at least the thinnest (5 mm). |
 | `bumpers.fit` | 0.3 | Clearance to the wall per side, in mm. |
 | `countersinks` | none | Holes to countersink for a screw into the drawer floor, by hole. |
 
 Holes are numbered `[i, j]` from the drawer's origin hole, the one nearest the front-left corner.
+
+Each axis takes as many holes as leave a bumper of 5–10 mm either side, after `bumpers.fit`.
+There's one bumper per outside tile edge; the left and right ones run past the corners to the front
+and back walls. A bumper's outer face follows its wall's slope, and its bottom outer edge is
+chamfered by `floor_edge`. Rounded corners are cut with room for the `fit` and the `floor_edge`,
+and a hole whose boss that cuts is dropped. A bumper is joined to its tiles only where it's thick
+enough to keep a joiner's rings clear of the wall and the floor edge; a thinner one is held by
+wedging alone.
 The pitch, hole sizes and every other grid number come from the grid parameters file and the
 printer's `fit` ([printer.md](printer.md)), not from the drawer.
 
@@ -297,10 +305,12 @@ Beyond the schema, `dunnage check` reports:
 - **Holders.** A thing is held by at most one holder. `gridfinity` holders need a gridfinity base
   and `pegs` holders a pegboard. A `peg` holder holds only things with an `outlet`. `fix` needs a
   grid base.
+- **The grid board.** It lays out in the drawer, in tiles and bumpers that fit the printer's bed
+  (the CLI reads the bed from the named printer profile; otherwise a P1S's). Every `fix` and
+  `countersinks` hole is on the board and not cut away by a rounded corner.
 - **The printer profile** named by `printer` is beside the file (the CLI checks this; the core
   can't see files).
 
 Not checked yet, because they depend on holder shapes dunnage doesn't make yet: holder floors in
 the height check, the `gap` rule, locked holders' shapes, holders fitting the printer's bed, and
-Gridfinity and pegboard placement. Nor, until the grid board is laid out, whether a `fix` or
-`countersinks` hole is on the board. `angle_step` is a snapping rule for the UI, not a check.
+Gridfinity and pegboard placement. `angle_step` is a snapping rule for the UI, not a check.

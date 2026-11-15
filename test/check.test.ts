@@ -295,6 +295,26 @@ describe("check", () => {
       expect(paths(uncalibrated.warnings ?? [])).toEqual(["base.variant"]);
       expect(check(stringify({ ...drawer(), base: { kind: "grid", variant: "light-thin" } })).warnings ?? []).toEqual([]);
     });
+
+    test("needs fixings and countersinks in holes on the laid-out board", () => {
+      // 420 × 320 inside lays out 43 × 32 holes.
+      const document = drawer();
+      document.holders = [{ id: "mug-well", method: "well", holds: ["mug"], fix: [{ hole: [42, 31], by: "screw" }, { hole: [43, 0], by: "pin" }] }];
+      const base = { kind: "grid", countersinks: [[0, 31], [0, 32]] };
+      expect(new Set(paths(problems({ ...document, base })))).toEqual(new Set(["base.countersinks[1]", "holders[0].fix[1].hole"]));
+    });
+
+    test("refuses a fixing in a hole a rounded corner cuts away", () => {
+      const document = { ...drawer(), drawer: { inside: [420, 320, 150], corner_radius: 40 } };
+      document.holders = [{ id: "mug-well", method: "well", holds: ["mug"], fix: [{ hole: [0, 0], by: "screw" }, { hole: [5, 5], by: "screw" }] }];
+      expect(paths(problems({ ...document, base: { kind: "grid" } }))).toEqual(["holders[0].fix[0].hole"]);
+    });
+
+    test("lays the board out on the printer's bed", () => {
+      const text = stringify({ ...drawer(), base: { kind: "grid", tile: [20, 20] } });
+      expect(check(text).problems).toEqual([]);
+      expect(paths(check(text, { bed: [180, 180, 180] }).problems)).toEqual(["base.tile"]);
+    });
   });
 
   describe("drawer shape", () => {
