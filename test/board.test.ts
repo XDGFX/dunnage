@@ -225,8 +225,31 @@ describe("building a board", () => {
     expect(outer(z0)).toBeCloseTo(layout.fit - z0 * Math.tan(SLOPE * RAD), 3);
     // At the floor it stands a floor edge in from where the face would meet it.
     expect(outer(0.001)).toBeGreaterThanOrEqual(layout.fit + layout.shape.floor_edge - 0.01);
-    // Its inner face meets the board, upright.
-    expect(solid.slice(z0).bounds().max[0]).toBeCloseTo(layout.origin[0], 6);
+    // Its inner face meets the board, upright, above the lap tab.
+    expect(solid.slice(z1).bounds().max[0]).toBeCloseTo(layout.origin[0], 6);
+  });
+
+  test("a bumper's lap tab runs under the tile's edge by its depth, and the tile still sits flat on the floor", () => {
+    const layout = small();
+    const { depth, thickness } = GRID.lap_tab;
+    const t = layout.tiles.find((tile) => tile.label === "1-1")!;
+    const tile = tileSolid(wasm, layout, t);
+    for (const side of ["left", "front"] as const) {
+      const b = layout.bumpers.find((bumper) => bumper.side === side && bumper.index === 0)!;
+      const bumper = bumperSolid(wasm, layout, b);
+      const foot = bumper.slice(thickness / 2).bounds();
+      if (side === "left") expect(foot.max[0] - layout.origin[0]).toBeCloseTo(depth, 6);
+      else expect(foot.max[1] - layout.origin[1]).toBeCloseTo(depth, 6);
+      expect(bumper.status()).toBe("NoError");
+      expect(bumper.intersect(tile).volume()).toBeLessThan(1e-3);
+    }
+    expect(tile.boundingBox().min[2]).toBeCloseTo(0, 9);
+    // Under the tile's band, between two holes: the tab below, the band above it.
+    const [x, y] = [layout.origin[0] + 0.6, layout.origin[1] + PITCH];
+    const left = bumperSolid(wasm, layout, layout.bumpers.find((b) => b.side === "left" && b.index === 0)!);
+    expect(solidIn(left, x, y, 0, 0.3, 0, thickness)).toBeGreaterThan(0);
+    expect(solidIn(tile, x, y, 0, 0.3, 0, thickness)).toBe(0);
+    expect(solidIn(tile, x, y, 0, 0.3, THICKNESS - 2, THICKNESS)).toBeGreaterThan(0);
   });
 
   test("a countersunk hole opens to a screw head on the face, in a widened boss", () => {

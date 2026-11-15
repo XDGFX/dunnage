@@ -25,5 +25,6 @@
   "countersink": { "head": 8, "angle": 90 },
   "label": { "dot": 0.6, "spacing": 1.6 },
   "tile": { "bed_margin": 10 },
-  "bumper": { "fit": 0.3, "min": 5, "max": 10 }
+  "bumper": { "fit": 0.3, "min": 5, "max": 10 },
+  "lap_tab": { "depth": 2, "thickness": 1.2, "clearance": 0.2 }
 }

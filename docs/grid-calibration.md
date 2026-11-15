@@ -31,6 +31,7 @@ that with Python's standard library. Change a number there, never in code.
 | `label` | Cone dot labels: `dot` size and `spacing`. |
 | `tile` | `bed_margin`, the total margin a tile leaves on the bed. |
 | `bumper` | The default `fit` to the wall per side, and the `min` and `max` bumper thickness at the floor. |
+| `lap_tab` | A bumper's tab along its foot, under the tile's edge band: `depth` under the tile, `thickness` at its tip (its top slopes up at 45° to the bumper), and the `clearance` of the tile's rebate over it. |
 
 ## The design under test
 

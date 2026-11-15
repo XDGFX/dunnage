@@ -38,6 +38,8 @@ export interface BoardBumper {
   top: Box;
   /** The walls it bears on: its own, and the front or back where a side bumper runs past a corner. */
   walls: Side[];
+  /** The lap tab's footprint: along its foot, under the tile's edge band. */
+  tab: Box;
 }
 
 export interface BoardLayout {
@@ -179,7 +181,15 @@ export function layoutBoard(shape: DrawerShape, base: GridBase, options: LayoutO
       if (wall === "front") top.y0 -= by;
       if (wall === "back") top.y1 += by;
     }
-    return { side, index, floor, top, walls };
+    // The front and back tabs run to the board's corners; the side tabs stop short of them, clear.
+    const { depth: d, clearance: gapTab } = GRID.lap_tab;
+    const [yIn0, yIn1] = [Y(0) + d + gapTab, Y(ny) - d - gapTab];
+    const tab: Box =
+      side === "front" ? { x0: floor.x0, y0: Y(0), x1: floor.x1, y1: Y(0) + d }
+      : side === "back" ? { x0: floor.x0, y0: Y(ny) - d, x1: floor.x1, y1: Y(ny) }
+      : side === "left" ? { x0: X(0), y0: Math.max(floor.y0, yIn0), x1: X(0) + d, y1: Math.min(floor.y1, yIn1) }
+      : { x0: X(nx) - d, y0: Math.max(floor.y0, yIn0), x1: X(nx), y1: Math.min(floor.y1, yIn1) };
+    return { side, index, floor, top, walls, tab };
   };
   const bumpers: BoardBumper[] = [
     ...columns.map((_, col) => bumper("front", col, { x0: X(xs[col]!), y0: c, x1: X(xs[col + 1]!), y1: origin[1] }, ["front"])),

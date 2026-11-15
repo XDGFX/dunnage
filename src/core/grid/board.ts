@@ -67,7 +67,40 @@ export function tileSolid(wasm: ManifoldToplevel, layout: BoardLayout, t: BoardT
     clip,
     dots,
   });
-  return standUp(local.translate([t.box.x0, t.box.y0, 0]));
+  // A rebate under each edge that meets a bumper, for its lap tab, so the tile still sits flat.
+  const lastRow = Math.max(...layout.tiles.map((other) => other.row));
+  const lastCol = Math.max(...layout.tiles.map((other) => other.col));
+  const outer: Side[] = [
+    ...(t.col === 0 ? (["left"] as const) : []),
+    ...(t.col === lastCol ? (["right"] as const) : []),
+    ...(t.row === 0 ? (["front"] as const) : []),
+    ...(t.row === lastRow ? (["back"] as const) : []),
+  ];
+  const { depth: d, thickness: th, clearance: cl } = GRID.lap_tab;
+  const reach = d + cl;
+  const rebate: [number, number][] = [
+    [-1, THICKNESS + 1],
+    [reach, THICKNESS + 1],
+    [reach, THICKNESS - th - cl],
+    [-1, THICKNESS - th - cl - (reach + 1)],
+  ];
+  const rebates = outer.map((side) => edgePrism(wasm, side, t.box, rebate, 1));
+  const placed = local.translate([t.box.x0, t.box.y0, 0]);
+  return standUp(rebates.length > 0 ? placed.subtract(wasm.Manifold.union(rebates)) : placed);
+}
+
+/**
+ * A prism along one edge of a box, from a convex profile in (u, z): u in from that edge, z from the
+ * face as parts are made. `past` runs it on beyond the box's ends.
+ */
+function edgePrism(wasm: ManifoldToplevel, side: Side, box: { x0: number; y0: number; x1: number; y1: number }, profile: [number, number][], past = 0): Manifold {
+  const points: Vec3[] = profile.flatMap(([u, z]) => {
+    if (side === "left") return [[box.x0 + u, box.y0 - past, z], [box.x0 + u, box.y1 + past, z]] as Vec3[];
+    if (side === "right") return [[box.x1 - u, box.y0 - past, z], [box.x1 - u, box.y1 + past, z]] as Vec3[];
+    if (side === "front") return [[box.x0 - past, box.y0 + u, z], [box.x1 + past, box.y0 + u, z]] as Vec3[];
+    return [[box.x0 - past, box.y1 - u, z], [box.x1 + past, box.y1 - u, z]] as Vec3[];
+  });
+  return wasm.Manifold.hull(points);
 }
 
 export function bumperSolid(wasm: ManifoldToplevel, layout: BoardLayout, b: BoardBumper, fit?: Partial<Fit>): Manifold {
@@ -81,6 +114,16 @@ export function bumperSolid(wasm: ManifoldToplevel, layout: BoardLayout, b: Boar
     [box.x0, box.y1, z],
   ];
   let solid = Manifold.hull([...corners(top, 0), ...corners(floor, THICKNESS)]);
+  // The lap tab along its foot, under the tile's band; its top slopes at 45° so it prints face down.
+  const { depth: d, thickness: th } = GRID.lap_tab;
+  const into = 0.01;
+  const tab: [number, number][] = [
+    [-into, THICKNESS],
+    [d, THICKNESS],
+    [d, THICKNESS - th],
+    [-into, THICKNESS - th - d - into],
+  ];
+  solid = solid.add(edgePrism(wasm, b.side, b.tab, tab));
 
   // A 45° chamfer along the floor edge of each wall it bears on, at least the floor edge's size.
   const e = layout.shape.floor_edge;

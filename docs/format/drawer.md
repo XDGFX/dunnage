@@ -133,7 +133,8 @@ Each axis takes as many holes as leave a bumper of 5–10 mm either side, after 
 There's one bumper per outside tile edge; the left and right ones run past the corners to the front
 and back walls. A bumper's outer face follows its wall's slope, and its bottom outer edge is
 chamfered by `floor_edge`. Rounded corners are cut with room for the `fit` and the `floor_edge`,
-and a hole whose boss that cuts is dropped. A bumper is joined to its tiles only where it's thick
+and a hole whose boss that cuts is dropped. Each bumper has a lap tab along its foot that slides
+under the tile's edge band, into a rebate, so the board's weight holds it down. A bumper is joined to its tiles only where it's thick
 enough to keep a joiner's rings clear of the wall and the floor edge; a thinner one is held by
 wedging alone.
 The pitch, hole sizes and every other grid number come from the grid parameters file and the
