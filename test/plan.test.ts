@@ -32,13 +32,13 @@ describe("plan", () => {
   test("shapes a well round what it holds, handles included, with the method's padding", () => {
     // The large mug's handle reaches 35 mm in front of its body, to y = 10; the well pads 4 mm.
     const tray = plan(coffee(), BED).holders.find((holder) => holder.id === "mug-tray")!;
-    expect(tray.shape).toEqual({ x0: 266, y0: 6, x1: 474, y1: 149 });
+    expect(tray.shape).toEqual({ x0: 306, y0: 6, x1: 514, y1: 149 });
   });
 
   test("keeps a locked holder's shape as built", () => {
     const peg = plan(coffee(), BED).holders.find((holder) => holder.id === "v60-peg")!;
     expect(peg.locked).toBe(true);
-    expect(peg.shape).toEqual({ x0: 488, y0: 5, x1: 618, y1: 130 });
+    expect(peg.shape).toEqual({ x0: 525, y0: 5, x1: 655, y1: 130 });
   });
 
   test("puts things set aside on the counter, out of the drawer", () => {
@@ -151,7 +151,7 @@ describe("specSheet", () => {
     const sheet = specSheet(p, p.holders.find((h) => h.id === "glass-cradles-front")!, "Coffee and tableware");
     expect(sheet).toContain("# Glass cradles front: custom holder spec");
     expect(sheet).toContain("Purpose: Hold two glasses on their sides so they can't roll or slide.");
-    expect(sheet).toContain("- Glass: cylinder Ø70 × 160 mm, lying, turned 90°; centre at (200, 198); top at 70 mm.");
+    expect(sheet).toContain("- Glass: cylinder Ø70 × 160 mm, lying, turned 90°; centre at (215, 213); top at 70 mm.");
   });
 });
 

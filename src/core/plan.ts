@@ -1,7 +1,7 @@
 import { boxesOverlap, boxOf, boxPart, grow, polygon, push, RAD, spansOverlap, turn, unionOf, type Box, type Point } from "./geometry.ts";
 import { drawerShape } from "./drawers.ts";
 import { layoutBoard, type BoardLayout } from "./grid/layout.ts";
-import { drawerOverlays, overlayOf, type OverlayLayout } from "./grid/overlay.ts";
+import { drawerOverlays, overlayOf, underOverlay, type OverlayLayout } from "./grid/overlay.ts";
 import { pegboard, UPPDATERA, type Pegboard } from "./pegboard.ts";
 import { GRID, gridFit, type Fit, type PrinterFit } from "./grid/parameters.ts";
 import type { Drawer, Holder, Item, Pose, Thing } from "./schema.ts";
@@ -194,7 +194,7 @@ export function plan(drawer: Drawer, bed: readonly [number, number, number], pri
     const overlays = drawerOverlays(drawer, { bed, fit });
     base.overlays = overlays;
     // IKEA pegs can't reach a slot under an overlay.
-    const open = base.board.holes.filter(([x, y]) => !overlays.some(({ box }) => x > box.x0 && x < box.x1 && y > box.y0 && y < box.y1));
+    const open = base.board.holes.filter(([x, y]) => !overlays.some((overlay) => underOverlay(overlay, x, y)));
     base.board = { ...base.board, holes: open };
   }
 

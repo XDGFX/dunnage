@@ -374,32 +374,11 @@
                     ],
                     "minItems": 2,
                     "description": "Its size in grid holes, [x, y]."
-                  },
-                  "pins": {
-                    "type": "array",
-                    "items": {
-                      "type": "array",
-                      "additionalItems": false,
-                      "items": [
-                        {
-                          "type": "integer",
-                          "minimum": 0
-                        },
-                        {
-                          "type": "integer",
-                          "minimum": 0
-                        }
-                      ],
-                      "minItems": 2,
-                      "description": "[i, j], a grid hole counted from the board's origin hole, or its overlay's."
-                    },
-                    "minItems": 1,
-                    "description": "The holes its lock pins go up into, in its own holes; dunnage chooses them when left out."
                   }
                 },
                 "additionalProperties": false
               },
-              "description": "Patches of the grid board on top of the pegboard, held by lock pins twisted into its slots."
+              "description": "Patches of the grid board on top of the pegboard, held by the drawer walls and by edge strips pegged into its slots."
             }
           },
           "additionalProperties": false

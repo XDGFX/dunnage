@@ -4,8 +4,8 @@ import Module, { type Manifold } from "manifold-3d";
 import { beforeAll, describe, expect, test } from "vitest";
 import { parse } from "yaml";
 import {
-  bestOverlayAt, boardCounts, check, compatibleHoles, drawerOverlays, drawerShape, exportDrawer, GRID, gridFit, holeAt, layoutBoard, layoutOverlay, load, pegboard, pinRules, plan, printable,
-  tileSolid, UPPDATERA, withSpares, type Drawer, type OverlayLayout, type OverlaySpec, type PinSpot,
+  boardCounts, bumperSolid, check, drawerOverlays, drawerShape, exportDrawer, GRID, holeAt, layoutBoard, layoutOverlay, load, pegboard, plan, printable,
+  gridFit, stripPeg, tileSolid, UPPDATERA, type Drawer, type OverlayLayout, type OverlaySpec,
 } from "../src/core/index.ts";
 import { overhangs } from "../src/core/grid/printability.ts";
 import { PITCH, THICKNESS } from "../src/core/grid/tile.ts";
@@ -23,132 +23,111 @@ const BOARD = pegboard("uppdatera-80", 700, 500);
 const overlay = (spec: Partial<OverlaySpec>, bed?: readonly [number, number, number]) =>
   layoutOverlay(SHAPE, BOARD, { id: "front", kind: "grid", at: [0, 0], holes: [16, 16], ...spec }, 0, bed ? { bed } : {});
 
-/** How far the point of an overlay farthest from every pin is, a millimetre apart. */
-function farthest(layout: OverlayLayout): number {
-  let worst = 0;
-  for (let x = layout.box.x0; x <= layout.box.x1; x += 1) {
-    for (let y = layout.box.y0; y <= layout.box.y1; y += 1) {
-      worst = Math.max(worst, Math.min(...layout.pins.map(({ slot }) => Math.hypot(slot[0] - x, slot[1] - y))));
-    }
-  }
-  return worst;
-}
-
-const keyOf = (spots: readonly PinSpot[]) => spots.map(({ hole, slot }) => `${hole.join(",")} @ ${slot.join(",")}`).sort();
-
-describe("which holes line up with a slot", () => {
+describe("edge strips", () => {
   // A drawer the 80 cm board's size, so the board's corner is the drawer's. Slots, as UPPDATERA
   // lays them out: 31 steps of 20 mm across 675 mm, centred, start at x = 27.5; 22 rows of 20 mm
   // across 500 mm start at y = 30; a slot is where the step and row counts add up to an even
-  // number. An overlay at [0, 0], 16 × 16 holes, has hole centres at 4.75 + 9.5 i and covers
-  // 0–152 mm, so a whole slot (17 × 7) under it has its centre at x 8.5–143.5, y 3.5–148.5.
+  // number, and it's 17 mm along x by 7 across. A peg is the slot less 0.2 mm each way.
   //
-  // Rows y = 30, 50, 70, 130 are 3.25, 2.25, 1.25 and 1.75 mm from the nearest hole row: more than
-  // 1 mm across. Row y = 90 (row 3, odd steps): x = 47.5 is 4.75 mm from a hole, 87.5 is 2.75 mm
-  // from hole 9 (90.25), and 127.5 is 0.75 mm from hole 13 (128.25); y is 0.25 mm from row 9. Row
-  // y = 110 (row 4, even steps): 27.5 and 67.5 are 3.75 mm from a hole, 107.5 is 1.75 mm from hole
-  // 11 (109.25); y is 0.75 mm from row 11.
+  // An overlay at [100, 100], 16 × 16 holes, covers 100–252 mm both ways in one tile, clear of
+  // every wall, so all four edges get strips. Its joiners sit at 100 + 4 × 9.5 = 138 and
+  // 100 + 12 × 9.5 = 214 along each edge, and a joiner's room reaches 8.55 mm round its centre.
+  // A peg stays 2 mm inside a strip's edges, 4 mm inside its outer edge, and 2 mm off a joiner.
+  //
+  // Front: rows must end 2 mm short of y = 100, so y ≤ 94.5: row 90 (odd steps, x = 47.5, 87.5,
+  // ...), so the strip is 100 − (90 − 3.5 − 4) = 17.5 mm. It runs past both corners, 55–280: pegs
+  // at 87.5, 167.5, 247.5; 127.5 and 207.5 come within 2 mm of the joiners at 138 and 214.
+  // Back: rows from y ≥ 252 + 2 + 3.5: row 270 (even steps), 270 + 3.5 + 4 − 252 = 25.5 mm wide,
+  // pegs at 67.5–267.5 every 40.
+  // Right: columns from x ≥ 252 + 2 + 8.5: column 267.5 (even steps, y = 110, 150, 190, 230), so
+  // 267.5 + 8.5 + 4 − 252 = 28 mm; 150 comes within 2 mm of the joiner at y = 138.
+  // Left: column 87.5 (odd steps, y = 130, 170, 210) needs 25 mm, but 130 and 210 are by the
+  // joiners, leaving one peg; column 67.5 (y = 110, 150, 190, 230) needs 100 − (67.5 − 12.5) = 45.
   const shape = drawerShape({ inside: [675, 500, 100] })!;
   const board = pegboard("uppdatera-80", 675, 500);
-  const at00 = (options = {}) => layoutOverlay(shape, board, { id: "a", kind: "grid", at: [0, 0], holes: [16, 16] }, 0, { tolerance: [3, 1], ...options });
+  const placed = () => layoutOverlay(shape, board, { id: "a", kind: "grid", at: [100, 100], holes: [16, 16] }, 0);
+  const pegsOf = (layout: OverlayLayout, side: string) => layout.bumpers.filter((b) => b.side === side).flatMap((b) => b.pegs ?? []);
 
-  test("lists the slots within 3 mm along and 1 mm across of a hole, worked out by hand", () => {
-    expect(keyOf(at00().compatible)).toEqual(["11,11 @ 107.5,110", "13,9 @ 127.5,90", "9,9 @ 87.5,90"]);
+  test("are as wide as they must be to reach two slots, edge by edge, worked out by hand", () => {
+    const layout = placed();
+    expect(layout.problems).toEqual([]);
+    expect(Object.fromEntries(layout.strips.map((s) => [s.side, s.width]))).toEqual({ left: 45, right: 28, front: 17.5, back: 25.5 });
   });
 
-  test("and none within 0.5 mm both ways", () => {
-    expect(at00({ tolerance: [0.5, 0.5] }).compatible).toEqual([]);
-  });
-
-  test("reports the rules failing there: the corner at [0, 0] is 125.5 mm from the pin at (87.5, 90)", () => {
-    const layout = at00();
-    expect(layout.problems.map((p) => p.message)).toEqual([expect.stringMatching(/^leaves a point 12[56] mm from the nearest lock pin/)]);
-    expect(Math.hypot(87.5, 90)).toBeGreaterThan(GRID.overlay.reach);
-  });
-
-  test("leaves out a hole a joiner sits round, or that's been dropped", () => {
-    const layout = at00();
-    const hole = gridFit().grid_hole[GRID.variant]!;
-    // A joiner centred on the corner up and right of hole (9, 9) sits round it and its three neighbours.
-    const [x, y] = holeAt(layout, [9, 9]);
-    const joined = compatibleHoles(board, { ...layout, joiners: [[x + PITCH / 2, y + PITCH / 2]] }, hole, [3, 1]);
-    expect(keyOf(joined)).toEqual(["11,11 @ 107.5,110", "13,9 @ 127.5,90"]);
-    const dropped = compatibleHoles(board, { ...layout, dropped: [[13, 9]] }, hole, [3, 1]);
-    expect(keyOf(dropped)).toEqual(["11,11 @ 107.5,110", "9,9 @ 87.5,90"]);
-  });
-});
-
-describe("choosing lock pins", () => {
-  const cases: [string, OverlayLayout][] = [];
-  beforeAll(() => {
-    cases.push(["the coffee drawer's", drawerOverlays(coffee())[0]!]);
-    const shape = drawerShape({ inside: [675, 500, 100] })!;
-    const board = pegboard("uppdatera-80", 675, 500);
-    const spec: OverlaySpec = { id: "a", kind: "grid", at: [0, 0], holes: [16, 16] };
-    cases.push(["a one-tile overlay at its best fit", layoutOverlay(shape, board, { ...spec, at: bestOverlayAt(shape, board, spec, []).at }, 0)]);
-  });
-
-  test("picks compatible holes, two a tile, three not in a line, and every point within 120 mm, measured a millimetre apart", () => {
-    for (const [name, layout] of cases) {
-      expect(layout.problems, name).toEqual([]);
-      for (const pin of layout.pins) expect(layout.compatible, name).toContain(pin);
-      for (const index of layout.tiles.keys()) expect(layout.pins.filter((p) => p.tile === index).length, name).toBeGreaterThanOrEqual(2);
-      const [a, b] = [layout.pins[0]!.slot, layout.pins[1]!.slot];
-      expect(layout.pins.some(({ slot: c }) => Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) > 1), name).toBe(true);
-      expect(farthest(layout), name).toBeLessThanOrEqual(GRID.overlay.reach);
+  test("put pegs on the slots under them, worked out by hand", () => {
+    const layout = placed();
+    expect(pegsOf(layout, "front")).toEqual([[87.5, 90], [167.5, 90], [247.5, 90]]);
+    expect(pegsOf(layout, "back")).toEqual([67.5, 107.5, 147.5, 187.5, 227.5, 267.5].map((x) => [x, 270]));
+    expect(pegsOf(layout, "right")).toEqual([[267.5, 110], [267.5, 190], [267.5, 230]]);
+    expect(pegsOf(layout, "left")).toEqual([[67.5, 110], [67.5, 150], [67.5, 190], [67.5, 230], [87.5, 170]]);
+    // Every peg is centred on a slot, and lies wholly inside its strip.
+    const [pl, pw] = stripPeg();
+    for (const strip of layout.bumpers) {
+      for (const [x, y] of strip.pegs!) {
+        expect(board.holes).toContainEqual([x, y]);
+        expect(x - pl / 2).toBeGreaterThanOrEqual(strip.floor.x0);
+        expect(x + pl / 2).toBeLessThanOrEqual(strip.floor.x1);
+        expect(y - pw / 2).toBeGreaterThanOrEqual(strip.floor.y0);
+        expect(y + pw / 2).toBeLessThanOrEqual(strip.floor.y1);
+      }
     }
+    expect([pl, pw]).toEqual([UPPDATERA.slot[0] - UPPDATERA.strip_peg.fit, UPPDATERA.slot[1] - UPPDATERA.strip_peg.fit]);
   });
 
-  test("uses as few as it can: none can go without breaking a rule", () => {
-    for (const [name, layout] of cases) {
-      for (const k of layout.pins.keys()) expect(pinRules(layout, layout.pins.filter((_, n) => n !== k)), `${name} without pin ${k}`).toBeDefined();
-    }
+  test("run the front and back strips past the corners, over the side strips' ends", () => {
+    const layout = placed();
+    const side = (s: string) => layout.bumpers.find((b) => b.side === s)!.floor;
+    expect(side("front")).toEqual({ x0: 55, x1: 280, y0: 82.5, y1: 100 });
+    expect(side("left")).toEqual({ x0: 55, x1: 100, y0: 100, y1: 252 });
   });
 
-  test("takes pins named by hand, and reports one that isn't over a slot, and a set that breaks the rules", () => {
-    const named = layoutOverlay(SHAPE, BOARD, { id: "a", kind: "grid", at: [0, 0], holes: [16, 16], pins: [[0, 0]] }, 0);
-    expect(named.problems.map((p) => p.at)).toEqual(expect.arrayContaining([["base", "overlays", 0, "pins", 0], ["base", "overlays", 0, "pins"]]));
-    const coffeeSpec = coffee().base as { overlays: OverlaySpec[] };
-    const chosen = drawerOverlays(coffee())[0]!.pins.map((p) => p.hole) as [number, number][];
-    const byHand = layoutOverlay(SHAPE, BOARD, { ...coffeeSpec.overlays[0]!, pins: chosen }, 0);
-    expect(byHand.problems).toEqual([]);
-    expect(byHand.pins.map((p) => p.hole)).toEqual(chosen);
-  });
-});
-
-describe("the best fit", () => {
-  test("moves an overlay whose pins break the rules to where they don't, with more holes over slots", () => {
-    const shape = drawerShape({ inside: [675, 500, 100] })!;
-    const board = pegboard("uppdatera-80", 675, 500);
-    const spec: OverlaySpec = { id: "a", kind: "grid", at: [0, 0], holes: [16, 16] };
-    const before = layoutOverlay(shape, board, spec, 0);
-    expect(before.problems).not.toEqual([]);
-    const best = bestOverlayAt(shape, board, spec, []);
-    expect(best.met).toBe(true);
-    const after = layoutOverlay(shape, board, { ...spec, at: best.at }, 0);
-    expect(after.problems).toEqual([]);
-    expect(after.compatible.length).toBeGreaterThanOrEqual(before.compatible.length);
-    // Within a slot pitch along a row, and a row, of where it was.
-    expect(Math.abs(best.at[0] - spec.at[0])).toBeLessThanOrEqual(UPPDATERA.pitch / 2);
-    expect(Math.abs(best.at[1] - spec.at[1])).toBeLessThanOrEqual(UPPDATERA.row / 2);
+  test("leave an edge at the drawer wall alone", () => {
+    // At [0, 0] the left and front edges are on the board's, and so at the walls.
+    const layout = layoutOverlay(shape, board, { id: "a", kind: "grid", at: [0, 0], holes: [16, 16] }, 0);
+    expect(layout.free).toEqual(["right", "back"]);
+    expect(layout.strips.map((s) => s.side)).toEqual(["right", "back"]);
   });
 
-  test("keeps off the other overlays and on the board", () => {
-    const shape = drawerShape({ inside: [675, 500, 100] })!;
-    const board = pegboard("uppdatera-80", 675, 500);
-    const other = { at: [0, 16 * PITCH] as [number, number], holes: [16, 16] as [number, number] };
-    const best = bestOverlayAt(shape, board, { id: "a", kind: "grid", at: [0, 0], holes: [16, 16] }, [other]);
-    expect(best.at[0]).toBeGreaterThanOrEqual(0);
-    expect(best.at[1]).toBeGreaterThanOrEqual(0);
-    expect(best.at[1] + 16 * PITCH).toBeLessThanOrEqual(other.at[1] + 0.5);
+  test("report an overlay held only on two parallel sides", () => {
+    // 3 mm from the left wall and 7.5 mm from the right: no room for side strips, so only the
+    // front and back strips hold it, and they're parallel.
+    const layout = layoutOverlay(shape, board, { id: "a", kind: "grid", at: [3, 100], holes: [70, 16] }, 0);
+    expect(layout.held).toEqual(["front", "back"]);
+    const messages = layout.problems.map((p) => p.message);
+    expect(messages).toContainEqual(expect.stringMatching(/^is held only on its front and back sides/));
+    expect(messages.filter((m) => /faces the pegboard/.test(m))).toHaveLength(2);
   });
 
-  test("puts the coffee drawer's overlay where it is", () => {
-    const drawer = coffee();
-    const shape = drawerShape(drawer.drawer)!;
-    const spec = (drawer.base as { overlays: OverlaySpec[] }).overlays[0]!;
-    expect(bestOverlayAt(shape, pegboard("uppdatera-80", shape.inside[0], shape.inside[1]), spec, []).at).toEqual(spec.at);
+  test("build as solids with no overhang past 45°, solid chunky pegs below, and a top chamfered to the pegboard", () => {
+    const layout = placed();
+    const strip = layout.bumpers.find((b) => b.side === "back")!;
+    const solid = bumperSolid(wasm, layout, strip);
+    expect(solid.status()).toBe("NoError");
+    expect(solid.decompose().length).toBe(1);
+    expect(overhangs(printable(solid).getMesh())).toBe(0);
+    // Each peg fills its slot's depth below the floor, solid through its middle.
+    for (const [x, y] of strip.pegs!) expect(solid.intersect(wasm.Manifold.cube([4, 4, 2], true).translate([x, y, -1.5])).volume()).toBeCloseTo(32, 3);
+    // Flush with the tiles at the joint; down to the pegboard at the outer edge.
+    const at = (x: number, y: number, z: number) => solid.intersect(wasm.Manifold.cube([0.4, 0.4, 0.4], true).translate([x, y, z])).volume() > 0;
+    expect(at(180, strip.floor.y0 + 1, THICKNESS - 0.3)).toBe(true);
+    expect(at(180, strip.floor.y1 - 1, THICKNESS - 0.3)).toBe(false);
+    expect(at(180, strip.floor.y1 - 1, 0.3)).toBe(true);
+    // Its outer edge stands a land high, not a feather edge.
+    expect(at(180, strip.floor.y1 - 0.25, GRID.strip.land - 0.25)).toBe(true);
+    expect(at(180, strip.floor.y1 - 0.25, GRID.strip.land + 1)).toBe(false);
   });
+
+  test("join the tiles with a lap tab under them, without running into them", () => {
+    const layout = placed();
+    const strip = layout.bumpers.find((b) => b.side === "back")!;
+    const tile = tileSolid(wasm, layout, layout.tiles[0]!);
+    const solid = bumperSolid(wasm, layout, strip);
+    expect(solid.intersect(tile).volume()).toBeLessThan(1e-6);
+    // The tab reaches under the tile's edge, low down, by the lap tab's depth.
+    const under = solid.intersect(wasm.Manifold.cube([100, layout.lapTab, 1]).translate([130, strip.floor.y0 - layout.lapTab, 0.1]));
+    expect(under.volume()).toBeGreaterThan(0);
+    expect(under.boundingBox().min[1]).toBeCloseTo(strip.floor.y0 - layout.lapTab, 2);
+  }, 60_000);
 });
 
 describe("laying out an overlay", () => {
@@ -173,13 +152,16 @@ describe("laying out an overlay", () => {
     }
   });
 
-  test("joins tiles only to each other, and counts an edge at a wall as not free", () => {
+  test("joins tiles to each other and to strips, never at a wall", () => {
     const [, layout] = cases[0]!;
-    // At [87, 0] on the board: its front edge is on the board's, and the rest face the pegboard.
-    expect(layout.free).toEqual(["left", "right", "back"]);
+    // Against the front and right walls; strips along the left and back.
+    expect(layout.free).toEqual(["left", "back"]);
+    expect(layout.problems).toEqual([]);
     for (const [x, y] of layout.joiners) {
-      expect(x > layout.box.x0 && x < layout.box.x1 && y > layout.box.y0 && y < layout.box.y1).toBe(true);
+      expect(y > layout.box.y0 && x < layout.box.x1).toBe(true);
     }
+    expect(layout.joiners.some(([x]) => x === layout.box.x0)).toBe(true);
+    expect(layout.joiners.some(([, y]) => y === layout.box.y1)).toBe(true);
   });
 
   test("reports an overlay that runs off the board", () => {
@@ -231,8 +213,8 @@ describe("a grid base's tiles", () => {
 });
 
 describe("building an overlay tile", () => {
-  test("prints face down without supports, with its free edges chamfered and its pins' holes open from below", () => {
-    // Clear of the board's edges, so every outer edge is free and chamfered.
+  test("prints face down without supports, the same whichever slots are under it, its holes open through", () => {
+    // Clear of the board's edges, so every outer edge has a strip, with a rebate for its lap tab.
     const layout = overlay({ at: [20, 20], holes: [16, 16] }, [90, 90, 90]);
     expect(layout.free).toEqual(["left", "right", "front", "back"]);
     const t = layout.tiles[0]!;
@@ -272,7 +254,7 @@ describe("an overlay in a drawer", () => {
     check(JSON.stringify({
       format: "drawer/0.4", name: "Board", drawer: { inside: [700, 500, 100] }, items: {}, layout: [],
       base: { kind: "pegboard", preset: "uppdatera-80", overlays: [{ id: "a", kind: "grid", at: [0, 0], holes: [16, 16] }, ...more.map((o) => ({ kind: "grid", holes: [16, 16], ...o }))] },
-    })).problems.filter((p) => !/lock pin/.test(p.message));
+    })).problems.filter((p) => !/faces the pegboard|is held only/.test(p.message));
   const SIDE = 16 * PITCH;
 
   test("reports an overlay off the board", () => {
@@ -280,22 +262,21 @@ describe("an overlay in a drawer", () => {
   });
 
   test("reports overlays that overlap", () => {
-    expect(onBoard({ id: "b", at: [SIDE - 10, 0] })).toEqual([expect.objectContaining({ path: "base.overlays[1]", message: "overlaps overlay a" })]);
+    expect(onBoard({ id: "b", at: [SIDE - 10, 0] }).map((p) => p.path)).toContain("base.overlays[1]");
+  });
+
+  test("reports an overlay that runs into another's strip", () => {
+    // Overlay a's right strip runs out past its edge, under where b starts.
+    const found = onBoard({ id: "b", at: [SIDE, 0] });
+    expect(found).toContainEqual(expect.objectContaining({ path: "base.overlays[1]", message: "overlaps overlay a, strips included" }));
   });
 
   test("reports overlays that share an id", () => {
     expect(onBoard({ id: "a", at: [300, 0] }).map((p) => p.path)).toEqual(["base.overlays[1].id"]);
   });
 
-  test("lets overlays touch edge to edge", () => {
-    expect(onBoard({ id: "b", at: [SIDE, 0] }, { id: "c", at: [0, SIDE] })).toEqual([]);
-  });
-
-  test("reports a fixing in a hole a lock pin takes", () => {
-    const [front] = drawerOverlays(coffee());
-    const taken = front!.pins[0]!.hole;
-    const found = problems((d) => (d.holders.find((h: any) => h.id === "mug-tray").fix[0].hole = taken));
-    expect(found).toEqual([expect.objectContaining({ path: "holders[3].fix[0].hole", message: expect.stringContaining("taken by a lock pin") })]);
+  test("lets overlays sit apart, strips and all", () => {
+    expect(onBoard({ id: "b", at: [400, 0] })).toEqual([]);
   });
 
   test("gives the full height to a holder whose `on` names no overlay, and reports the name", () => {
@@ -322,7 +303,7 @@ describe("an overlay in a drawer", () => {
       d.holders = d.holders.filter((h: any) => h.id !== "coaster-posts");
       d.holders.push({ id: "coaster-pegs", method: "pegs", holds: ["coasters"] });
     });
-    expect(found.find((p) => p.path === `holders[${parse(text).holders.length - 1}]`)?.message).toContain("IKEA pegs can't use the slots under it");
+    expect(found.find((p) => p.path === `holders[${parse(text).holders.length - 1}]`)?.message).toContain("IKEA pegs can't use the slots under them");
   });
 
   test("gives what sits on it the drawer's height less the overlay's", () => {
@@ -345,7 +326,6 @@ describe("an overlay in a drawer", () => {
 });
 
 describe("exporting an overlay", () => {
-  // At [97, 100], the best fit near [100, 100]: three lock pins.
   const SMALL = `
 format: drawer/0.4
 name: Small pegboard
@@ -354,7 +334,7 @@ base:
   kind: pegboard
   preset: uppdatera-60
   overlays:
-    - { id: patch, kind: grid, at: [97, 100], holes: [16, 16] }
+    - { id: patch, kind: grid, at: [100, 100], holes: [16, 16] }
 items:
   cup: { name: Cup, cylinder: [40, 40] }
 layout:
@@ -368,7 +348,7 @@ holders:
     fix: [{ hole: [7, 8], by: pin }]
 `;
 
-  test("plates its tiles as a grid base's, and lists the lock pins, with spares, as a library part", async () => {
+  test("plates its strips with the joiners and pegs, and counts them in the parts list", async () => {
     expect(check(SMALL).problems).toEqual([]);
     const drawer = (load(SMALL) as { drawer: Drawer }).drawer;
     const files = exportDrawer(await Module(), drawer, { bed: [256, 256, 256] });
@@ -377,16 +357,14 @@ holders:
 
     const overlays = drawerOverlays(drawer);
     const counts = boardCounts(drawer, overlays);
-    expect(counts.lockPins).toBe(withSpares(overlays[0]!.pins.length));
-    const plate = strFromU8(unzipSync(files.find((f) => f.name === "plate.3mf")!.data)["3D/3dmodel.model"]!);
-    expect(plate.match(/<item /g)?.length).toBe(counts.joiners + counts.pegs);
+    expect(counts.strips).toBe(overlays[0]!.bumpers.length);
+    expect(counts.strips).toBe(4);
+    const plates = files.filter((f) => /^plate(-\d+)?\.3mf$/.test(f.name)).map((f) => strFromU8(unzipSync(f.data)["3D/3dmodel.model"]!));
+    const items = plates.reduce((n, model) => n + (model.match(/<item /g)?.length ?? 0), 0);
+    expect(items).toBe(counts.strips + counts.joiners + counts.pegs);
+    expect(plates.join("")).toContain('name="strip patch back 1"');
 
     const parts = strFromU8(files.find((f) => f.name === "parts.md")!.data);
-    expect(parts).toContain(`UPPDATERA lock pin × ${counts.lockPins}`);
-    expect(parts).toContain("not in the library yet");
-    // The peg is the 3.2 mm hole less the 0.5 mm press fit a holder's own peg takes.
-    expect(parts).toContain(`with a ${gridFit().grid_hole[GRID.variant]! - gridFit().peg_fixed} mm peg`);
-    const linked = exportDrawer(await Module(), drawer, { library: { "lock-pin": { name: "Lock pin", url: "https://example.org/pin" } } });
-    expect(strFromU8(linked.find((f) => f.name === "parts.md")!.data)).toContain("[Lock pin](https://example.org/pin)");
+    expect(parts).toContain(`${counts.strips} edge strips, with ${counts.stripPegs} pegs`);
   }, 120_000);
 });

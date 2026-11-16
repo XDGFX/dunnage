@@ -4,9 +4,8 @@ import Value from "typebox/value";
 import { isMap, isScalar, isSeq, LineCounter, parseDocument, type Document } from "yaml";
 import { DRAWER_PRESETS, drawerShape } from "./drawers.ts";
 import { FORMATS, migrate, readHeader } from "./format.ts";
-import { boxesOverlap } from "./geometry.ts";
 import { holeProblem, layoutBoard } from "./grid/layout.ts";
-import { drawerOverlays, overlayOf } from "./grid/overlay.ts";
+import { drawerOverlays, overlayFootprint, overlayOf, overlaysOverlap } from "./grid/overlay.ts";
 import { GRID, gridFit, type Fit, type PrinterFit, type Variant } from "./grid/parameters.ts";
 import { UPPDATERA } from "./pegboard.ts";
 import { Drawer, ID, Printer, PRINTER_PRESETS } from "./schema.ts";
@@ -165,7 +164,7 @@ function drawerWarnings(drawer: Drawer): Issue[] {
     if (UPPDATERA.unverified.length > 0) {
       warnings.push({
         at: ["base", "overlays"],
-        message: `UPPDATERA's ${UPPDATERA.unverified.join(", ")} are unverified, and the lock pins are placed by them: measure the board, and correct \`uppdatera\` in the grid parameters file`,
+        message: `UPPDATERA's ${UPPDATERA.unverified.join(", ")} are unverified, and the edge strips' pegs are sized and placed from them: measure the board, and correct \`uppdatera\` in the grid parameters file`,
       });
     }
   }
@@ -478,7 +477,7 @@ function drawerIssues(drawer: Drawer, options: CheckOptions): Issue[] {
     const first = overlays.findIndex((other) => other.id === overlay.id);
     if (first < index) say(["base", "overlays", index, "id"], `${overlay.id} is already the id of base.overlays[${first}]`);
     for (const other of overlays.slice(0, index)) {
-      if (boxesOverlap(overlay.box, other.box)) say(["base", "overlays", index], `overlaps overlay ${other.id}`);
+      if (overlaysOverlap(overlay, other)) say(["base", "overlays", index], `overlaps overlay ${other.id}, strips included`);
     }
   }
   const overlayIds = list(overlays.map((overlay) => overlay.id));
@@ -519,13 +518,13 @@ function drawerIssues(drawer: Drawer, options: CheckOptions): Issue[] {
         const out = box.left < overlay.box.x0 - EPSILON || box.right > overlay.box.x1 + EPSILON || box.front < overlay.box.y0 - EPSILON || box.back > overlay.box.y1 + EPSILON;
         if (out) say(["holders", index, "on"], `${id} isn't wholly on overlay ${overlay.id}, and a holder can't straddle an overlay's edge`);
       } else if (holder.on === undefined) {
-        const under = overlays.find((o) => deepest(parts, [rectangle([(o.box.x0 + o.box.x1) / 2, (o.box.y0 + o.box.y1) / 2], [o.box.x1 - o.box.x0, o.box.y1 - o.box.y0])]) > EPSILON);
+        const under = overlays.find((o) => overlayFootprint(o).some((b) => deepest(parts, [rectangle([(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2], [b.x1 - b.x0, b.y1 - b.y0])]) > EPSILON));
         if (under) {
           say(
             ["holders", index],
             holder.method === "pegs"
-              ? `${id} is over overlay ${under.id}, and IKEA pegs can't use the slots under it`
-              : `${id} is on overlay ${under.id}: set \`on: ${under.id}\`, or move it wholly off`,
+              ? `${id} is over overlay ${under.id} or its edge strips, and IKEA pegs can't use the slots under them`
+              : `${id} is on overlay ${under.id} or its edge strips: set \`on: ${under.id}\` and keep it on the tiles, or move it wholly off`,
           );
         }
       }

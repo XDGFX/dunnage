@@ -2,7 +2,7 @@ import { parse } from "yaml";
 import { read } from "./check.ts";
 import { DRAWER_PRESETS, drawerShape, wallFields, type Side } from "./drawers.ts";
 import { boxesOverlap, half } from "./geometry.ts";
-import { bestOverlayAt, type OverlayOptions, type OverlaySpec } from "./grid/overlay.ts";
+import { drawerOverlays, overlayFootprint } from "./grid/overlay.ts";
 import { GRID } from "./grid/parameters.ts";
 import { pegboard } from "./pegboard.ts";
 import { BASES, plan, type BaseKey, type Method } from "./plan.ts";
@@ -241,13 +241,16 @@ export function addOverlay(text: string, holes: readonly [number, number] = GRID
   const id = unique("overlay", new Set(existing.map((o) => o.id)));
   const board = pegboard(drawer.base.preset, shape.inside[0], shape.inside[1]);
   const [w, d] = [holes[0] * GRID.pitch, holes[1] * GRID.pitch];
-  const boxOf = (at: readonly [number, number], size: readonly [number, number]) => ({ x0: at[0], y0: at[1], x1: at[0] + size[0] * GRID.pitch, y1: at[1] + size[1] * GRID.pitch });
-  // The first spot, front to back and left to right, clear of every overlay already there.
+  // What's there already, strips and all, in the board's frame.
+  const taken = drawerOverlays(drawer).flatMap(overlayFootprint).map((b) => ({ x0: b.x0 - board.x0, y0: b.y0 - board.y0, x1: b.x1 - board.x0, y1: b.y1 - board.y0 }));
+  // The first spot, front to back and left to right, with room for the widest strips round it.
   const step = GRID.overlay.step;
+  const room = GRID.strip.max_width;
   let at: [number, number] | undefined;
   for (let y = 0; !at && y + d <= board.depth; y += step) {
     for (let x = 0; !at && x + w <= board.width; x += step) {
-      if (!existing.some((o) => boxesOverlap(boxOf([x, y], holes), boxOf(o.at, o.holes)))) at = [x, y];
+      const around = { x0: x - room, y0: y - room, x1: x + w + room, y1: y + d + room };
+      if (!taken.some((b) => boxesOverlap(around, b))) at = [x, y];
     }
   }
   if (!at) throw new Error(`no room on the board for another ${holes[0]} × ${holes[1]}-hole overlay`);
@@ -255,24 +258,9 @@ export function addOverlay(text: string, holes: readonly [number, number] = GRID
 }
 
 /** Sets, or with `undefined` removes, a field on an overlay. */
-export function setOverlay(text: string, id: string, field: "at" | "holes" | "variant" | "pins", value: unknown): string {
+export function setOverlay(text: string, id: string, field: "at" | "holes" | "variant", value: unknown): string {
   const index = overlayIndex(text, id);
   return value === undefined ? deleteIn(text, ["base", "overlays", index, field]) : setIn(text, ["base", "overlays", index, field], value);
-}
-
-/**
- * Moves an overlay to the best place within a slot pitch, where its lock pins meet the rules and
- * most holes line up with slots. Pins it names are dropped, as they belong to where it was.
- */
-export function moveOverlayToBestFit(text: string, id: string, options: OverlayOptions = {}): string {
-  const drawer = drawerOf(text);
-  const shape = drawerShape(drawer.drawer);
-  if (drawer.base?.kind !== "pegboard" || !shape) return text;
-  const specs = (drawer.base.overlays ?? []) as OverlaySpec[];
-  const spec = specs[overlayIndex(text, id)]!;
-  const board = pegboard(drawer.base.preset, shape.inside[0], shape.inside[1]);
-  const { at } = bestOverlayAt(shape, board, spec, specs.filter((o) => o.id !== id), options);
-  return setOverlay(setOverlay(text, id, "pins", undefined), id, "at", at);
 }
 
 /** Removes an overlay, taking the holders on it off it. */

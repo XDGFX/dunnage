@@ -1,7 +1,9 @@
 import type { CrossSection, Manifold, ManifoldToplevel, Vec3 } from "manifold-3d";
 import type { Side } from "../drawers.ts";
 import type { Box } from "../geometry.ts";
+import { UPPDATERA } from "../pegboard.ts";
 import { boardHole, OUTWARD, type BoardBumper, type BoardLayout, type BoardTile, type Hole } from "./layout.ts";
+import { stripPeg } from "./overlay.ts";
 import { GRID, gridFit, type PrinterFit } from "./parameters.ts";
 import { joinerRoom, peg, PITCH, printJoiner, THICKNESS, tile, VARIANTS } from "./tile.ts";
 
@@ -40,9 +42,7 @@ const standUp = (part: Manifold) => part.mirror([0, 0, 1]).translate([0, 0, THIC
 
 /** Where a `row-col` label's dots sit on a tile's face, in the tile's own coordinates: the row's dots, a gap, then the column's. */
 export function labelDots(layout: BoardLayout, t: BoardTile): { at: [number, number]; count: number }[] {
-  // Clear of the chamfer on an overlay's free front edge.
-  const chamfered = t.row === 0 && layout.free?.includes("front") ? GRID.overlay.chamfer + GRID.label.dot : 0;
-  const y = Math.max(VARIANTS[layout.variant].band / 2, GRID.label.inset, chamfered);
+  const y = Math.max(VARIANTS[layout.variant].band / 2, GRID.label.inset);
   const spacing = GRID.label.spacing;
   const [rowDots, colDots] = [t.row + 1, t.col + 1];
   return [
@@ -90,6 +90,7 @@ export function tileSolid(wasm: ManifoldToplevel, layout: BoardLayout, t: BoardT
     ? wasm.CrossSection.square([w + 2, d + 2]).translate(-1, -1).subtract(cut.translate(-t.box.x0, -t.box.y0))
     : undefined;
   const outer = outerSides(layout, t);
+  const stripped = layout.bumpers.map((b) => b.side);
   const local = tile(wasm, {
     variant: layout.variant,
     nx: t.size[0],
@@ -97,24 +98,17 @@ export function tileSolid(wasm: ManifoldToplevel, layout: BoardLayout, t: BoardT
     hole,
     drop: inSet(layout.dropped),
     countersink: inSet(layout.countersinks),
-    // A grid base's joiners may reach its bumpers; an overlay's are only between its own tiles.
-    joiners: layout.kind === "grid" ? true : SIDES.filter((side) => !outer.includes(side)),
+    // A grid base's joiners may reach its bumpers; an overlay's reach only its own tiles and its strips.
+    joiners: layout.kind === "grid" ? true : SIDES.filter((side) => !outer.includes(side) || stripped.includes(side)),
     clip,
     dots: labelDots(layout, t),
   });
   let placed = local.translate([t.box.x0, t.box.y0, 0]);
-  if (layout.kind === "grid") {
-    // A rebate under each edge that meets a bumper, for its lap tab, so the tile still sits flat.
+  // A rebate under each edge that meets a bumper or strip, for its lap tab, so the tile still sits flat.
+  const rebated = layout.kind === "grid" ? outer : outer.filter((side) => stripped.includes(side));
+  if (rebated.length > 0) {
     const { rebate } = lapTabProfiles(layout.lapTab);
-    placed = placed.subtract(wasm.Manifold.union(outer.map((side) => edgePrism(wasm, side, t.box, rebate, 1))));
-  }
-  // An overlay's free edge faces the pegboard: a wide band so it doesn't crack, chamfered on the face so nothing catches.
-  const free = outer.filter((side) => layout.free?.includes(side));
-  if (free.length > 0) {
-    const { band, chamfer: c } = GRID.overlay;
-    placed = placed
-      .add(wasm.Manifold.union(free.map((side) => edgePrism(wasm, side, t.box, [[0, 0], [band, 0], [band, THICKNESS], [0, THICKNESS]]))))
-      .subtract(wasm.Manifold.union(free.map((side) => edgePrism(wasm, side, t.box, [[-1, -1], [c + 1, -1], [-1, c + 1]], 1))));
+    placed = placed.subtract(wasm.Manifold.union(rebated.map((side) => edgePrism(wasm, side, t.box, rebate, 1))));
   }
   return standUp(placed);
 }
@@ -165,7 +159,7 @@ export function bumperSolid(wasm: ManifoldToplevel, layout: BoardLayout, b: Boar
     [box.x1, box.y1, z],
     [box.x0, box.y1, z],
   ];
-  let solid = Manifold.hull([...corners(top, 0), ...corners(floor, THICKNESS)]);
+  let solid = Manifold.hull([...corners(top, 0), ...corners(floor, THICKNESS - (b.land ?? 0)), ...corners(floor, THICKNESS)]);
   // The lap tab along its foot, under the tile's band; its sloping top prints face down.
   if (b.tab.x1 > b.tab.x0 && b.tab.y1 > b.tab.y0) solid = solid.add(edgePrism(wasm, b.side, b.tab, lapTabProfiles(layout.lapTab).tab));
 
@@ -191,7 +185,23 @@ export function bumperSolid(wasm: ManifoldToplevel, layout: BoardLayout, b: Boar
     if (rings.some(([rx, ry]) => inside(rx, ry))) voids.push(room.translate([x, y, 0]));
   }
   if (voids.length > 0) solid = solid.subtract(Manifold.union(voids));
+  if (b.pegs?.length) solid = solid.add(Manifold.union(b.pegs.map(([x, y]) => stripPegSolid(wasm).translate([x, y, THICKNESS]))));
   return standUp(solid);
+}
+
+/**
+ * An edge strip's peg, made as bumpers are, face down: from the strip's underside it fills an
+ * UPPDATERA slot, less the press fit, solid, with a 45° lead-in at its tip.
+ */
+export function stripPegSolid(wasm: ManifoldToplevel): Manifold {
+  const { CrossSection, Manifold } = wasm;
+  const [l, w] = stripPeg();
+  const { depth, lead_in: c } = UPPDATERA.strip_peg;
+  const stadium = (length: number, width: number) =>
+    CrossSection.union([CrossSection.square([length - width, width], true), ...[-1, 1].map((side) => CrossSection.circle(width / 2, 48).translate((side * (length - width)) / 2, 0))]);
+  const body = Manifold.extrude(stadium(l, w), depth - c + 0.01).translate([0, 0, -0.01]);
+  const tip = Manifold.extrude(stadium(l - 2 * c, w - 2 * c), 0.01).translate([0, 0, depth - 0.01]);
+  return Manifold.hull([body, tip]);
 }
 
 /** One joiner, as it prints. */

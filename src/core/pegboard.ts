@@ -6,14 +6,14 @@ import { GRID } from "./grid/parameters.ts";
 export type PegboardPreset = keyof typeof GRID.uppdatera.boards;
 
 /** The UPPDATERA numbers, in mm; those listed in `unverified` are best guesses until measured (#13 §5). */
-export const UPPDATERA = GRID.uppdatera as unknown as Omit<typeof GRID.uppdatera, "boards" | "slot" | "cup" | "lock_pin"> & {
+export const UPPDATERA = GRID.uppdatera as unknown as Omit<typeof GRID.uppdatera, "boards" | "slot" | "cup" | "strip_peg"> & {
   boards: Record<PegboardPreset, [number, number]>;
   /** Length along x, and width. Slots all run across the drawer. */
   slot: [number, number];
   /** The open cup under each slot: its width, and its depth below the skin. */
   cup: [number, number];
-  /** The library's lock pin: where it locks, from the slot's centre, and how far a hole may be from there, [along, across]. */
-  lock_pin: { at: [number, number]; tolerance: [number, number] };
+  /** An overlay edge strip's pegs: the slot less `fit` each way, `depth` below the strip, with a `lead_in` chamfer. */
+  strip_peg: { fit: number; depth: number; lead_in: number };
 };
 
 export const PEGBOARD_PRESETS = Object.keys(UPPDATERA.boards) as PegboardPreset[];

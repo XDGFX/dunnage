@@ -60,13 +60,13 @@ export function boardCounts(drawer: Drawer, all: readonly Board[]): BoardCounts 
     const ownPins = fixingsOf(holders, own).filter((fixing) => fixing.by === "pin").length;
     variants[variant] = { joiners: withSpares(own.reduce((total, layout) => total + layout.joiners.length, 0)), pegs: withSpares(ownPins) };
   }
-  const lockPins = sum((layout) => (layout.kind === "overlay" ? layout.pins.length : 0));
   return {
     joiners: Object.values(variants).reduce((total, v) => total + v.joiners, 0),
     pegs: Object.values(variants).reduce((total, v) => total + v.pegs, 0),
     holderScrews: fixings.length - pins,
     floorScrews: sum((layout) => layout.countersinks.length),
-    lockPins: withSpares(lockPins),
+    strips: sum((layout) => (layout.kind === "overlay" ? layout.bumpers.length : 0)),
+    stripPegs: sum((layout) => (layout.kind === "overlay" ? layout.bumpers.reduce((n, b) => n + (b.pegs?.length ?? 0), 0) : 0)),
     variants,
   };
 }
@@ -143,12 +143,15 @@ export function exportDrawer(wasm: ManifoldToplevel, drawer: Drawer, options: Ex
     }
 
     const overlaid = layouts.some((layout) => layout.kind === "overlay");
-    const extras = overlaid ? "joiners and pegs" : "bumpers, joiners and pegs";
+    const extras = overlaid ? "edge strips, joiners and pegs" : "bumpers, joiners and pegs";
     say(extras);
     const variants = Object.entries(counts.variants) as [Variant, { joiners: number; pegs: number }][];
     const named = (key: string, variant: Variant) => (variants.length > 1 ? `${key} ${variant}` : key);
     printed.push(...plated("plate", extras, () => [
-      ...layouts.flatMap((layout) => layout.bumpers.map((bumper): Solid => ({ key: `bumper ${bumper.side} ${bumper.index + 1}`, kind: "bumper", solid: printable(bumperSolid(wasm, layout, bumper, fit)), copies: 1 }))),
+      ...layouts.flatMap((layout) => layout.bumpers.map((bumper): Solid => {
+        const key = layout.kind === "overlay" ? `strip ${layout.id} ${bumper.side} ${bumper.index + 1}` : `bumper ${bumper.side} ${bumper.index + 1}`;
+        return { key, kind: layout.kind === "overlay" ? "strip" : "bumper", solid: printable(bumperSolid(wasm, layout, bumper, fit)), copies: 1 };
+      })),
       ...variants.flatMap(([variant, own]): Solid[] => {
         const layout = layouts.find((l) => l.variant === variant)!;
         return [

@@ -27,10 +27,11 @@
   "tile": { "bed_margin": 10 },
   "bumper": { "fit": 0.3, "min": 5, "max": 10 },
   "lap_tab": { "depth": 2, "thickness": 1.2, "clearance": 0.2, "slope": 45 },
-  "overlay": { "band": 2.4, "chamfer": 1.5, "reach": 120, "at_wall": 0.5, "sample": 2, "search_sample": 6, "size": [16, 16], "step": 10, "fit_step": 0.5 },
+  "overlay": { "reach": 120, "at_wall": 0.5, "sample": 2, "size": [16, 16], "step": 10 },
+  "strip": { "min_width": 12, "max_width": 60, "step": 0.5, "wall": 2, "edge": 4, "slope": 45, "land": 1.2 },
   "uppdatera": {
     "$comment": "IKEA UPPDATERA, from #13 §5. Only the board sizes are IKEA's; every field in `unverified` waits for calipers on a real board.",
-    "unverified": ["slot", "pitch", "row", "edge", "skin", "thickness", "cup", "lock_pin"],
+    "unverified": ["slot", "pitch", "row", "edge", "skin", "thickness", "cup", "strip_peg"],
     "boards": { "uppdatera-60": [475, 500], "uppdatera-80": [675, 500] },
     "slot": [17, 7],
     "pitch": 40,
@@ -39,10 +40,11 @@
     "skin": 2,
     "thickness": 7.5,
     "cup": [23, 5.5],
-    "lock_pin": {
-      "$comment": "The library's quarter-turn lock pin. `at` is where it locks, from the slot's centre; `tolerance` is how far a grid hole's centre may be from there, [along the slot, across it]. Its peg is the grid hole less the printer's `peg_fixed`.",
-      "at": [0, 0],
-      "tolerance": [3, 1]
+    "strip_peg": {
+      "$comment": "An overlay edge strip's pegs: the slot less `fit` across each way, `depth` below the strip, with a 45° `lead_in` at the tip.",
+      "fit": 0.2,
+      "depth": 4,
+      "lead_in": 1
     }
   }
 }

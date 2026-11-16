@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useRef, type PointerEvent as ReactPointerEvent } from "react";
 import {
-  boxesOverlap, GRID, HELD, holeAt, lower, METHODS, mm, moveThings, partsAt, partsHit, PEG, seat, seatOnPegs, setAside, setRotate, SLOT, snapAngle, solve, turn, unionOf, worst, wrap,
+  boxesOverlap, GRID, HELD, holeAt, lower, METHODS, mm, moveThings, partsAt, partsHit, PEG, seat, seatOnPegs, setAside, setRotate, SLOT, snapAngle, stripPeg, solve, turn, unionOf, worst, wrap,
   type BoardLayout, type Box, type Issue, type OverlayLayout, type Move, type Plan, type PlannedHolder, type PlannedThing, type Point, type Snap,
 } from "../core/index.ts";
 
@@ -409,12 +409,9 @@ function BaseLayer({ p, Y }: { p: Plan; Y: (y: number) => number }) {
   return <g className="base">{lines}</g>;
 }
 
-/**
- * A grid overlay on a pegboard: its tiles and holes as a grid board's, a light ring round each hole
- * over a slot a lock pin could use, and the chosen pins marked over their slots.
- */
+/** A grid overlay on a pegboard: its tiles, holes and edge strips as a grid board's, and the strips' pegs over the slots they fill. */
 function Overlay({ overlay: o, D, Y }: { overlay: OverlayLayout; D: number; Y: (y: number) => number }) {
-  const hole = (GRID.fit.grid_hole[o.variant] ?? GRID.fit.grid_hole[GRID.variant]!) / 2;
+  const peg = stripPeg();
   const { box } = o;
   const edge = { left: [box.x0, box.y0, box.x0, box.y1], right: [box.x1, box.y0, box.x1, box.y1], front: [box.x0, box.y0, box.x1, box.y0], back: [box.x0, box.y1, box.x1, box.y1] };
   return (
@@ -424,20 +421,10 @@ function Overlay({ overlay: o, D, Y }: { overlay: OverlayLayout; D: number; Y: (
         const [x1, y1, x2, y2] = edge[side];
         return <line key={side} className="free-edge" x1={x1} y1={Y(y1)} x2={x2} y2={Y(y2)} />;
       })}
-      {o.compatible.map(({ hole: h }) => {
-        const [x, y] = holeAt(o, h);
-        return <circle key={`c${h[0]}-${h[1]}`} className="compatible" cx={x} cy={Y(y)} r={hole + 1.4} />;
-      })}
-      {o.pins.map(({ hole: h, slot: [sx, sy] }) => {
-        const [x, y] = holeAt(o, h);
-        return (
-          <g key={`p${h[0]}-${h[1]}`} className="pin">
-            <rect x={sx - SLOT[0] / 2} y={Y(sy) - SLOT[1] / 2} width={SLOT[0]} height={SLOT[1]} rx={SLOT[1] / 2} />
-            <circle cx={x} cy={Y(y)} r={hole + 1} />
-          </g>
-        );
-      })}
-      <text className="overlay-label" x={box.x1 - 5} y={Y(box.y1) + 13} textAnchor="end">overlay {o.id}: {o.pins.length} lock pins of {o.compatible.length} holes over slots</text>
+      {o.bumpers.flatMap((strip) => (strip.pegs ?? []).map(([x, y]) => (
+        <rect key={`p${strip.side}-${x}-${y}`} className="strip-peg" x={x - peg[0] / 2} y={Y(y) - peg[1] / 2} width={peg[0]} height={peg[1]} rx={peg[1] / 2} />
+      )))}
+      <text className="overlay-label" x={box.x1 - 5} y={Y(box.y1) + 13} textAnchor="end">overlay {o.id}{o.strips.length ? `: ${o.strips.map((st) => `${st.side} strip ${st.width} mm`).join(", ")}` : ""}</text>
     </g>
   );
 }

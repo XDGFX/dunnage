@@ -90,7 +90,7 @@ The format is a public contract with its own version, separate from dunnage's. O
 
 ### Bases
 
-Each drawer has one base: **bare** (holders sit on the drawer floor), **Gridfinity** (a 42 mm grid of whole cells), **grid** (a printed board of holes on a 9.5 mm pitch that holders screw or pin into), or **IKEA UPPDATERA** (the slotted pegboard, held by planar form closure: pegs stop a thing sliding every way and turning). An UPPDATERA board can also carry **grid overlays**: patches of the grid board held down by quarter-turn lock pins in its slots, so the small things get fine holes and the big ones keep their IKEA pegs.
+Each drawer has one base: **bare** (holders sit on the drawer floor), **Gridfinity** (a 42 mm grid of whole cells), **grid** (a printed board of holes on a 9.5 mm pitch that holders screw or pin into), or **IKEA UPPDATERA** (the slotted pegboard, held by planar form closure: pegs stop a thing sliding every way and turning). An UPPDATERA board can also carry **grid overlays**: patches of the grid board, held by the drawer walls and by edge strips pegged into its slots, so the small things get fine holes and the big ones keep their IKEA pegs.
 
 ## Using it
 

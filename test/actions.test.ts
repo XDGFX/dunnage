@@ -46,8 +46,8 @@ describe("moving things", () => {
 
   test("carries a locked holder's shape with what it holds", () => {
     const text = moveThings(COFFEE, [["v60", 10, 5]]);
-    expect(thing(text, "v60").at).toEqual([563, 75]);
-    expect(holder(text, "v60-peg").lock.shape.at).toEqual([498, 10]);
+    expect(thing(text, "v60").at).toEqual([600, 75]);
+    expect(holder(text, "v60-peg").lock.shape.at).toEqual([535, 10]);
   });
 
   test("sets things aside and puts them back", () => {

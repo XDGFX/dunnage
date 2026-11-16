@@ -39,7 +39,7 @@ All of this is **settled** elsewhere. It is summarised here so the guide reads o
 | Bare floor | Holders hold each other by touching. Gaps under `FILL` (40 mm) are closed, and a holder that can slide more than `HELD` (1.5 mm) gets a warning | `src/core/plan.ts` |
 | UPPDATERA | Planar form closure from the pegs; `pegs` takes `fit: { play, spring }` | `src/core/plan.ts`, [format](format/drawer.md) |
 | Grid board | Located by pins and screwed down, with bumpers holding the board in the drawer. Toolgrid does the same: pins locate, one thread-forming screw holds | #6 |
-| Overlay on UPPDATERA | Quarter-turn lock pins from the library, pegs up into overlay holes | #13, #20 |
+| Overlay on UPPDATERA | The drawer walls, and generated edge strips with pegs that fill the slots | #13, #20 |
 | Gridfinity | Parked | — |
 
 ## Hold-down primitives

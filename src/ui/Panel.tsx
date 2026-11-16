@@ -349,7 +349,7 @@ function Overview({ plan: p, drawer, issues, general, warnings = [], select, app
         </select>
         <p className="note">{baseText[p.base.key]}</p>
         {p.base.layout && <GridBase drawer={drawer} layout={p.base.layout} bed={p.bed} apply={apply} />}
-        {p.base.board && drawer.base?.kind === "pegboard" && <Overlays specs={(drawer.base.overlays ?? []) as OverlaySpec[]} overlays={p.base.overlays ?? []} board={p.base.board} bed={p.bed} fit={p.fit} apply={apply} />}
+        {p.base.board && drawer.base?.kind === "pegboard" && <Overlays specs={(drawer.base.overlays ?? []) as OverlaySpec[]} overlays={p.base.overlays ?? []} board={p.base.board} apply={apply} />}
         <details className="more">
           <summary>Layout rules: {rules.edge_margin} mm edge margin, {rules.gap} mm gap, {rules.angle_step}° steps</summary>
           <div className="kv">

@@ -1,14 +1,14 @@
 import { boardHole } from "../grid/layout.ts";
-import { lockPinPeg, type Board } from "../grid/overlay.ts";
+import type { Board } from "../grid/overlay.ts";
 import { GRID, type Fit, type Variant } from "../grid/parameters.ts";
 import { METHODS, pretty, type Plan } from "../plan.ts";
 import { hasSpecSheet, specPath } from "../spec.ts";
-import { boardFor, fixingsOf, holderSide, round, SCREW } from "./fixings.ts";
+import { boardFor, fixingsOf, holderSide, SCREW } from "./fixings.ts";
 import type { Library } from "./library.ts";
 
 // The parts list: what to print, what to buy, and where each holder comes from.
 
-export type PartKind = "tile" | "bumper" | "joiner" | "peg" | "calibration";
+export type PartKind = "tile" | "bumper" | "strip" | "joiner" | "peg" | "calibration";
 
 export interface PrintedFile {
   file: string;
@@ -24,8 +24,9 @@ export interface BoardCounts {
   pegs: number;
   holderScrews: number;
   floorScrews: number;
-  /** The lock pins that hold overlays down, spares included. */
-  lockPins: number;
+  /** Overlay edge strips, one a tile along each free edge, and the pegs under them. */
+  strips: number;
+  stripPegs: number;
   /** Joiners and pegs by the variant they're sized for, spares included. */
   variants: Partial<Record<Variant, { joiners: number; pegs: number }>>;
 }
@@ -55,6 +56,7 @@ export interface PartsListInput {
 const NAMES: Record<PartKind, [string, string]> = {
   tile: ["tile", "tiles"],
   bumper: ["bumper", "bumpers"],
+  strip: ["edge strip", "edge strips"],
   joiner: ["joiner", "joiners"],
   peg: ["peg", "pegs"],
   calibration: ["calibration part", "calibration parts"],
@@ -66,10 +68,14 @@ function describe(printed: PrintedFile): string {
   return (Object.entries(printed.kinds) as [PartKind, number][]).map(([kind, count]) => `${count} ${NAMES[kind][count === 1 ? 0 : 1]}`).join(", ");
 }
 
+/** An overlay's strips, edge by edge. */
+const stripsText = (overlay: Extract<Board, { kind: "overlay" }>) =>
+  overlay.strips.length ? overlay.strips.map((s) => `${s.side} strip ${s.width} mm wide with ${s.pegs} pegs`).join(", ") : "against the walls, with no strips";
+
 /** A line saying what a board or overlay is. */
 function boardLine(layout: Board): string {
   const size = `${layout.variant}, ${layout.holes[0]} × ${layout.holes[1]} holes`;
-  return layout.kind === "overlay" ? `- Overlay ${layout.id}: ${size}, ${layout.pins.length} lock pins, chosen from the ${layout.compatible.length} holes that line up with a slot.` : `Grid board, ${size}.`;
+  return layout.kind === "overlay" ? `- Overlay ${layout.id}: ${size}, ${stripsText(layout)}.` : `Grid board, ${size}.`;
 }
 
 export function partsList({ name, bed, plan: drawerPlan, fit, library, board, spares, density }: PartsListInput): string {
@@ -90,12 +96,11 @@ export function partsList({ name, bed, plan: drawerPlan, fit, library, board, sp
       `Joiners and pegs include ${Math.round(spares * 100)}% spares, rounded up.`,
     );
     if (overlaid) {
-      const pin = library["lock-pin"];
       lines.push(
         "",
-        "## From the library",
+        "## Overlay edge strips",
         "",
-        `- UPPDATERA lock pin × ${counts.lockPins}, ${Math.round(spares * 100)}% spares included, with a ${round(lockPinPeg(layouts.find((l) => l.kind === "overlay")!.variant, fit))} mm peg: ${pin ? `[${pin.name}](${pin.url})` : "not in the library yet"}. Twist each into its slot, then press the overlay down over their pegs.`,
+        `- ${counts.strips} edge strips, with ${counts.stripPegs} pegs underneath that fill the UPPDATERA slots. Clip each to its tiles with its lap tab and joiners, then press the overlay down so the pegs go into the slots.`,
       );
     }
     if (weights.length > 0) {
