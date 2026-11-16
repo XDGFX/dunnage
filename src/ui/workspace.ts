@@ -1,4 +1,4 @@
-import { flow, gridFit, read, type Fit } from "../core/index.ts";
+import { flow, FORMATS, gridFit, PRINTER_PRESETS, read, type Fit } from "../core/index.ts";
 import coffee from "../../fixtures/coffee.drawer.yml?raw";
 import p1s from "../../fixtures/p1s.printer.yml?raw";
 
@@ -31,7 +31,7 @@ export interface Workspace {
 
 export const DRAWER = /\.drawer\.ya?ml$/;
 const PRINTER = /\.printer\.ya?ml$/;
-const DEFAULT_BED: [number, number, number] = [256, 256, 256];
+const DEFAULT_BED = [...PRINTER_PRESETS["bambu-p1s"]] as [number, number, number];
 const DEFAULT_FIT = gridFit();
 
 export const canOpenFolders = () => typeof window !== "undefined" && "showDirectoryPicker" in window;
@@ -195,7 +195,7 @@ export function download(name: string, text: string) {
 
 /** A new, empty drawer file. */
 export function blankDrawer(name: string, printer?: string): string {
-  return `format: drawer/0.3
+  return `format: drawer/${FORMATS.drawer}
 name: ${flow(name)}
 ${printer ? `printer: ${flow(printer)}\n` : ""}
 drawer:

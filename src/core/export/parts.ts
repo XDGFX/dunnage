@@ -1,13 +1,14 @@
-import { boardHole, type BoardLayout } from "../grid/layout.ts";
+import { boardHole } from "../grid/layout.ts";
+import type { Board } from "../grid/overlay.ts";
 import { GRID, type Fit, type Variant } from "../grid/parameters.ts";
 import { METHODS, pretty, type Plan } from "../plan.ts";
 import { hasSpecSheet, specPath } from "../spec.ts";
-import { fixingsOf, holderSide, SCREW } from "./fixings.ts";
+import { boardFor, fixingsOf, holderSide, SCREW } from "./fixings.ts";
 import type { Library } from "./library.ts";
 
 // The parts list: what to print, what to buy, and where each holder comes from.
 
-export type PartKind = "tile" | "bumper" | "joiner" | "peg" | "calibration";
+export type PartKind = "tile" | "bumper" | "strip" | "joiner" | "peg" | "calibration";
 
 export interface PrintedFile {
   file: string;
@@ -15,7 +16,7 @@ export interface PrintedFile {
   kinds: Partial<Record<PartKind, number>>;
   grams: number;
   /** A tile's label and size in holes, for its row. */
-  tile?: { label: string; size: [number, number] };
+  tile?: { label: string; size: [number, number]; overlay?: string };
 }
 
 export interface BoardCounts {
@@ -23,10 +24,16 @@ export interface BoardCounts {
   pegs: number;
   holderScrews: number;
   floorScrews: number;
+  /** Overlay edge strips, one a tile along each free edge, and the pegs under them. */
+  strips: number;
+  stripPegs: number;
+  /** Joiners and pegs by the variant they're sized for, spares included. */
+  variants: Partial<Record<Variant, { joiners: number; pegs: number }>>;
 }
 
 export interface BoardSummary {
-  layout: BoardLayout;
+  /** The grid board, or each overlay on a pegboard. */
+  layouts: Board[];
   counts: BoardCounts;
   printed: PrintedFile[];
   /** The board's estimated weight in each variant. */
@@ -49,23 +56,36 @@ export interface PartsListInput {
 const NAMES: Record<PartKind, [string, string]> = {
   tile: ["tile", "tiles"],
   bumper: ["bumper", "bumpers"],
+  strip: ["edge strip", "edge strips"],
   joiner: ["joiner", "joiners"],
   peg: ["peg", "pegs"],
   calibration: ["calibration part", "calibration parts"],
 };
 
 function describe(printed: PrintedFile): string {
-  if (printed.tile) return `Tile ${printed.tile.label}, ${printed.tile.size[0]} × ${printed.tile.size[1]} holes`;
+  if (printed.tile) return `${printed.tile.overlay ? `Overlay ${printed.tile.overlay}, tile` : "Tile"} ${printed.tile.label}, ${printed.tile.size[0]} × ${printed.tile.size[1]} holes`;
   if (printed.kinds.calibration) return "Calibration print (docs/grid-calibration.md): screw pilot holes, boss walls, joiner and peg fits";
   return (Object.entries(printed.kinds) as [PartKind, number][]).map(([kind, count]) => `${count} ${NAMES[kind][count === 1 ? 0 : 1]}`).join(", ");
+}
+
+/** An overlay's strips, edge by edge. */
+const stripsText = (overlay: Extract<Board, { kind: "overlay" }>) =>
+  overlay.strips.length ? overlay.strips.map((s) => `${s.side} strip ${s.width} mm wide with ${s.pegs} pegs`).join(", ") : "against the walls, with no strips";
+
+/** A line saying what a board or overlay is. */
+function boardLine(layout: Board): string {
+  const size = `${layout.variant}, ${layout.holes[0]} × ${layout.holes[1]} holes`;
+  return layout.kind === "overlay" ? `- Overlay ${layout.id}: ${size}, ${stripsText(layout)}.` : `Grid board, ${size}.`;
 }
 
 export function partsList({ name, bed, plan: drawerPlan, fit, library, board, spares, density }: PartsListInput): string {
   const lines = [`# ${name}: parts list`, ""];
   if (board) {
-    const { layout, counts, printed, weights } = board;
+    const { layouts, counts, printed, weights } = board;
+    const overlaid = layouts.some((layout) => layout.kind === "overlay");
     lines.push(
-      `Grid board, ${layout.variant}, ${layout.holes[0]} × ${layout.holes[1]} holes, for a ${bed[0]} × ${bed[1]} mm bed. Print in PETG without supports, as plated. Weights are estimates at ${density} g/cm³.`,
+      ...(overlaid ? ["Grid overlays on the UPPDATERA pegboard:", "", ...layouts.map(boardLine), ""] : [boardLine(layouts[0]!)]),
+      `For a ${bed[0]} × ${bed[1]} mm bed. Print in PETG without supports, as plated. Weights are estimates at ${density} g/cm³.`,
       "",
       "## Printed",
       "",
@@ -74,25 +94,35 @@ export function partsList({ name, bed, plan: drawerPlan, fit, library, board, sp
       ...printed.map((row) => `| \`${row.file}\` | ${describe(row)} | ${Math.round(row.grams)} g |`),
       "",
       `Joiners and pegs include ${Math.round(spares * 100)}% spares, rounded up.`,
-      "",
-      "## Board weight by variant",
-      "",
-      "| Variant | Est. weight |",
-      "|---|---|",
-      ...weights.map(({ variant, grams }) => `| ${variant}${variant === layout.variant ? " (this board)" : ""} | ${Math.round(grams)} g |`),
-      "",
-      "The other variants are scaled from this board's tiles by the volume of a sample tile in each.",
-      "",
-      "## Hardware",
-      "",
-      `- ${counts.holderScrews} × ${SCREW} wood screws (or M${SCREW} machine screws), to fix holders.`,
     );
+    if (overlaid) {
+      lines.push(
+        "",
+        "## Overlay edge strips",
+        "",
+        `- ${counts.strips} edge strips, with ${counts.stripPegs} pegs underneath that fill the UPPDATERA slots. Clip each to its tiles with its lap tab and joiners, then press the overlay down so the pegs go into the slots.`,
+      );
+    }
+    if (weights.length > 0) {
+      lines.push(
+        "",
+        "## Board weight by variant",
+        "",
+        "| Variant | Est. weight |",
+        "|---|---|",
+        ...weights.map(({ variant, grams }) => `| ${variant}${variant === layouts[0]!.variant ? " (this board)" : ""} | ${Math.round(grams)} g |`),
+        "",
+        "The other variants are scaled from this board's tiles by the volume of a sample tile in each.",
+      );
+    }
+    lines.push("", "## Hardware", "", `- ${counts.holderScrews} × ${SCREW} wood screws (or M${SCREW} machine screws), to fix holders.`);
     if (counts.floorScrews > 0) lines.push(`- ${counts.floorScrews} × countersunk screws to fix the board to the drawer floor, heads up to ${GRID.countersink.head} mm.`);
   }
   lines.push("", "## Holders", "", "| Holder | Method | Fixings | Get it |", "|---|---|---|---|");
   for (const holder of drawerPlan.holders) {
-    const fixings = board ? fixingsOf([holder.source], board.layout) : [];
-    const fixed = fixings.map((fixing) => `${fixing.by} in [${fixing.hole.join(", ")}]`).join(", ") || "none";
+    const fixings = board ? fixingsOf([holder.source], board.layouts) : [];
+    const where = holder.source.on ? ` of overlay ${holder.source.on}` : "";
+    const fixed = fixings.map((fixing) => `${fixing.by} in [${fixing.hole.join(", ")}]${where}`).join(", ") || "none";
     const part = library[holder.method];
     const get = hasSpecSheet(holder.method) ? `build it: [\`${specPath(holder.id)}\`](${specPath(holder.id)})`
       : !METHODS[holder.method].printed ? "nothing to print"
@@ -100,11 +130,12 @@ export function partsList({ name, bed, plan: drawerPlan, fit, library, board, sp
       : "not in the library yet";
     lines.push(`| ${pretty(holder.id)} | ${METHODS[holder.method].name} | ${fixed} | ${get} |`);
   }
-  if (board && drawerPlan.holders.some((holder) => holder.source.fix?.length)) {
+  const pinned = board ? drawerPlan.holders.map((holder) => boardFor(board.layouts, holder.source)).find((layout, k) => layout && drawerPlan.holders[k]!.source.fix?.length) : undefined;
+  if (pinned) {
     lines.push(
       "",
-      `A holder fixed by screw needs ${holderSide("screw", board.layout, fit)}.`,
-      `One fixed by pin needs ${holderSide("pin", board.layout, fit)}; the peg stays in the holder and lifts out of the board's ${boardHole(board.layout.variant, fit)} mm hole.`,
+      `A holder fixed by screw needs ${holderSide("screw", pinned, fit)}.`,
+      `One fixed by pin needs ${holderSide("pin", pinned, fit)}; the peg stays in the holder and lifts out of the board's ${boardHole(pinned.variant, fit)} mm hole.`,
     );
   }
   lines.push("");

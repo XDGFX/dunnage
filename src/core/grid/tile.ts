@@ -1,4 +1,5 @@
 import type { CrossSection, Manifold, ManifoldToplevel, Vec2 } from "manifold-3d";
+import type { Side } from "../drawers.ts";
 import { GRID, type Variant } from "./parameters.ts";
 
 // The `grid` base from #6: a board of through holes on a 9.5 mm pitch, printed face-down. The top
@@ -57,8 +58,8 @@ export interface TileOptions {
   wall?: ByHole;
   /** The top face's thickness. */
   skin?: number;
-  /** Cut the band for joiners at the edge holes. A test piece that never joins can leave it whole. */
-  joiners?: boolean;
+  /** Cut the band for joiners at the edge holes, on every edge or these. A test piece that never joins can leave it whole. */
+  joiners?: boolean | readonly Side[];
   dots?: readonly Dots[];
   /** Holes left out, bosses and all: those a rounded drawer corner cuts. */
   drop?: (i: number, j: number) => boolean;
@@ -126,6 +127,9 @@ export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
   if (joiners) {
     // Round each edge boss, room for a ring down to the web; and where the joiner's webs cross the
     // band, a slot from the back. The bosses themselves are left whole.
+    const sideOf = ([dx, dy]: Vec2): Side => (dx < 0 ? "left" : dx > 0 ? "right" : dy < 0 ? "front" : "back");
+    const joined = (edge: Vec2) => joiners === true || joiners.includes(sideOf(edge));
+    for (const hole of holes) hole.edges = hole.edges.filter(joined);
     for (const { x, y, boss, edges } of holes.filter((h) => h.edges.length)) {
       const circle = CrossSection.circle(boss, SEGMENTS);
       const ring = CrossSection.circle(boss + JOINER.wall + RING_ROOM, SEGMENTS).subtract(circle);

@@ -5,7 +5,9 @@ import { isMap, isScalar, isSeq, LineCounter, parseDocument, type Document } fro
 import { DRAWER_PRESETS, drawerShape } from "./drawers.ts";
 import { FORMATS, migrate, readHeader } from "./format.ts";
 import { holeProblem, layoutBoard } from "./grid/layout.ts";
-import { GRID, gridFit, type Fit } from "./grid/parameters.ts";
+import { drawerOverlays, overlayFootprint, overlayOf, overlaysOverlap } from "./grid/overlay.ts";
+import { GRID, gridFit, type Fit, type PrinterFit, type Variant } from "./grid/parameters.ts";
+import { UPPDATERA } from "./pegboard.ts";
 import { Drawer, ID, Printer, PRINTER_PRESETS } from "./schema.ts";
 import { bounds, outline, overlap, poseName, posesOf, rectangle, samePose, writtenPose, type Part } from "./shape.ts";
 
@@ -49,7 +51,7 @@ export interface CheckOptions {
   /** The printer's bed, which a grid board's tiles must fit. Default: the Bambu P1S's. */
   bed?: readonly [number, number, number];
   /** The printer's grid fits, over the calibrated defaults. */
-  fit?: Partial<Fit>;
+  fit?: PrinterFit;
 }
 
 /** Reads a drawer or printer file and reports everything wrong with it. */
@@ -137,19 +139,32 @@ function inspect(text: string, options: CheckOptions): { result: CheckResult; fi
   return { result: { format, migratedFrom, problems }, file: bed ? { kind, printer: { ...printer, bed: [...bed], fit: gridFit(printer.fit) } } : undefined };
 }
 
-/** A built-in drawer whose sizes haven't been checked against a real one, or a grid variant never calibrated. */
+/**
+ * A built-in drawer whose sizes haven't been checked against a real one, a grid variant never
+ * calibrated, or an overlay on UPPDATERA sizes not yet measured.
+ */
 function drawerWarnings(drawer: Drawer): Issue[] {
   const warnings: Issue[] = [];
   const { preset } = drawer.drawer;
   if (preset !== undefined && DRAWER_PRESETS[preset]?.unverified) {
     warnings.push({ at: ["drawer", "preset"], message: `${preset}'s sizes are unverified: measure the drawer, and set any that differ` });
   }
-  if (drawer.base?.kind === "grid") {
-    const variant = drawer.base.variant ?? GRID.variant;
-    if (GRID.fit.grid_hole[variant] === undefined) {
+  const uncalibrated = (variant: Variant | undefined, at: Path) => {
+    const named = variant ?? GRID.variant;
+    if (GRID.fit.grid_hole[named] === undefined) {
       warnings.push({
-        at: drawer.base.variant === undefined ? ["base"] : ["base", "variant"],
-        message: `${variant} has no calibrated hole size: print the calibration, and set \`fit.grid_hole.${variant}\` in the printer profile`,
+        at: variant === undefined ? at : [...at, "variant"],
+        message: `${named} has no calibrated hole size: print the calibration, and set \`fit.grid_hole.${named}\` in the printer profile`,
+      });
+    }
+  };
+  if (drawer.base?.kind === "grid") uncalibrated(drawer.base.variant as Variant | undefined, ["base"]);
+  if (drawer.base?.kind === "pegboard" && drawer.base.overlays?.length) {
+    drawer.base.overlays.forEach((overlay, index) => uncalibrated(overlay.variant as Variant | undefined, ["base", "overlays", index]));
+    if (UPPDATERA.unverified.length > 0) {
+      warnings.push({
+        at: ["base", "overlays"],
+        message: `UPPDATERA's ${UPPDATERA.unverified.join(", ")} are unverified, and the edge strips' pegs are sized and placed from them: measure the board, and correct \`uppdatera\` in the grid parameters file`,
       });
     }
   }
@@ -414,6 +429,14 @@ function drawerIssues(drawer: Drawer, options: CheckOptions): Issue[] {
   }));
   const deepest = (a: Part[], b: Part[]) => Math.max(0, ...a.flatMap((p) => b.map((q) => overlap(p, q))));
 
+  // What sits on an overlay that's there is raised by it, so it has that much less height.
+  const overlays = drawerOverlays(drawer, { bed: options.bed, fit: options.fit });
+  const raised = new Map(holders.flatMap((holder) => {
+    const overlay = overlayOf(overlays, holder);
+    return overlay ? holder.holds.map((id) => [id, overlay.id] as const) : [];
+  }));
+  const outlines = new Map(placed.map(({ thing, outline: shape }) => [thing.id, shape.parts] as const));
+
   for (const [n, { index, thing, outline: shape }] of placed.entries()) {
     const box = bounds([...shape.parts, ...shape.overhang]);
     const crossed = Object.entries({
@@ -428,7 +451,10 @@ function drawerIssues(drawer: Drawer, options: CheckOptions): Issue[] {
       const counting = margin > 0 ? `, counting the ${mm(margin)} edge margin` : "";
       say(["layout", index, "at"], `${thing.id} crosses ${crossed.join(" and ")}${counting}`);
     }
-    if (shape.height > height + EPSILON) {
+    const raisedBy = raised.get(thing.id);
+    if (raisedBy !== undefined && shape.height > height - GRID.thickness + EPSILON) {
+      say(["layout", index], `${thing.id} is ${mm(shape.height)} tall, and on overlay ${raisedBy} it has ${mm(height - GRID.thickness)}: the drawer's ${mm(height)} less the overlay's ${mm(GRID.thickness)}`);
+    } else if (shape.height > height + EPSILON) {
       say(["layout", index], `${thing.id} is ${mm(shape.height)} tall, and the drawer is ${mm(height)} tall inside`);
     }
     for (const obstruction of obstructions) {
@@ -445,6 +471,17 @@ function drawerIssues(drawer: Drawer, options: CheckOptions): Issue[] {
   const board = drawer.base?.kind === "grid" ? layoutBoard(drawerShape(drawer.drawer)!, drawer.base, { bed: options.bed, fit: options.fit }) : undefined;
   for (const problem of board?.problems ?? []) say(problem.at, problem.message);
 
+  // Overlays lie on the pegboard, apart, each with its own ids.
+  for (const [index, overlay] of overlays.entries()) {
+    for (const problem of overlay.problems) say(problem.at, problem.message);
+    const first = overlays.findIndex((other) => other.id === overlay.id);
+    if (first < index) say(["base", "overlays", index, "id"], `${overlay.id} is already the id of base.overlays[${first}]`);
+    for (const other of overlays.slice(0, index)) {
+      if (overlaysOverlap(overlay, other)) say(["base", "overlays", index], `overlaps overlay ${other.id}, strips included`);
+    }
+  }
+  const overlayIds = list(overlays.map((overlay) => overlay.id));
+
   // Holders hold real things, each thing once, in a way the base allows.
   const base = drawer.base?.kind ?? "bare";
   const holderIds = new Set(holders.map((holder) => holder.id));
@@ -454,11 +491,42 @@ function drawerIssues(drawer: Drawer, options: CheckOptions): Issue[] {
     if (needs && needs !== base) {
       say(["holders", index, "method"], `a ${holder.method} holder needs a ${needs} base, and this drawer's base is ${base}`);
     }
-    if (holder.fix && base !== "grid") say(["holders", index, "fix"], `fixings go in grid holes, and this drawer's base is ${base}`);
-    if (board) {
+    const overlay = overlayOf(overlays, holder);
+    if (holder.on !== undefined && !overlay) {
+      say(["holders", index, "on"], overlays.length > 0 ? `${holder.on} is not an overlay. Overlays are: ${overlayIds}` : `${holder.on} is not an overlay: this drawer has none`);
+    } else if (overlay && holder.method === "pegs") {
+      say(["holders", index, "on"], `IKEA pegs can't go through overlay ${overlay.id}`);
+    }
+    if (holder.fix && base === "pegboard" && holder.on === undefined) {
+      say(["holders", index, "fix"], `fixings go in an overlay's holes: name it with \`on\`. Overlays are: ${overlayIds}`);
+    } else if (holder.fix && base !== "grid" && base !== "pegboard") {
+      say(["holders", index, "fix"], `fixings go in grid holes, and this drawer's base is ${base}`);
+    }
+    const fixedTo = board ?? overlay;
+    if (fixedTo) {
       for (const [slot, { hole }] of (holder.fix ?? []).entries()) {
-        const problem = holeProblem(board, hole);
+        const problem = holeProblem(fixedTo, hole);
         if (problem) say(["holders", index, "fix", slot, "hole"], problem);
+      }
+    }
+    // A holder is wholly on one overlay or wholly off them all.
+    for (const id of holder.holds) {
+      const parts = outlines.get(id);
+      if (!parts) continue;
+      if (overlay) {
+        const box = bounds(parts);
+        const out = box.left < overlay.box.x0 - EPSILON || box.right > overlay.box.x1 + EPSILON || box.front < overlay.box.y0 - EPSILON || box.back > overlay.box.y1 + EPSILON;
+        if (out) say(["holders", index, "on"], `${id} isn't wholly on overlay ${overlay.id}, and a holder can't straddle an overlay's edge`);
+      } else if (holder.on === undefined) {
+        const under = overlays.find((o) => overlayFootprint(o).some((b) => deepest(parts, [rectangle([(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2], [b.x1 - b.x0, b.y1 - b.y0])]) > EPSILON));
+        if (under) {
+          say(
+            ["holders", index],
+            holder.method === "pegs"
+              ? `${id} is over overlay ${under.id} or its edge strips, and IKEA pegs can't use the slots under them`
+              : `${id} is on overlay ${under.id} or its edge strips: set \`on: ${under.id}\` and keep it on the tiles, or move it wholly off`,
+          );
+        }
       }
     }
     for (const [slot, id] of holder.holds.entries()) {

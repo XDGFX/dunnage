@@ -5,7 +5,7 @@ const BED: [number, number, number] = [256, 256, 256];
 
 function drawer(extra: Partial<Drawer>): Drawer {
   return {
-    format: "drawer/0.3",
+    format: "drawer/0.4",
     name: "Test",
     drawer: { inside: [600, 400, 150] },
     items: {

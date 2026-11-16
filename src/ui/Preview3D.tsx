@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
-import { PEG, RAD, type Plan, type PlannedHolder } from "../core/index.ts";
+import { GRID, overlayOf, PEG, RAD, type Plan, type PlannedHolder } from "../core/index.ts";
 import { useBoard } from "./useBoard.ts";
 
 // The drawer in 3D: the holders dunnage works out, what they hold, and the base under them.
@@ -26,7 +26,7 @@ export function Preview3D({ plan: p, sels, select }: Props) {
   selectRef.current = select;
   const redraw = useRef<(() => void) | null>(null);
   // Called before the scene's effect, so a new board is ready when the scene is rebuilt round it.
-  const board = useBoard(p.base.layout, p.fit, redraw);
+  const board = useBoard(p.base.layout ? [p.base.layout] : (p.base.overlays ?? []), p.fit, redraw);
 
   useEffect(() => {
     const element = host.current!;
@@ -86,7 +86,7 @@ export function Preview3D({ plan: p, sels, select }: Props) {
 
     function holder(h: PlannedHolder) {
       const r = h.rect!;
-      const z = base.z;
+      const z = base.z + (base.overlays && overlayOf(base.overlays, h.source) ? GRID.thickness : 0);
       const w = r.x1 - r.x0;
       const d = r.y1 - r.y0;
       const id = h.things[0]?.id;

@@ -16,11 +16,14 @@ export interface Fit {
   joiner: number;
 }
 
+/** What a printer file's `fit:` may set: any of the fields. */
+export type PrinterFit = Partial<Fit>;
+
 export const GRID: Omit<typeof parameters, "variant" | "fit"> & { variant: Variant; fit: Fit } = parameters as typeof parameters & { variant: Variant };
 
 export const VARIANT_NAMES = Object.keys(GRID.variants) as Variant[];
 
 /** The printer's fits over the calibrated defaults, a variant's hole size merged rather than replaced. */
-export function gridFit(printer?: Partial<Fit>): Fit {
+export function gridFit(printer?: PrinterFit): Fit {
   return { ...GRID.fit, ...printer, grid_hole: { ...GRID.fit.grid_hole, ...printer?.grid_hole } };
 }

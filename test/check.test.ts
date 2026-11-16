@@ -8,7 +8,7 @@ const fixture = (name: string) => readFileSync(new URL(`../fixtures/${name}`, im
 /** A small drawer that passes every check, to break one piece at a time. */
 function drawer() {
   return {
-    format: "drawer/0.3",
+    format: `drawer/${FORMATS.drawer}`,
     name: "Test",
     drawer: { inside: [420, 320, 150] },
     items: {
@@ -30,12 +30,12 @@ const paths = (found: Problem[]) => found.map((problem) => problem.path);
 
 describe("check", () => {
   test("accepts the coffee drawer and the P1S printer", () => {
-    expect(check(fixture("coffee.drawer.yml"))).toMatchObject({ format: "drawer/0.3", problems: [] });
-    expect(check(fixture("p1s.printer.yml"))).toMatchObject({ format: "printer/0.3", problems: [] });
+    expect(check(fixture("coffee.drawer.yml"))).toMatchObject({ format: `drawer/${FORMATS.drawer}`, problems: [] });
+    expect(check(fixture("p1s.printer.yml"))).toMatchObject({ format: `printer/${FORMATS.printer}`, problems: [] });
   });
 
   test("accepts the tool chest's grid drawer, with no warnings", () => {
-    expect(check(fixture("tool-chest.drawer.yml"))).toEqual({ format: "drawer/0.3", problems: [] });
+    expect(check(fixture("tool-chest.drawer.yml"))).toEqual({ format: `drawer/${FORMATS.drawer}`, problems: [] });
   });
 
   test("accepts the small drawer", () => {
@@ -66,8 +66,8 @@ describe("check", () => {
 
     test("migrates a 0.2 file", () => {
       const old = stringify({ ...drawer(), format: "drawer/0.2" });
-      expect(check(old)).toMatchObject({ format: "drawer/0.3", migratedFrom: "drawer/0.2", problems: [] });
-      expect(check("format: printer/0.2\npreset: bambu-p1s\n")).toMatchObject({ format: "printer/0.3", migratedFrom: "printer/0.2", problems: [] });
+      expect(check(old)).toMatchObject({ format: `drawer/${FORMATS.drawer}`, migratedFrom: "drawer/0.2", problems: [] });
+      expect(check("format: printer/0.2\npreset: bambu-p1s\n")).toMatchObject({ format: `printer/${FORMATS.printer}`, migratedFrom: "printer/0.2", problems: [] });
     });
 
     test("refuses an older format it has no migration for", () => {
@@ -395,6 +395,7 @@ describe("migrate", () => {
       "0.0": { to: "0.1", up: (document: Record<string, unknown>) => ({ ...document, title: undefined, name: document.title }) },
       "0.1": { to: "0.2", up: (document: Record<string, unknown>) => ({ ...document, layout: document.layout ?? [] }) },
       "0.2": { to: "0.3", up: (document: Record<string, unknown>) => document },
+      "0.3": { to: "0.4", up: (document: Record<string, unknown>) => document },
     },
   };
 

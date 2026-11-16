@@ -3,9 +3,15 @@ import { describe, expect, test } from "vitest";
 import { parse } from "yaml";
 import {
   addComment,
+  addOverlay,
+  removeOverlay,
+  setOn,
+  setOverlay,
   addThing,
   answerQuestion,
+  boxesOverlap,
   check,
+  GRID,
   closeConcern,
   DRAWER_PRESETS,
   drawerShape,
@@ -40,8 +46,8 @@ describe("moving things", () => {
 
   test("carries a locked holder's shape with what it holds", () => {
     const text = moveThings(COFFEE, [["v60", 10, 5]]);
-    expect(thing(text, "v60").at).toEqual([563, 75]);
-    expect(holder(text, "v60-peg").lock.shape.at).toEqual([498, 10]);
+    expect(thing(text, "v60").at).toEqual([600, 75]);
+    expect(holder(text, "v60-peg").lock.shape.at).toEqual([535, 10]);
   });
 
   test("sets things aside and puts them back", () => {
@@ -62,19 +68,24 @@ describe("moving things", () => {
 
 describe("holders", () => {
   test("holds things together, taking them out of their holders and dropping any left empty", () => {
-    const { text, id } = holdTogether(COFFEE, ["kettle", "mug-large"], "well");
-    expect(id).toBe("kettle-and-mug-large");
-    expect(holder(text, id)).toEqual({ id, method: "well", holds: ["kettle", "mug-large"] });
-    expect(holder(text, "kettle-fingers")).toBeUndefined();
+    const { text, id } = holdTogether(COFFEE, ["coasters", "mug-large"], "well");
+    expect(id).toBe("coasters-and-mug-large");
+    expect(holder(text, id)).toEqual({ id, method: "well", holds: ["coasters", "mug-large"], on: "front" });
+    expect(holder(text, "coaster-posts")).toBeUndefined();
     expect(holder(text, "mug-tray").holds).toEqual(["mug-small"]);
     valid(text);
   });
 
-  test("splits a holder into one for each thing", () => {
+  test("holds things from different overlays, or none, off any overlay", () => {
+    const { text, id } = holdTogether(COFFEE, ["kettle", "mug-large"], "well");
+    expect(holder(text, id).on).toBeUndefined();
+  });
+
+  test("splits a holder into one for each thing, each on its overlay", () => {
     const text = splitHolder(COFFEE, "mug-tray");
     expect(holder(text, "mug-tray")).toBeUndefined();
-    expect(holder(text, "mug-large-well")).toEqual({ id: "mug-large-well", method: "well", holds: ["mug-large"] });
-    expect(holder(text, "mug-small-well")).toEqual({ id: "mug-small-well", method: "well", holds: ["mug-small"] });
+    expect(holder(text, "mug-large-well")).toEqual({ id: "mug-large-well", method: "well", holds: ["mug-large"], on: "front" });
+    expect(holder(text, "mug-small-well")).toEqual({ id: "mug-small-well", method: "well", holds: ["mug-small"], on: "front" });
     valid(text);
   });
 
@@ -99,9 +110,47 @@ describe("holders", () => {
 describe("the drawer", () => {
   test("changes the base", () => {
     const board = setBase(COFFEE, "uppdatera-60");
-    expect(data(board).base).toEqual({ kind: "pegboard", preset: "uppdatera-60" });
-    expect(data(setBase(board, "gridfinity")).base).toEqual({ kind: "gridfinity" });
-    expect(board).toContain("# One base per drawer.");
+    expect(data(board).base).toEqual({ ...data(COFFEE).base, preset: "uppdatera-60" });
+    const grid = setBase(board, "gridfinity");
+    expect(data(grid).base).toEqual({ kind: "gridfinity" });
+    expect(board).toContain("# One base per drawer");
+  });
+
+  test("adds, places, sizes and removes an overlay", () => {
+    const { text, id } = addOverlay(COFFEE);
+    expect(id).toBe("overlay");
+    const added = data(text).base.overlays.at(-1);
+    expect(added).toMatchObject({ id, kind: "grid", holes: GRID.overlay.size });
+    // Placed clear of the overlay already there, and the next clear of both.
+    const twice = addOverlay(text).text;
+    const boxes = data(twice).base.overlays.map((o: { at: number[]; holes: number[] }) => ({ x0: o.at[0], y0: o.at[1], x1: o.at[0] + o.holes[0] * GRID.pitch, y1: o.at[1] + o.holes[1] * GRID.pitch }));
+    for (const [n, a] of boxes.entries()) for (const b of boxes.slice(0, n)) expect(boxesOverlap(a, b)).toBe(false);
+    expect(check(twice).problems.filter((p) => /overlaps overlay|runs off/.test(p.message))).toEqual([]);
+    const placed = setOverlay(setOverlay(setOverlay(text, id, "at", [0, 300]), id, "holes", [20, 18]), id, "variant", "light");
+    expect(data(placed).base.overlays.at(-1)).toEqual({ id, kind: "grid", at: [0, 300], holes: [20, 18], variant: "light" });
+    expect(data(removeOverlay(placed, id)).base.overlays.map((o: { id: string }) => o.id)).toEqual(["front"]);
+  });
+
+  test("removing the last overlay takes its holders off it, fixings and all", () => {
+    const text = removeOverlay(COFFEE, "front");
+    expect(data(text).base.overlays).toBeUndefined();
+    expect(holder(text, "mug-tray")).toEqual({ id: "mug-tray", method: "well", holds: ["mug-large", "mug-small"], why: holder(COFFEE, "mug-tray").why });
+    valid(text);
+  });
+
+  test("puts a holder on an overlay or takes it off, dropping fixings made for where it was", () => {
+    const off = setOn(COFFEE, "mug-tray", undefined);
+    expect(holder(off, "mug-tray").on).toBeUndefined();
+    expect(holder(off, "mug-tray").fix).toBeUndefined();
+    expect(holder(setOn(off, "mug-tray", "front"), "mug-tray").on).toBe("front");
+    expect(setOn(COFFEE, "mug-tray", "front")).toBe(COFFEE);
+  });
+
+  test("takes holders off the overlays when the base stops being a pegboard", () => {
+    const bare = setBase(COFFEE, "bare");
+    expect(data(bare).base).toEqual({ kind: "bare" });
+    expect(data(bare).holders.filter((h: { on?: string; fix?: unknown }) => h.on !== undefined || h.fix !== undefined)).toEqual([]);
+    valid(bare);
   });
 
   test("adds a thing and its item, set aside until it's placed", () => {

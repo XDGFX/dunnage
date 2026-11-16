@@ -32,6 +32,9 @@ that with Python's standard library. Change a number there, never in code.
 | `tile` | `bed_margin`, the total margin a tile leaves on the bed. |
 | `bumper` | The default `fit` to the wall per side, and the `min` and `max` bumper thickness at the floor. |
 | `lap_tab` | A bumper's tab along its foot, under the tile's edge band: `depth` under the tile (less where a variant's edge bosses come closer), `thickness` at its tip, the `slope` of its top up to the bumper (45° or more, to print face down), and the `clearance` of the tile's rebate all round it. |
+| `overlay` | A grid overlay on a pegboard: the most a point of a strip may be from a peg (`reach`), how close to the board's edge an overlay edge counts as at the wall (`at_wall`), how finely a strip is sampled for reach (`sample`), and a new overlay's `size` in holes and the `step` it's moved in to find a clear spot. |
+| `strip` | An overlay's edge strips: the narrowest and widest (`min_width`, `max_width`) and the `step` widths are tried in; how far a peg stays inside a strip's edges (`wall`) and its outer edge (`edge`); and the `slope` its top chamfers down at. |
+| `uppdatera` | IKEA UPPDATERA: the `boards`' sizes (IKEA's), then the `slot` (length across the drawer, width), its `pitch` along a row and `row` spacing (alternate rows shifted half a pitch), the least `edge` to the first slot, the top `skin`, the board's `thickness`, the open `cup` under each slot, and the edge strips' pegs (`strip_peg`): the slot less `fit` each way, `depth` below the strip, with a `lead_in` chamfer. Every field in `unverified` waits for calipers. |
 
 ## The design under test
 
