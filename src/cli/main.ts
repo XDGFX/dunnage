@@ -66,12 +66,7 @@ if (command === "export") {
   if (loaded.kind !== "drawer") fail(`${file} is a printer file: export takes a drawer`);
   const out = values.out ?? join("out", basename(file).replace(/(\.drawer)?\.ya?ml$/, ""));
   const started = performance.now();
-  const manifold = async () => {
-    const wasm = await Module();
-    wasm.setup();
-    return wasm;
-  };
-  const written = await exportDrawer(manifold, loaded.drawer, {
+  const written = exportDrawer(await Module(), loaded.drawer, {
     ...printerOf(text, (name) => join(dirname(file), `${name}.printer.yml`)),
     progress: (step) => console.error(`building ${step}`),
   });

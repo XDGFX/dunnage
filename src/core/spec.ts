@@ -1,7 +1,7 @@
-import { fixingsOf, holderSide } from "./export/fixings.ts";
+import { fixingsOf, holderSide, round } from "./export/fixings.ts";
 import type { BoardLayout } from "./grid/layout.ts";
 import type { Fit } from "./grid/parameters.ts";
-import { pretty, type Plan, type PlannedHolder } from "./plan.ts";
+import { pretty, type Method, type Plan, type PlannedHolder } from "./plan.ts";
 import type { Pose } from "./schema.ts";
 
 const poseText = (pose: Pose) => (typeof pose === "object" ? `tilted ${pose.tilt}°` : pose);
@@ -12,44 +12,49 @@ export interface SpecBoard {
   fit: Fit;
 }
 
+/** Holders built elsewhere from a spec sheet, rather than fetched from the library. */
+export const hasSpecSheet = (method: Method) => method === "custom" || method === "ply";
+
+/** Where a holder's spec sheet is written, inside the export folder. */
+export const specPath = (id: string) => `specs/${id}.md`;
+
 /**
  * A custom or ply holder's spec sheet, in Markdown: everything needed to build it elsewhere, in
  * Fusion or Blender, or from plywood. Origin is the drawer's front-left floor corner; x right,
  * y back, z up; mm.
  */
-export function specSheet(p: Plan, h: PlannedHolder, drawerName: string, board?: SpecBoard): string {
-  const r = h.rect;
-  const spec = h.source.method === "custom" ? h.source.spec : undefined;
-  const ply = h.method === "ply";
+export function specSheet(drawerPlan: Plan, holder: PlannedHolder, drawerName: string, board?: SpecBoard): string {
+  const rect = holder.rect;
+  const spec = holder.source.method === "custom" ? holder.source.spec : undefined;
+  const ply = holder.method === "ply";
   const lines: (string | null)[] = [
-    `# ${pretty(h.id)}: ${ply ? "ply" : "custom"} holder spec`,
+    `# ${pretty(holder.id)}: ${ply ? "ply" : "custom"} holder spec`,
     "",
-    `Drawer: ${drawerName}, ${p.width} × ${p.depth} × ${p.height} mm inside, ${p.base.name.toLowerCase()}.`,
-    `Purpose: ${spec?.purpose ?? (ply ? `hold ${h.things.map((t) => t.name).join(", ")} in plywood, routed part-way to its shape` : "not given")}`,
+    `Drawer: ${drawerName}, ${drawerPlan.width} × ${drawerPlan.depth} × ${drawerPlan.height} mm inside, ${drawerPlan.base.name.toLowerCase()}.`,
+    `Purpose: ${spec?.purpose ?? (ply ? `hold ${holder.things.map((thing) => thing.name).join(", ")} in plywood, routed part-way to its shape` : "not given")}`,
     spec?.contact ? `Contact: ${spec.contact}` : null,
     `Clearance: ${spec?.clearance ?? 1} mm per side`,
     `Build in: ${spec?.build ?? (ply ? "plywood, cut to the footprint and routed" : "Fusion or Blender")}`,
     "",
     "## What it holds",
   ];
-  for (const t of h.things) {
-    const shape = "cylinder" in t.item ? `cylinder Ø${t.item.cylinder[0]} × ${t.item.cylinder[1]} mm` : `box ${t.item.box.join(" × ")} mm`;
-    lines.push(`- ${t.name}: ${shape}, ${poseText(t.pose)}${t.rotate ? `, turned ${t.rotate}°` : ""}; centre at (${t.x}, ${t.y}); top at ${Math.round(t.z0 + t.shape.height)} mm.`);
+  for (const thing of holder.things) {
+    const shape = "cylinder" in thing.item ? `cylinder Ø${thing.item.cylinder[0]} × ${thing.item.cylinder[1]} mm` : `box ${thing.item.box.join(" × ")} mm`;
+    lines.push(`- ${thing.name}: ${shape}, ${poseText(thing.pose)}${thing.rotate ? `, turned ${thing.rotate}°` : ""}; centre at (${thing.x}, ${thing.y}); top at ${Math.round(thing.z0 + thing.shape.height)} mm.`);
   }
-  if (r) {
-    lines.push("", "## Space available", `- Footprint: ${Math.round(r.x1 - r.x0)} × ${Math.round(r.y1 - r.y0)} mm, front-left corner at (${Math.round(r.x0)}, ${Math.round(r.y0)}).`);
-    lines.push(`- Height: up to ${p.height - p.base.z} mm above the ${p.base.z ? "base" : "drawer floor"}, less what it holds.`);
-    if (h.travel) lines.push(`- Free space round it: ${Math.round(h.travel.L)} mm left, ${Math.round(h.travel.R)} right, ${Math.round(h.travel.F)} front, ${Math.round(h.travel.B)} back.`);
+  if (rect) {
+    lines.push("", "## Space available", `- Footprint: ${Math.round(rect.x1 - rect.x0)} × ${Math.round(rect.y1 - rect.y0)} mm, front-left corner at (${Math.round(rect.x0)}, ${Math.round(rect.y0)}).`);
+    lines.push(`- Height: up to ${drawerPlan.height - drawerPlan.base.z} mm above the ${drawerPlan.base.z ? "base" : "drawer floor"}, less what it holds.`);
+    const travel = holder.travel;
+    if (travel) lines.push(`- Free space round it: ${Math.round(travel.L)} mm left, ${Math.round(travel.R)} right, ${Math.round(travel.F)} front, ${Math.round(travel.B)} back.`);
   }
-  const fixings = board ? fixingsOf([h.source], board.layout) : [];
+  const fixings = board ? fixingsOf([holder.source], board.layout) : [];
   if (board && fixings.length > 0) {
     lines.push("", "## Fixings to the grid");
-    for (const f of fixings) {
-      lines.push(`- ${f.by === "screw" ? "Screw" : "Pin"} in hole [${f.hole.join(", ")}], centre at (${round(f.at[0])}, ${round(f.at[1])}): ${holderSide(f.by, board.layout, board.fit)}.`);
+    for (const fixing of fixings) {
+      lines.push(`- ${fixing.by === "screw" ? "Screw" : "Pin"} in hole [${fixing.hole.join(", ")}], centre at (${round(fixing.at[0])}, ${round(fixing.at[1])}): ${holderSide(fixing.by, board.layout, board.fit)}.`);
     }
   }
   lines.push("", "Origin is the front-left corner of the drawer floor; x right, y back, z up; mm.", "");
   return lines.filter((line) => line !== null).join("\n");
 }
-
-const round = (mm: number) => Number(mm.toFixed(2));

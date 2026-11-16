@@ -9,7 +9,7 @@ import { reading, useHistory } from "./model.ts";
 import { Panel } from "./Panel.tsx";
 import { PlanView } from "./PlanView.tsx";
 import { AddThingSheet, FileSheet, MakeSheet, SpecSheet, type NewThing } from "./sheets.tsx";
-import { download, DRAWER, printerFor, type Workspace } from "./workspace.ts";
+import { download, printerFor, type Workspace } from "./workspace.ts";
 import { ExportButton } from "./ExportButton.tsx";
 
 // three.js is big, so the 3D view loads the first time it's opened.
@@ -253,7 +253,7 @@ export function Editor({ workspace, file, initial, onOpen, onNew, onClose }: Pro
         <SaveState status={status} mode={workspace.mode} onDownload={save} />
         <button type="button" className="btn" onClick={() => setSheet({ kind: "file" })}><Icon.file />File</button>
         <button type="button" className="btn primary" onClick={() => setSheet({ kind: "make" })} disabled={!p}><Icon.box />Make</button>
-        <ExportButton text={text} name={file.replace(DRAWER, "")} bed={bed} disabled={!p || r.problems.length > 0} />
+        <ExportButton file={file} text={text} bed={bed} fit={fit} disabled={!p || r.problems.length > 0} />
       </header>
 
       {p && r.drawer ? (

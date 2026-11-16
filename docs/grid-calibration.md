@@ -26,7 +26,7 @@ that with Python's standard library. Change a number there, never in code.
 | `joiner` | The joiner's ring `wall` and `web_width` × `web_height`; the `ring_room` and `slot_room` cut in a tile's band to let one in. |
 | `fit` | The calibrated fits: `grid_hole` by variant, `peg`, `peg_fixed` and `joiner`. A printer file's `fit` overrides them. |
 | `peg` | A peg's end `chamfer`, the `flat_angle` its flat is cut at, and its `length`: the screw's, so it stays inside the board under a holder's flange. |
-| `screw` | The `clearance` hole in a holder, and the `flange` under the head. |
+| `screw` | The holder screw's `diameter` and `length` (a 4×12 wood screw), the `clearance` hole in a holder, and the `flange` under the head. |
 | `countersink` | A floor screw's countersink in the face: the `head` diameter and the cone's `angle`. |
 | `label` | Cone dot labels: `dot` size and `spacing`, and the least `inset` of a tile's `row-col` dots from its front edge. |
 | `tile` | `bed_margin`, the total margin a tile leaves on the bed. |

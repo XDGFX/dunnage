@@ -5,18 +5,15 @@ import {
   boardCounts, drawerShape, exportDrawer, holeAt, holderSide, layoutBoard, load, MODEL_PATH, plan, plates, specSheet, to3mf, withSpares,
   type Drawer, type GridBase,
 } from "../src/core/index.ts";
-import { gridFit } from "../src/core/grid/parameters.ts";
+import { collect, freeAll } from "../src/core/export/collect.ts";
+import { gridFit, VARIANT_NAMES } from "../src/core/grid/parameters.ts";
 
+// `exportDrawer` takes over the instance it's given, so each export gets its own.
 let wasm: Awaited<ReturnType<typeof Module>>;
 beforeAll(async () => {
-  wasm = await manifold();
+  wasm = await Module();
+  wasm.setup();
 });
-
-async function manifold() {
-  const fresh = await Module();
-  fresh.setup();
-  return fresh;
-}
 
 const BED = [256, 256, 256] as const;
 
@@ -89,6 +86,24 @@ describe("to3mf", () => {
   });
 });
 
+describe("collect", () => {
+  test("frees what static functions and methods return, and nothing made before", async () => {
+    const fresh = await Module();
+    fresh.setup();
+    const before = fresh.Manifold.cube([1, 1, 1]);
+    collect(fresh);
+    const cube = fresh.Manifold.cube([1, 1, 1]);
+    const moved = cube.translate([1, 0, 0]);
+    const section = fresh.CrossSection.circle(1, 8).translate([1, 1]);
+    const parts = fresh.Manifold.union([cube, moved]).decompose();
+    freeAll();
+    // Embind gives every handle `isDeleted`; manifold-3d's types leave it out.
+    const deleted = (handle: object) => (handle as { isDeleted(): boolean }).isDeleted();
+    for (const handle of [cube, moved, section, ...parts]) expect(deleted(handle)).toBe(true);
+    expect(deleted(before)).toBe(false);
+  });
+});
+
 describe("plates", () => {
   const overlaps = (a: { at: number[]; size: readonly number[] }, b: { at: number[]; size: readonly number[] }) =>
     a.at[0]! < b.at[0]! + b.size[0]! && b.at[0]! < a.at[0]! + a.size[0]! && a.at[1]! < b.at[1]! + b.size[1]! && b.at[1]! < a.at[1]! + a.size[1]!;
@@ -146,7 +161,7 @@ describe("specSheet with a board", () => {
 describe("exportDrawer", () => {
   test("writes a 3MF per tile, plates, the calibration print, a parts list and spec sheets", async () => {
     const drawer = small();
-    const files = await exportDrawer(manifold, drawer, { bed: BED });
+    const files = exportDrawer(await Module(), drawer, { bed: BED });
     const layout = layoutBoard(drawerShape(drawer.drawer)!, drawer.base as GridBase);
     const names = files.map((f) => f.name);
 
@@ -178,6 +193,17 @@ describe("exportDrawer", () => {
     const counts = boardCounts(drawer, layout);
     const plate = readModel(files.find((f) => f.name === "plate.3mf")!.data);
     expect(plate.items.length).toBe(layout.bumpers.length + counts.joiners + counts.pegs);
+
+    // The parts list weighs the board in every variant.
+    const parts = strFromU8(files.find((f) => f.name === "parts.md")!.data);
+    for (const variant of VARIANT_NAMES) expect(parts).toMatch(new RegExp(`^\\| ${variant}( \\(this board\\))? \\| \\d+ g \\|$`, "m"));
+  }, 60_000);
+
+  test("refuses to split the calibration print over plates", async () => {
+    // Every calibration part fits this bed, but not all of them at once.
+    const tiny: Drawer = { ...small(), drawer: { inside: [60, 60, 40] }, base: { kind: "grid" }, holders: [] };
+    const fresh = await Module();
+    expect(() => exportDrawer(fresh, tiny, { bed: [120, 70, 100] })).toThrow(/calibration print takes \d+ plates/);
   }, 60_000);
 
   test("the parts list links a library holder and points the others at their spec sheets", async () => {
@@ -190,7 +216,7 @@ describe("exportDrawer", () => {
       ],
     };
     const library = { posts: { name: "Posts, 30 mm", url: "https://example.org/posts" } };
-    const parts = strFromU8((await exportDrawer(manifold, drawer, { bed: BED, library })).find((f) => f.name === "parts.md")!.data);
+    const parts = strFromU8(exportDrawer(await Module(), drawer, { bed: BED, library }).find((f) => f.name === "parts.md")!.data);
     expect(parts).toContain("[Posts, 30 mm](https://example.org/posts)");
     expect(parts).toContain("(specs/board-block.md)");
   });

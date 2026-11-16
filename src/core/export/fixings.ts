@@ -2,8 +2,8 @@ import { boardHole, holeAt, type BoardLayout, type Hole } from "../grid/layout.t
 import { GRID, type Fit } from "../grid/parameters.ts";
 import type { Holder } from "../schema.ts";
 
-// How a holder is fixed to the grid, hole by hole (#6 §6), and what its own side needs: dunnage
-// lists these and the library part carries them out.
+// How a holder is fixed to the grid, hole by hole, and what its own side needs: dunnage lists
+// these and the library part carries them out.
 
 export type FixBy = "screw" | "pin";
 
@@ -15,8 +15,14 @@ export interface Fixing {
   at: [number, number];
 }
 
+/** The holder screw, as it's sold: `4×12`. */
+export const SCREW = `${GRID.screw.diameter}×${GRID.screw.length}`;
+
+/** To the hundredth of a mm, for text. */
+export const round = (mm: number) => Number(mm.toFixed(2));
+
 export function fixingsOf(holders: readonly Holder[], layout: BoardLayout): Fixing[] {
-  return holders.flatMap((h) => (h.fix ?? []).map(({ hole, by }) => ({ holder: h.id, hole, by, at: holeAt(layout, hole) })));
+  return holders.flatMap((holder) => (holder.fix ?? []).map(({ hole, by }) => ({ holder: holder.id, hole, by, at: holeAt(layout, hole) })));
 }
 
 /** A printed peg's diameter: smaller than the board hole by the calibrated peg fit. */
@@ -24,9 +30,7 @@ export const pegDiameter = (layout: BoardLayout, fit: Fit) => boardHole(layout.v
 
 /** What the holder needs at a fixing, in a sentence. */
 export function holderSide(by: FixBy, layout: BoardLayout, fit: Fit): string {
-  if (by === "screw") return `a ${GRID.screw.clearance} mm clearance hole through a flange at least ${GRID.screw.flange} mm thick, for a 4×12 wood screw`;
+  if (by === "screw") return `a ${GRID.screw.clearance} mm clearance hole through a flange at least ${GRID.screw.flange} mm thick, for a ${SCREW} wood screw`;
   const peg = pegDiameter(layout, fit);
   return `a ${round(peg + fit.peg_fixed)} mm hole that a printed ${round(peg)} mm peg presses into`;
 }
-
-const round = (mm: number) => Number(mm.toFixed(2));
