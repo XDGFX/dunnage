@@ -1,0 +1,140 @@
+import { strToU8, zipSync } from "fflate";
+import { collect, freeAll } from "./collect.js";
+import { drawerShape } from "../drawers.js";
+import { bumperSolid, joinerSolid, pegSolid, printable, tileSolid } from "../grid/board.js";
+import { roundOne, roundTwo } from "../grid/calibration.js";
+import { boardHole, layoutBoard } from "../grid/layout.js";
+import { GRID, gridFit, VARIANT_NAMES } from "../grid/parameters.js";
+import { onBed, tile } from "../grid/tile.js";
+import { plan } from "../plan.js";
+import { PRINTER_PRESETS } from "../schema.js";
+import { hasSpecSheet, specPath, specSheet } from "../spec.js";
+import { fixingsOf } from "./fixings.js";
+import { LIBRARY } from "./library.js";
+import { partsList } from "./parts.js";
+import { plates } from "./plates.js";
+import { to3mf } from "./threemf.js";
+/** Spare joiners and pegs, as a share of those needed, rounded up. */
+export const SPARES = 0.1;
+/** Space between parts on a plate, and between them and the bed's edge, in mm. */
+export const PLATE_GAP = 4;
+const PLATE_MARGIN = GRID.tile.bed_margin / 2;
+/** PETG, g/cm³, for a rough weight before the scales say otherwise. */
+const PETG = 1.27;
+/** The sample tile each variant's weight is scaled by, in holes a side. */
+const SAMPLE = 6;
+export const withSpares = (n) => Math.ceil(n * (1 + SPARES));
+/** What a grid board takes besides tiles and bumpers. */
+export function boardCounts(drawer, layout) {
+    const fixings = fixingsOf(drawer.holders ?? [], layout);
+    const pins = fixings.filter((fixing) => fixing.by === "pin").length;
+    return {
+        joiners: withSpares(layout.joiners.length),
+        pegs: withSpares(pins),
+        holderScrews: fixings.length - pins,
+        floorScrews: layout.countersinks.length,
+    };
+}
+/**
+ * Builds every file `dunnage export` writes. It takes over `wasm`: every manifold made on it is
+ * freed once its part is written, so the caller keeps none. Throws if the board can't be laid out
+ * (check the drawer first), or if the calibration print doesn't fit on one plate.
+ */
+export function exportDrawer(wasm, drawer, options = {}) {
+    collect(wasm);
+    const bed = options.bed ?? PRINTER_PRESETS["bambu-p1s"];
+    const fit = gridFit(options.fit);
+    const say = options.progress ?? (() => { });
+    const name = drawer.name ?? "Drawer";
+    const files = [];
+    /** Packs parts onto plates and writes a 3MF per plate, then frees them. */
+    const plated = (stem, title, build, one = false) => freed(() => {
+        const parts = build();
+        const items = parts.map(({ key, solid, copies }) => {
+            const { max } = solid.boundingBox();
+            return { key, size: [max[0], max[1]], copies };
+        });
+        const laid = plates(items, bed, PLATE_MARGIN, PLATE_GAP);
+        if (one && laid.length > 1)
+            throw new Error(`${title} takes ${laid.length} plates on a ${bed[0]} × ${bed[1]} mm bed, and must print as one`);
+        return laid.map((plate, n) => {
+            const file = laid.length === 1 ? `${stem}.3mf` : `${stem}-${n + 1}.3mf`;
+            const copiesOf = (key) => plate.filter((placement) => placement.key === key);
+            const placed = parts
+                .filter(({ key }) => copiesOf(key).length > 0)
+                .map(({ key, solid }) => ({ name: key, mesh: solid.getMesh(), at: copiesOf(key).map(({ at }) => [at[0], at[1], 0]) }));
+            files.push({ name: file, data: to3mf(placed, `${name}: ${title}`) });
+            const kinds = {};
+            let grams = 0;
+            for (const { key, kind, solid } of parts) {
+                const count = copiesOf(key).length;
+                if (count > 0)
+                    kinds[kind] = (kinds[kind] ?? 0) + count;
+                grams += weight(solid) * count;
+            }
+            return { file, kinds, grams };
+        });
+    });
+    let board;
+    const base = drawer.base?.kind === "grid" ? drawer.base : undefined;
+    if (base) {
+        const layout = layoutBoard(drawerShape(drawer.drawer), base, { bed, fit });
+        if (layout.problems.length > 0)
+            throw new Error(layout.problems.map((problem) => `${problem.at.join(".")}: ${problem.message}`).join("\n"));
+        const counts = boardCounts(drawer, layout);
+        const printed = [];
+        for (const boardTile of layout.tiles) {
+            say(`tile ${boardTile.label}`);
+            printed.push(freed(() => {
+                const solid = printable(tileSolid(wasm, layout, boardTile, fit));
+                const { max } = solid.boundingBox();
+                const file = `tile-${boardTile.label}.3mf`;
+                const at = [(bed[0] - max[0]) / 2, (bed[1] - max[1]) / 2, 0];
+                files.push({ name: file, data: to3mf([{ name: `tile ${boardTile.label}`, mesh: solid.getMesh(), at: [at] }], `${name}: tile ${boardTile.label}`) });
+                return { file, kinds: { tile: 1 }, grams: weight(solid), tile: { label: boardTile.label, size: boardTile.size } };
+            }));
+        }
+        say("bumpers, joiners and pegs");
+        printed.push(...plated("plate", "bumpers, joiners and pegs", () => [
+            ...layout.bumpers.map((bumper) => ({ key: `bumper ${bumper.side} ${bumper.index + 1}`, kind: "bumper", solid: printable(bumperSolid(wasm, layout, bumper, fit)), copies: 1 })),
+            { key: "joiner", kind: "joiner", solid: onBed(joinerSolid(wasm, layout, fit)), copies: counts.joiners },
+            { key: "peg", kind: "peg", solid: onBed(pegSolid(wasm, layout, fit)), copies: counts.pegs },
+        ].filter((part) => part.copies > 0)));
+        say("calibration print");
+        const choice = { variant: layout.variant, hole: boardHole(layout.variant, fit), skin: GRID.face };
+        const calibration = plated("calibration", "calibration print", () => [...roundOne(wasm), ...roundTwo(wasm, [choice])].map((part) => ({ key: part.name, kind: "calibration", solid: onBed(part.solid), copies: part.copies })), true);
+        say("weights");
+        board = { layout, counts, printed: [...printed, ...calibration], weights: variantWeights(wasm, layout, fit, printed) };
+    }
+    const drawerPlan = plan(drawer, bed, fit);
+    const sheetBoard = board ? { layout: board.layout, fit } : undefined;
+    for (const holder of drawerPlan.holders.filter((holder) => hasSpecSheet(holder.method))) {
+        files.push({ name: specPath(holder.id), data: strToU8(specSheet(drawerPlan, holder, name, sheetBoard)) });
+    }
+    const list = partsList({ name, bed, plan: drawerPlan, fit, library: options.library ?? LIBRARY, board, spares: SPARES, density: PETG });
+    files.push({ name: "parts.md", data: strToU8(list) });
+    return files;
+}
+/** The board's weight in every variant: its own tiles scaled by a sample tile's volume in each, plus the rest. */
+function variantWeights(wasm, layout, fit, printed) {
+    const tiles = printed.filter((row) => row.tile).reduce((sum, row) => sum + row.grams, 0);
+    const rest = printed.filter((row) => !row.tile).reduce((sum, row) => sum + row.grams, 0);
+    const sample = (variant) => freed(() => tile(wasm, { variant, nx: SAMPLE, ny: SAMPLE, hole: boardHole(variant, fit), skin: GRID.face }).volume());
+    const own = sample(layout.variant);
+    return VARIANT_NAMES.map((variant) => ({ variant, grams: (tiles * sample(variant)) / own + rest }));
+}
+/** Runs a step, then frees every manifold made since the last one. */
+function freed(step) {
+    try {
+        return step();
+    }
+    finally {
+        freeAll();
+    }
+}
+/** Every exported file in one zip, for a browser to download. */
+export function zipExport(files) {
+    // 3MFs are zips already, so they're stored rather than squeezed again.
+    return zipSync(Object.fromEntries(files.map((file) => [file.name, [file.data, { level: file.name.endsWith(".3mf") ? 0 : 6 }]])));
+}
+const weight = (solid) => (solid.volume() / 1000) * PETG;
