@@ -1,5 +1,5 @@
 import { boardFor, fixingsOf, holderSide, round } from "./export/fixings.ts";
-import type { BoardLayout } from "./grid/layout.ts";
+import type { Board } from "./grid/overlay.ts";
 import { GRID, type Fit } from "./grid/parameters.ts";
 import { pretty, type Method, type Plan, type PlannedHolder } from "./plan.ts";
 import type { Pose } from "./schema.ts";
@@ -8,7 +8,7 @@ const poseText = (pose: Pose) => (typeof pose === "object" ? `tilted ${pose.tilt
 
 /** The grid board, or overlays, a holder may be fixed to, for its fixings' positions and sizes. */
 export interface SpecBoard {
-  layout: BoardLayout | readonly BoardLayout[];
+  layouts: readonly Board[];
   fit: Fit;
 }
 
@@ -50,8 +50,8 @@ export function specSheet(drawerPlan: Plan, holder: PlannedHolder, drawerName: s
     const travel = holder.travel;
     if (travel) lines.push(`- Free space round it: ${Math.round(travel.L)} mm left, ${Math.round(travel.R)} right, ${Math.round(travel.F)} front, ${Math.round(travel.B)} back.`);
   }
-  const fixedTo = board ? boardFor(board.layout, holder.source) : undefined;
-  const fixings = fixedTo ? fixingsOf([holder.source], fixedTo) : [];
+  const fixedTo = board ? boardFor(board.layouts, holder.source) : undefined;
+  const fixings = fixedTo ? fixingsOf([holder.source], [fixedTo]) : [];
   if (board && fixedTo && fixings.length > 0) {
     lines.push("", holder.source.on ? `## Fixings to overlay ${holder.source.on}` : "## Fixings to the grid");
     for (const fixing of fixings) {

@@ -48,6 +48,8 @@ export interface BoardLatch {
 }
 
 export interface BoardLayout {
+  /** A grid base over the whole floor, or an overlay on a pegboard (an `OverlayLayout`). */
+  kind: "grid" | "overlay";
   variant: Variant;
   shape: DrawerShape;
   /** Clearance to each wall, at the floor. */
@@ -71,13 +73,16 @@ export interface BoardLayout {
   corner?: { radius: number; cut: number };
   /** An overlay's spring latches, each under the tile it presses into. */
   latches?: BoardLatch[];
-  /** Holes made blind by a latch's socket under them. */
-  blind?: Hole[];
+  /** Holes closed over a latch's socket, which a fixing can't use. */
+  closed?: Hole[];
   /** An overlay's edges that face the pegboard rather than a drawer wall, which get a wide band and a chamfer. */
   free?: Side[];
   /** What stops the board being laid out as asked, by the drawer file field it's about. */
   problems: { at: Path; message: string }[];
 }
+
+/** A grid base, laid out over the whole floor. */
+export type GridLayout = BoardLayout & { kind: "grid" };
 
 export interface LayoutOptions {
   /** The printer's bed. Default: the Bambu P1S's. */
@@ -119,7 +124,7 @@ export function lapTabDepth(variant: Variant, fit: Fit): number {
   return Math.min(GRID.lap_tab.depth, bossFromEdge - GRID.lap_tab.clearance);
 }
 
-export function layoutBoard(shape: DrawerShape, base: GridBase, options: LayoutOptions = {}): BoardLayout {
+export function layoutBoard(shape: DrawerShape, base: GridBase, options: LayoutOptions = {}): GridLayout {
   const problems: BoardLayout["problems"] = [];
   const variant = base.variant ?? GRID.variant;
   const fits = gridFit(options.fit);
@@ -148,8 +153,8 @@ export function layoutBoard(shape: DrawerShape, base: GridBase, options: LayoutO
   const origin: [number, number] = [clearance + gap.left, clearance + gap.front];
   const flare = (side: Side) => THICKNESS * Math.tan(shape.walls[side] * RAD);
 
-  const empty = (message: string): BoardLayout => ({
-    variant, shape, fit: clearance, holes: [nx, ny], origin, gap, lapTab, tiles: [], bumpers: [], joiners: [], dropped: [], countersinks: [],
+  const empty = (message: string): GridLayout => ({
+    kind: "grid", variant, shape, fit: clearance, holes: [nx, ny], origin, gap, lapTab, tiles: [], bumpers: [], joiners: [], dropped: [], countersinks: [],
     problems: [...problems, { at: ["drawer"], message }],
   });
   if (nx < 1 || ny < 1) {
@@ -256,7 +261,7 @@ export function layoutBoard(shape: DrawerShape, base: GridBase, options: LayoutO
   }
 
   return {
-    variant, shape, fit: clearance, holes: [nx, ny], origin, gap, lapTab, tiles, bumpers, joiners, dropped, countersinks,
+    kind: "grid", variant, shape, fit: clearance, holes: [nx, ny], origin, gap, lapTab, tiles, bumpers, joiners, dropped, countersinks,
     ...(corner ? { corner } : {}), problems,
   };
 }
@@ -379,6 +384,7 @@ export function holeProblem(layout: BoardLayout, hole: Hole): string | undefined
   const [nx, ny] = layout.holes;
   if (hole[0] >= nx || hole[1] >= ny) return offBoard(hole, nx, ny);
   if (layout.dropped.some(([i, j]) => i === hole[0] && j === hole[1])) return cutAway(hole);
+  if (layout.closed?.some(([i, j]) => i === hole[0] && j === hole[1])) return `[${hole[0]}, ${hole[1]}] is closed over a latch's socket: use a hole beside it`;
   return undefined;
 }
 

@@ -2,7 +2,7 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import {
   addComment, answerQuestion, BASES, closeConcern, fitOf, GRID, holdTogether, lower, METHODS, posesOf, pretty, roundAllOver, samePose, seatOnPegs, setAside, setBase, setFit,
   setMethod, setOn, setPose, setPoses, setRotate, setRule, worst, wrap,
-  type BaseKey, type Drawer, type Issue, type Method, type Plan, type PlannedThing, type Pose, type Problem,
+  type BaseKey, type Drawer, type Issue, type Method, type OverlaySpec, type Plan, type PlannedThing, type Pose, type Problem,
 } from "../core/index.ts";
 import { Icon } from "./icons.tsx";
 import { GridBase } from "./GridBase.tsx";
@@ -205,7 +205,7 @@ function Inspector({ plan: p, drawer, issues, t, select, apply, onLock, onSpec, 
               )}
               {p.base.overlays && h.method !== "pegs" && (
                 <div className="kv">
-                  <label htmlFor="h-on">Sits on<small>An overlay raises it 8 mm, and lets it be screwed or pinned down</small></label>
+                  <label htmlFor="h-on">Sits on<small>An overlay raises it {GRID.thickness} mm, and lets it be screwed or pinned down</small></label>
                   <select id="h-on" className="select" value={h.source.on ?? ""} disabled={locked} onChange={(e) => apply((text) => setOn(text, h.id, e.target.value || undefined))}>
                     <option value="">The pegboard</option>
                     {p.base.overlays.map((o) => <option key={o.id} value={o.id}>Overlay {o.id}</option>)}
@@ -349,7 +349,7 @@ function Overview({ plan: p, drawer, issues, general, warnings = [], select, app
         </select>
         <p className="note">{baseText[p.base.key]}</p>
         {p.base.layout && <GridBase drawer={drawer} layout={p.base.layout} bed={p.bed} apply={apply} />}
-        {p.base.board && <Overlays overlays={p.base.overlays ?? []} board={p.base.board} apply={apply} />}
+        {p.base.board && drawer.base?.kind === "pegboard" && <Overlays specs={(drawer.base.overlays ?? []) as OverlaySpec[]} overlays={p.base.overlays ?? []} board={p.base.board} apply={apply} />}
         <details className="more">
           <summary>Layout rules: {rules.edge_margin} mm edge margin, {rules.gap} mm gap, {rules.angle_step}° steps</summary>
           <div className="kv">

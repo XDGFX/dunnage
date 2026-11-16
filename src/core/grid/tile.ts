@@ -60,8 +60,8 @@ export interface TileOptions {
   skin?: number;
   /** Cut the band for joiners at the edge holes, on every edge or these. A test piece that never joins can leave it whole. */
   joiners?: boolean | readonly Side[];
-  /** Holes that stop short of the back, by how deep they go from the face. */
-  blind?: (i: number, j: number) => number | undefined;
+  /** Holes left closed, such as those over a latch's socket. */
+  closed?: (i: number, j: number) => boolean;
   /** More solid, full height, such as a latch's pad. */
   solids?: CrossSection;
   /** More to cut away, z from the face, such as a latch's socket. */
@@ -87,7 +87,7 @@ export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
     value === undefined ? fallback : typeof value === "number" ? value : value(i, j);
   const width = nx * PITCH;
   const depth = ny * PITCH;
-  const holes: { x: number; y: number; r: number; boss: number; edges: Vec2[]; sunk: boolean; stop?: number }[] = [];
+  const holes: { x: number; y: number; r: number; boss: number; edges: Vec2[]; sunk: boolean; closed: boolean }[] = [];
   for (let i = 0; i < nx; i++) {
     for (let j = 0; j < ny; j++) {
       if (options.drop?.(i, j)) continue;
@@ -98,7 +98,7 @@ export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
       if (i === nx - 1) edges.push([1, 0]);
       if (j === 0) edges.push([0, -1]);
       if (j === ny - 1) edges.push([0, 1]);
-      holes.push({ x: holeCentre(i), y: holeCentre(j), r, boss: r + byHole(options.wall, i, j, spec.wall), edges, sunk: options.countersink?.(i, j) ?? false, stop: options.blind?.(i, j) });
+      holes.push({ x: holeCentre(i), y: holeCentre(j), r, boss: r + byHole(options.wall, i, j, spec.wall), edges, sunk: options.countersink?.(i, j) ?? false, closed: options.closed?.(i, j) ?? false });
     }
   }
 
@@ -148,15 +148,9 @@ export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
       }
     }
   }
-  for (const { x, y, r, sunk, stop } of holes) {
-    if (stop === undefined) voids.push(Manifold.cylinder(THICKNESS + 2, r, r, SEGMENTS).translate([x, y, -1]));
-    else if (stop >= r + LEAD_IN) {
-      // A blind hole ends in a 45° cone, so it prints face down without a bridge.
-      voids.push(Manifold.cylinder(stop - r + 1, r, r, SEGMENTS).translate([x, y, -1]), Manifold.cylinder(r, r, 0, SEGMENTS).translate([x, y, stop - r]));
-    } else {
-      // Too shallow for its cone to clear the lead-in: closed.
-      continue;
-    }
+  for (const { x, y, r, sunk, closed } of holes) {
+    if (closed) continue;
+    voids.push(Manifold.cylinder(THICKNESS + 2, r, r, SEGMENTS).translate([x, y, -1]));
     // A 45° lead-in on the face, which also hides elephant's foot; or the countersink in its place.
     const [depth, mouth] = sunk ? [countersinkDepth(r), COUNTERSINK.head / 2] : [LEAD_IN, r + LEAD_IN];
     voids.push(Manifold.cylinder(depth + EPS, mouth + EPS, r, SEGMENTS).translate([x, y, -EPS]));

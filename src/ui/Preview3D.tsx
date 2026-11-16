@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
-import { GRID, PEG, RAD, type Plan, type PlannedHolder } from "../core/index.ts";
+import { GRID, overlayOf, PEG, RAD, type Plan, type PlannedHolder } from "../core/index.ts";
 import { useBoard } from "./useBoard.ts";
 
 // The drawer in 3D: the holders dunnage works out, what they hold, and the base under them.
@@ -86,7 +86,7 @@ export function Preview3D({ plan: p, sels, select }: Props) {
 
     function holder(h: PlannedHolder) {
       const r = h.rect!;
-      const z = base.z + (h.source.on ? GRID.thickness : 0);
+      const z = base.z + (base.overlays && overlayOf(base.overlays, h.source) ? GRID.thickness : 0);
       const w = r.x1 - r.x0;
       const d = r.y1 - r.y0;
       const id = h.things[0]?.id;

@@ -1,7 +1,9 @@
 import { parse } from "yaml";
 import { read } from "./check.ts";
 import { DRAWER_PRESETS, drawerShape, wallFields, type Side } from "./drawers.ts";
-import { half } from "./geometry.ts";
+import { boxesOverlap, half } from "./geometry.ts";
+import { GRID } from "./grid/parameters.ts";
+import { pegboard } from "./pegboard.ts";
 import { BASES, plan, type BaseKey, type Method } from "./plan.ts";
 import type { Drawer, Holder, Pose } from "./schema.ts";
 import { posesOf, samePose } from "./shape.ts";
@@ -230,11 +232,25 @@ const SHAPE_FIELDS = ["inside", "walls", "corner_radius", "floor_edge"] as const
  * drawer is described directly instead, starting from the shape the preset gave it.
  */
 /** Adds a grid overlay to a pegboard, at its front-left corner, `holes` big. */
-export function addOverlay(text: string, holes: readonly [number, number] = [16, 16]): { text: string; id: string } {
+export function addOverlay(text: string, holes: readonly [number, number] = GRID.overlay.size as [number, number]): { text: string; id: string } {
   const drawer = drawerOf(text);
-  if (drawer.base?.kind !== "pegboard") throw new Error("overlays go on a pegboard base");
-  const id = unique("overlay", new Set((drawer.base.overlays ?? []).map((o) => o.id)));
-  return { text: appendIn(text, ["base", "overlays"], { id, kind: "grid", at: [0, 0], holes: [...holes] }), id };
+  const shape = drawerShape(drawer.drawer);
+  if (drawer.base?.kind !== "pegboard" || !shape) throw new Error("overlays go on a pegboard base");
+  const existing = drawer.base.overlays ?? [];
+  const id = unique("overlay", new Set(existing.map((o) => o.id)));
+  const board = pegboard(drawer.base.preset, shape.inside[0], shape.inside[1]);
+  const [w, d] = [holes[0] * GRID.pitch, holes[1] * GRID.pitch];
+  const boxOf = (at: readonly [number, number], size: readonly [number, number]) => ({ x0: at[0], y0: at[1], x1: at[0] + size[0] * GRID.pitch, y1: at[1] + size[1] * GRID.pitch });
+  // The first spot, front to back and left to right, clear of every overlay already there.
+  const step = GRID.overlay.step;
+  let at: [number, number] | undefined;
+  for (let y = 0; !at && y + d <= board.depth; y += step) {
+    for (let x = 0; !at && x + w <= board.width; x += step) {
+      if (!existing.some((o) => boxesOverlap(boxOf([x, y], holes), boxOf(o.at, o.holes)))) at = [x, y];
+    }
+  }
+  if (!at) throw new Error(`no room on the board for another ${holes[0]} × ${holes[1]}-hole overlay`);
+  return { text: appendIn(text, ["base", "overlays"], { id, kind: "grid", at, holes: [...holes] }), id };
 }
 
 /** Sets, or with `undefined` removes, a field on an overlay. */

@@ -141,7 +141,7 @@ describe("boardCounts", () => {
     const layout = layoutBoard(drawerShape(drawer.drawer)!, drawer.base as GridBase);
     expect(layout.joiners.length).toBeGreaterThan(0);
     const [joiners, pegs] = [withSpares(layout.joiners.length), withSpares(2)];
-    expect(boardCounts(drawer, layout)).toEqual({ joiners, pegs, holderScrews: 1, floorScrews: 1, latches: 0, blind: 0, variants: { [layout.variant]: { joiners, pegs } } });
+    expect(boardCounts(drawer, [layout])).toEqual({ joiners, pegs, holderScrews: 1, floorScrews: 1, latches: 0, closed: 0, variants: { [layout.variant]: { joiners, pegs } } });
     expect(withSpares(2)).toBe(3);
   });
 });
@@ -152,7 +152,7 @@ describe("specSheet with a board", () => {
     const layout = layoutBoard(drawerShape(drawer.drawer)!, drawer.base as GridBase);
     const fit = gridFit();
     const p = plan(drawer, BED);
-    const sheet = specSheet(p, p.holders.find((h) => h.id === "board-block")!, "Small grid", { layout, fit });
+    const sheet = specSheet(p, p.holders.find((h) => h.id === "board-block")!, "Small grid", { layouts: [layout], fit });
     const [x, y] = holeAt(layout, [8, 8]).map((v) => Number(v.toFixed(2)));
     expect(sheet).toContain("# Board block: ply holder spec");
     expect(sheet).toContain(`- Screw in hole [8, 8], centre at (${x}, ${y}): ${holderSide("screw", layout, fit)}.`);
@@ -191,7 +191,7 @@ describe("exportDrawer", () => {
     }
 
     // The plate carries every bumper, the joiners and the pegs with their spares.
-    const counts = boardCounts(drawer, layout);
+    const counts = boardCounts(drawer, [layout]);
     const plate = readModel(files.find((f) => f.name === "plate.3mf")!.data);
     expect(plate.items.length).toBe(layout.bumpers.length + counts.joiners + counts.pegs);
 

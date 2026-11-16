@@ -4,7 +4,7 @@ import Value from "typebox/value";
 import { isMap, isScalar, isSeq, LineCounter, parseDocument, type Document } from "yaml";
 import { DRAWER_PRESETS, drawerShape } from "./drawers.ts";
 import { FORMATS, migrate, readHeader } from "./format.ts";
-import { spansOverlap } from "./geometry.ts";
+import { boxesOverlap } from "./geometry.ts";
 import { holeProblem, layoutBoard } from "./grid/layout.ts";
 import { drawerOverlays, overlayOf } from "./grid/overlay.ts";
 import { GRID, gridFit, type Fit, type PrinterFit, type Variant } from "./grid/parameters.ts";
@@ -126,7 +126,7 @@ function inspect(text: string, options: CheckOptions): { result: CheckResult; fi
       const message = "needs an `inside`, or a `preset` to take one from, such as ikea-maximera-80x60-low";
       return { result: { format, migratedFrom, problems: place([{ at: ["drawer"], message }]) } };
     }
-    const warnings = place(drawerWarnings(drawer, options));
+    const warnings = place(drawerWarnings(drawer));
     return {
       result: { format, migratedFrom, problems: place(drawerIssues(drawer, options)), ...(warnings.length > 0 ? { warnings } : {}) },
       file: { kind, drawer },
@@ -142,9 +142,9 @@ function inspect(text: string, options: CheckOptions): { result: CheckResult; fi
 
 /**
  * A built-in drawer whose sizes haven't been checked against a real one, a grid variant never
- * calibrated, an overlay on UPPDATERA sizes not yet measured, or a fixing in a blind hole.
+ * calibrated, or an overlay on UPPDATERA sizes not yet measured.
  */
-function drawerWarnings(drawer: Drawer, options: CheckOptions): Issue[] {
+function drawerWarnings(drawer: Drawer): Issue[] {
   const warnings: Issue[] = [];
   const { preset } = drawer.drawer;
   if (preset !== undefined && DRAWER_PRESETS[preset]?.unverified) {
@@ -167,15 +167,6 @@ function drawerWarnings(drawer: Drawer, options: CheckOptions): Issue[] {
         at: ["base", "overlays"],
         message: `UPPDATERA's ${UPPDATERA.unverified.join(", ")} are unverified, and the latches are sized from them: measure the board, and correct \`uppdatera\` in the grid parameters file`,
       });
-    }
-    const overlays = drawerOverlays(drawer, { bed: options.bed, fit: options.fit });
-    for (const [index, holder] of (drawer.holders ?? []).entries()) {
-      const overlay = overlayOf(overlays, holder);
-      for (const [slot, { hole, by }] of (holder.fix ?? []).entries()) {
-        if (overlay?.blind.some(([i, j]) => i === hole[0] && j === hole[1])) {
-          warnings.push({ at: ["holders", index, "fix", slot, "hole"], message: `[${hole.join(", ")}] is blind over a latch's socket, so a ${by} can't go all the way in: use a hole beside it` });
-        }
-      }
     }
   }
   return warnings;
@@ -439,8 +430,12 @@ function drawerIssues(drawer: Drawer, options: CheckOptions): Issue[] {
   }));
   const deepest = (a: Part[], b: Part[]) => Math.max(0, ...a.flatMap((p) => b.map((q) => overlap(p, q))));
 
-  // What sits on an overlay is raised by it, so it has that much less height.
-  const raised = new Map(holders.filter((holder) => holder.on !== undefined).flatMap((holder) => holder.holds.map((id) => [id, holder.on!] as const)));
+  // What sits on an overlay that's there is raised by it, so it has that much less height.
+  const overlays = drawerOverlays(drawer, { bed: options.bed, fit: options.fit });
+  const raised = new Map(holders.flatMap((holder) => {
+    const overlay = overlayOf(overlays, holder);
+    return overlay ? holder.holds.map((id) => [id, overlay.id] as const) : [];
+  }));
   const outlines = new Map(placed.map(({ thing, outline: shape }) => [thing.id, shape.parts] as const));
 
   for (const [n, { index, thing, outline: shape }] of placed.entries()) {
@@ -478,15 +473,12 @@ function drawerIssues(drawer: Drawer, options: CheckOptions): Issue[] {
   for (const problem of board?.problems ?? []) say(problem.at, problem.message);
 
   // Overlays lie on the pegboard, apart, each with its own ids.
-  const overlays = drawerOverlays(drawer, { bed: options.bed, fit: options.fit });
   for (const [index, overlay] of overlays.entries()) {
     for (const problem of overlay.problems) say(problem.at, problem.message);
     const first = overlays.findIndex((other) => other.id === overlay.id);
     if (first < index) say(["base", "overlays", index, "id"], `${overlay.id} is already the id of base.overlays[${first}]`);
     for (const other of overlays.slice(0, index)) {
-      if (spansOverlap(overlay.box.x0, overlay.box.x1, other.box.x0, other.box.x1) && spansOverlap(overlay.box.y0, overlay.box.y1, other.box.y0, other.box.y1)) {
-        say(["base", "overlays", index], `overlaps overlay ${other.id}`);
-      }
+      if (boxesOverlap(overlay.box, other.box)) say(["base", "overlays", index], `overlaps overlay ${other.id}`);
     }
   }
   const overlayIds = list(overlays.map((overlay) => overlay.id));

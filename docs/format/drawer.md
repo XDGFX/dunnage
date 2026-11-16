@@ -177,7 +177,7 @@ tiles.
 
 dunnage picks the slots to latch into: at least two under every tile, at least three per overlay
 not in a line, and no point more than 120 mm from a latch, each with its socket's pad inside one
-tile and clear of its edges. Holes over a latch's socket are blind. The overlay raises what's on it
+tile and clear of its edges. Holes over a latch's socket are closed, and a `fix` can't use them. The overlay raises what's on it
 by its thickness, 8 mm, so a thing held on one has the drawer's height less 8 mm.
 
 The UPPDATERA sizes the latches are made for (the slot, its pitch and rows, the skin, the board's
@@ -356,7 +356,7 @@ Beyond the schema, `dunnage check` reports:
   holds is wholly on that overlay, and what a holder without `on` holds is wholly off them all, so
   IKEA pegs never need a slot under one. A thing held on an overlay is no taller than the drawer
   less the overlay's 8 mm. Every overlay draws a warning that the UPPDATERA sizes are unverified,
-  and a `fix` in a hole made blind by a latch's socket draws one too.
+  and a `fix` in a hole closed over a latch's socket is a problem.
 - **The grid board.** It lays out in the drawer, in tiles and bumpers that fit the printer's bed
   (the CLI reads the bed from the named printer profile; otherwise a P1S's). Every `fix` and
   `countersinks` hole is on the board, or its overlay, and not cut away by a rounded corner.

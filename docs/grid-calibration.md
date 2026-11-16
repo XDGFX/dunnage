@@ -32,8 +32,8 @@ that with Python's standard library. Change a number there, never in code.
 | `tile` | `bed_margin`, the total margin a tile leaves on the bed. |
 | `bumper` | The default `fit` to the wall per side, and the `min` and `max` bumper thickness at the floor. |
 | `lap_tab` | A bumper's tab along its foot, under the tile's edge band: `depth` under the tile (less where a variant's edge bosses come closer), `thickness` at its tip, the `slope` of its top up to the bumper (45° or more, to print face down), and the `clearance` of the tile's rebate all round it. |
-| `overlay` | A grid overlay on a pegboard: the `band` and face `chamfer` on a free edge, the most a point may be from a latch (`reach`), and how far a latch's pad stays inside its tile's edges (`edge_room`). |
-| `latch` | The overlay's spring latch. `side`: room either side of it across the slot. `tolerance`: how far a slot may be from where it's expected, any way. `hold`: how far a barb reaches past the slot's end once seated. `entry`: room for the nose at the nearest slot end. `lead_in`: the nose's slope from upright. `root`: the bar's underside above the board. `plug`: the plug's width and the height of its top, which bears on the socket's. `room`, `bow` and `wall`: the socket's room round the latch, over the bar to bow, and its pad's wall. `floor`: what's left under a blind hole. `clear`: the nose's room above the drawer floor. `strain`: the most a leg may be strained going in. |
+| `overlay` | A grid overlay on a pegboard: the `band` and face `chamfer` on a free edge, the most a point may be from a latch (`reach`), how far a latch's pad stays inside its tile's edges (`edge_room`), how close to the board's edge an overlay edge counts as at the wall (`at_wall`), how finely the overlay is sampled for reach (`sample`), and a new overlay's `size` in holes and the `step` it's moved in to find a clear spot. |
+| `latch` | The overlay's spring latch. `width`: across the slot. `tolerance`: how far a slot may be from where it's expected, along, across or diagonally; `size`: how much bigger or smaller than nominal. `hold`: how far a barb reaches past the slot's end once seated. `entry`: room for the nose at the nearest slot end. `lead_in`: the nose's slope from upright. `root`: the bar's underside above the board. `plug`: the plug's width and the height of its top, which bears on the socket's. `fillet`: the radius at the leg and bar roots. `room`, `bow` and `wall`: the socket's room round the latch, over the bar to bow, and its pad's wall. `clear`: the nose's room above the drawer floor. `strain` and `held`: the most peak strain, stress concentration included, going in and once seated. `notch`: the test latches' label notches. `strip`: the latch test strip's slots, margin and rows, and the `legs` and `catches` it compares. |
 | `uppdatera` | IKEA UPPDATERA: the `boards`' sizes (IKEA's), then the `slot` (length across the drawer, width), its `pitch` along a row and `row` spacing (alternate rows shifted half a pitch), the least `edge` to the first slot, the top `skin`, the board's `thickness`, and the open `cup` under each slot (width, depth below the skin). Every field in `unverified` waits for calipers. |
 
 ## The design under test
@@ -179,7 +179,7 @@ calibration print of a drawer with overlays.
 
 - **`latch-strip`**: a strip of tile with three latch sockets 40 mm apart, over three slots in one
   row of the board.
-- **`latches`**: one latch per leg thickness (1.0, 1.2, 1.4 mm) and catch (35°, 45°, 55° up from
+- **`latches`**: one latch per leg thickness (0.7, 0.8, 0.9 mm) and catch (35°, 45°, 55° up from
   flat). Notches on the bar's left half count the leg; on its right half, the catch.
 
 Press a latch into each socket, then press the strip onto a real board. Keep the latch that snaps

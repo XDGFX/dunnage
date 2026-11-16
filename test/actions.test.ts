@@ -9,7 +9,9 @@ import {
   setOverlay,
   addThing,
   answerQuestion,
+  boxesOverlap,
   check,
+  GRID,
   closeConcern,
   DRAWER_PRESETS,
   drawerShape,
@@ -117,7 +119,13 @@ describe("the drawer", () => {
   test("adds, places, sizes and removes an overlay", () => {
     const { text, id } = addOverlay(COFFEE);
     expect(id).toBe("overlay");
-    expect(data(text).base.overlays.at(-1)).toEqual({ id, kind: "grid", at: [0, 0], holes: [16, 16] });
+    const added = data(text).base.overlays.at(-1);
+    expect(added).toMatchObject({ id, kind: "grid", holes: GRID.overlay.size });
+    // Placed clear of the overlay already there, and the next clear of both.
+    const twice = addOverlay(text).text;
+    const boxes = data(twice).base.overlays.map((o: { at: number[]; holes: number[] }) => ({ x0: o.at[0], y0: o.at[1], x1: o.at[0] + o.holes[0] * GRID.pitch, y1: o.at[1] + o.holes[1] * GRID.pitch }));
+    for (const [n, a] of boxes.entries()) for (const b of boxes.slice(0, n)) expect(boxesOverlap(a, b)).toBe(false);
+    expect(check(twice).problems.filter((p) => /overlaps overlay|runs off/.test(p.message))).toEqual([]);
     const placed = setOverlay(setOverlay(setOverlay(text, id, "at", [0, 300]), id, "holes", [20, 18]), id, "variant", "light");
     expect(data(placed).base.overlays.at(-1)).toEqual({ id, kind: "grid", at: [0, 300], holes: [20, 18], variant: "light" });
     expect(data(removeOverlay(placed, id)).base.overlays.map((o: { id: string }) => o.id)).toEqual(["front"]);

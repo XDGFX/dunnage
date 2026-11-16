@@ -99,16 +99,16 @@ export function tileSolid(wasm: ManifoldToplevel, layout: BoardLayout, t: BoardT
     hole,
     drop: inSet(layout.dropped),
     countersink: inSet(layout.countersinks),
-    blind: latches?.blind,
+    closed: inSet(layout.closed ?? []),
     solids: latches?.pads,
     voids: latches?.voids,
-    // A board's joiners reach its bumpers; an overlay's are only between its own tiles.
-    joiners: layout.bumpers.length > 0 ? true : SIDES.filter((side) => !outer.includes(side)),
+    // A grid base's joiners may reach its bumpers; an overlay's are only between its own tiles.
+    joiners: layout.kind === "grid" ? true : SIDES.filter((side) => !outer.includes(side)),
     clip,
     dots: labelDots(layout, t),
   });
   let placed = local.translate([t.box.x0, t.box.y0, 0]);
-  if (layout.bumpers.length > 0) {
+  if (layout.kind === "grid") {
     // A rebate under each edge that meets a bumper, for its lap tab, so the tile still sits flat.
     const { rebate } = lapTabProfiles(layout.lapTab);
     placed = placed.subtract(wasm.Manifold.union(outer.map((side) => edgePrism(wasm, side, t.box, rebate, 1))));
@@ -143,28 +143,16 @@ function latchesIn(wasm: ManifoldToplevel, layout: BoardLayout, t: BoardTile, fi
   const own = (layout.latches ?? []).filter((latch) => layout.tiles[latch.tile]?.label === t.label);
   if (own.length === 0) return undefined;
   const fits = gridFit(fit);
-  const socket = socketOf(latchShape(fits.latch), fits.latch);
-  return latchSockets(wasm, own.map(({ at: [x, y] }) => [x - t.box.x0, y - t.box.y0] as const), socket, boardHole(layout.variant, fits));
+  return latchSockets(wasm, own.map(({ at: [x, y] }) => [x - t.box.x0, y - t.box.y0] as const), socketOf([latchShape(fits.latch)], fits.latch));
 }
 
-/**
- * Latch sockets in a tile, in its own frame, z from the face: a solid pad for each, the room cut in
- * it, and how deep each hole over the room goes before it stops.
- */
-export function latchSockets(wasm: ManifoldToplevel, centres: readonly (readonly [number, number])[], socket: Socket, hole: number) {
+/** Latch sockets in a tile, in its own frame, z from the face: a solid pad for each, and the room cut in it. */
+export function latchSockets(wasm: ManifoldToplevel, centres: readonly (readonly [number, number])[], socket: Socket) {
   const room = socketVoid(wasm, socket).mirror([0, 0, 1]).translate([0, 0, THICKNESS]);
   const { CrossSection } = wasm;
   const pads = CrossSection.union(centres.map(([x, y]) => CrossSection.square(socket.pad, true).translate(x, y)));
   const voids = centres.map(([x, y]) => room.translate([x, y, 0]));
-  const r = hole / 2;
-  const floor = GRID.latch.floor;
-  const blind = (i: number, j: number) => {
-    const [hx, hy] = [(i + 0.5) * PITCH, (j + 0.5) * PITCH];
-    const over = (size: readonly [number, number]) => centres.some(([x, y]) => Math.abs(hx - x) < size[0] / 2 + r && Math.abs(hy - y) < size[1] / 2 + r);
-    if (over(socket.socket)) return THICKNESS - socket.top - floor;
-    return over(socket.pocket) ? THICKNESS - socket.ceiling - floor : undefined;
-  };
-  return { pads, voids, blind };
+  return { pads, voids };
 }
 
 /** How far out along `side`'s outward direction a box's edge on that side is. */

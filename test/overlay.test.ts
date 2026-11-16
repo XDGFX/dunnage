@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import { strFromU8, unzipSync } from "fflate";
-import Module, { type Manifold } from "manifold-3d";
+import Module, { type CrossSection, type Manifold } from "manifold-3d";
 import { beforeAll, describe, expect, test } from "vitest";
 import { parse } from "yaml";
 import {
-  boardCounts, check, drawerOverlays, drawerShape, exportDrawer, GRID, gridFit, holeAt, latchSeat, latchShape, layoutOverlay, load, pegboard, plan, printable,
-  printLatch, socketOf, tileSolid, UPPDATERA, withSpares, type Drawer, type OverlayLayout, type OverlaySpec,
+  boardCounts, check, drawerOverlays, drawerShape, exportDrawer, GRID, gridFit, holeAt, latchProfile, latchSeat, latchShape, layoutBoard, layoutOverlay, load, pegboard, plan, printable,
+  printLatch, seatedLatch, socketOf, strainPerMm, stressConcentration, tileSolid, UPPDATERA, withSpares, type Drawer, type OverlayLayout, type OverlaySpec,
 } from "../src/core/index.ts";
 import { overhangs } from "../src/core/grid/printability.ts";
 import { PITCH, THICKNESS } from "../src/core/grid/tile.ts";
@@ -23,26 +23,111 @@ const BOARD = pegboard("uppdatera-80", 700, 500);
 const overlay = (spec: Partial<OverlaySpec>, bed?: readonly [number, number, number]) =>
   layoutOverlay(SHAPE, BOARD, { id: "front", kind: "grid", at: [0, 0], holes: [16, 16], ...spec }, 0, bed ? { bed } : {});
 
-/** Directions round a circle, and none. */
-const OFFSETS: [number, number][] = [[0, 0], ...Array.from({ length: 16 }, (_, k): [number, number] => [Math.cos((k * Math.PI) / 8), Math.sin((k * Math.PI) / 8)])];
+/**
+ * A latch measured on its mesh against an UPPDATERA slot's solid, moved by `offset` and grown by
+ * `grow` from nominal, with nothing from the latch's own seat model: how far each leg must be
+ * pushed in to pass the skin, how far it stays pushed in once seated, and how far past that it
+ * would have to go to let go.
+ */
+function measure(latch: Manifold, root: number, offset: readonly [number, number], grow: number) {
+  const { Manifold, CrossSection } = wasm;
+  const [L, W] = [UPPDATERA.slot[0] + grow, UPPDATERA.slot[1] + grow];
+  const { skin, thickness: T } = UPPDATERA;
+  const [cupW, cupD] = UPPDATERA.cup;
+  const opening = CrossSection.union([
+    CrossSection.square([L - W, W], true),
+    ...[-1, 1].map((side) => CrossSection.circle(W / 2, 96).translate((side * (L - W)) / 2, 0)),
+  ]).translate(offset[0], offset[1]);
+  const big = 40;
+  const skinLayer = Manifold.cube([big, big, skin], true).translate([0, 0, -skin / 2]).subtract(Manifold.extrude(opening, skin + 2).translate([0, 0, -skin - 1]));
+  const under = Manifold.cube([big, big, T + 5], true).translate([0, 0, -skin - (T + 5) / 2]).subtract(Manifold.cylinder(T - skin + 1, cupW / 2, cupW / 2, 96).translate([offset[0], offset[1], -T]));
+  const cut = (x0: number, x1: number, z0: number, z1: number) => latch.intersect(Manifold.cube([x1 - x0, big, z1 - z0]).translate([x0, -big / 2, z0]));
+  const sides = [-1, 1].map((side) => {
+    const [x0, x1] = side < 0 ? [-big, -0.01] : [0.01, big];
+    const leg = cut(x0, x1, -big, root);
+    const inward = (s: number) => [-side * s, 0, 0] as [number, number, number];
+    /** The least inward push, to 0.005 mm, at which `clear` holds. */
+    const least = (clear: (s: number) => boolean) => {
+      if (clear(0)) return 0;
+      let [lo, hi] = [0, 6];
+      while (hi - lo > 0.005) {
+        const mid = (lo + hi) / 2;
+        if (clear(mid)) hi = mid;
+        else lo = mid;
+      }
+      return hi;
+    };
+    const outside = (plan: CrossSection, s: number) => plan.translate(-side * s, 0).subtract(opening).area() < 1e-8;
+    const below = cut(x0, x1, -big, 0).project();
+    const underSkin = cut(x0, x1, -big, -skin).project();
+    const nose = leg.boundingBox().min[2];
+    const tip = cut(x0, x1, nose, nose + 0.3).project();
+    const insertion = least((s) => outside(below, s));
+    const held = least((s) => leg.translate(inward(s)).intersect(skinLayer).volume() < 1e-8);
+    const release = least((s) => outside(underSkin, s));
+    return {
+      enters: outside(tip, 0),
+      insertion,
+      held,
+      overlap: release - held,
+      inCup: leg.translate(inward(held)).intersect(under).volume() < 1e-8,
+    };
+  });
+  return {
+    enters: sides.every((s) => s.enters),
+    insertion: Math.max(...sides.map((s) => s.insertion)),
+    held: Math.max(...sides.map((s) => s.held)),
+    overlap: Math.min(...sides.map((s) => s.overlap)),
+    inCup: sides.every((s) => s.inCup),
+  };
+}
 
 describe("a latch", () => {
   const shape = latchShape();
+  const { tolerance, size } = GRID.latch;
+  const steps = (t: number) => [-t, 0, t];
 
-  test("seats in its slot, and still seats with the slot moved 1 mm in any direction", () => {
-    for (const offset of OFFSETS) {
+  test("seats, measured on its mesh, with the slot moved up to the tolerance along, across or diagonally, in slots that much bigger or smaller", () => {
+    const latch = seatedLatch(wasm, shape);
+    const per = strainPerMm(shape);
+    for (const grow of steps(size)) {
+      for (const dx of steps(tolerance)) {
+        for (const dy of steps(tolerance)) {
+          const at = `slot ${grow >= 0 ? "+" : ""}${grow} mm, moved [${dx}, ${dy}]`;
+          const m = measure(latch, shape.root, [dx, dy], grow);
+          expect(m.enters, at).toBe(true);
+          expect(m.inCup, at).toBe(true);
+          expect(m.overlap, at).toBeGreaterThanOrEqual(GRID.latch.hold - 0.02);
+          expect(m.insertion * per, at).toBeLessThanOrEqual(GRID.latch.strain);
+          expect(m.held * per, at).toBeLessThanOrEqual(GRID.latch.held);
+        }
+      }
+    }
+  }, 120_000);
+
+  test("doesn't seat with a smaller slot moved 1 mm diagonally, past the tolerance it's made for", () => {
+    const m = measure(seatedLatch(wasm, shape), shape.root, [1, 1], -size);
+    expect(m.enters).toBe(false);
+  });
+
+  test("the design model agrees with the mesh", () => {
+    const latch = seatedLatch(wasm, shape);
+    for (const offset of [[0, 0], [tolerance, tolerance]] as const) {
+      const m = measure(latch, shape.root, offset, 0);
       const seat = latchSeat(shape, offset);
-      expect(seat.enters, `${offset}`).toBe(true);
-      expect(seat.overlap, `${offset}`).toBeGreaterThanOrEqual(GRID.latch.hold - 1e-9);
-      expect(seat.inCup, `${offset}`).toBe(true);
-      expect(seat.strain, `${offset}`).toBeLessThanOrEqual(GRID.latch.strain);
+      expect(seat.deflection).toBeCloseTo(m.insertion, 1);
+      expect(seat.held).toBeCloseTo(m.held, 1);
     }
   });
 
-  test("doesn't seat past the tolerance it's made for", () => {
-    const past = GRID.latch.tolerance + GRID.latch.entry + 0.1;
-    expect(latchSeat(shape, [past, 0]).enters).toBe(false);
-    expect(latchSeat(shape, [0, (UPPDATERA.slot[1] - shape.width) / 2 + 0.1]).enters).toBe(false);
+  test("keeps its fillets: the leg and bar roots are rounded", () => {
+    const flat = latchShape();
+    const profile = wasm.CrossSection.union(latchProfile(flat).map((p) => wasm.CrossSection.ofPolygons([p])));
+    const printed = printLatch(wasm, flat);
+    const extra = printed.volume() - profile.area() * flat.width;
+    // Four fillets of radius r each add (1 − π/4) r² of profile.
+    expect(extra).toBeCloseTo(4 * (1 - Math.PI / 4) * flat.fillet ** 2 * flat.width, 1);
+    expect(stressConcentration(flat)).toBeGreaterThan(1);
   });
 
   test("prints flat on its side, with no overhang steeper than 45°", () => {
@@ -102,7 +187,7 @@ describe("laying out an overlay", () => {
   });
 
   test("keeps each latch's pad inside its tile, clear of the joiners at its edges", () => {
-    const { pad } = socketOf(latchShape());
+    const { pad } = socketOf([latchShape()]);
     for (const [name, layout] of cases) {
       for (const { at: [x, y], tile } of layout.latches) {
         const box = layout.tiles[tile]!.box;
@@ -147,8 +232,46 @@ function solidDown(part: Manifold, x: number, y: number): number {
   return part.intersect(wasm.Manifold.cylinder(THICKNESS + 2, 0.3, 0.3, 16).translate([x, y, -1])).volume();
 }
 
+describe("building an overlay's tiles", () => {
+  test("puts the holes either side of every column and row join on the 9.5 mm pitch, measured on the solids", () => {
+    const layout = overlay({ at: [20, 20], holes: [16, 16] }, [90, 90, 90]);
+    expect(layout.tiles.map((t) => t.label)).toEqual(["1-1", "1-2", "2-1", "2-2"]);
+    const solids = layout.tiles.map((t) => tileSolid(wasm, layout, t));
+    const r = gridFit().grid_hole[GRID.variant]! / 2;
+    const mid = THICKNESS / 2;
+    /** Open down the hole's centre, and solid boss wall just outside its bore, all round. */
+    const holeHere = (solid: Manifold, x: number, y: number) =>
+      solidDown(solid, x, y) === 0 &&
+      [[1, 0], [-1, 0], [0, 1], [0, -1]].every(([u, v]) => solid.intersect(wasm.Manifold.cube([0.1, 0.1, 0.5], true).translate([x + u! * (r + 0.25), y + v! * (r + 0.25), mid])).volume() > 0);
+    const [i0, j0] = [layout.tiles[1]!.first[0], layout.tiles[2]!.first[1]];
+    // Each pair straddles a join: the last hole of one tile and the first of the next, a pitch apart.
+    const pairs: [[number, number], [number, number]][] = [
+      [[i0 - 1, 2], [i0, 2]],
+      [[2, j0 - 1], [2, j0]],
+      [[i0 - 1, j0 - 1], [i0, j0]],
+    ];
+    const tileOf = ([i, j]: [number, number]) => layout.tiles.findIndex((t) => i >= t.first[0] && i < t.first[0] + t.size[0] && j >= t.first[1] && j < t.first[1] + t.size[1]);
+    for (const pair of pairs) {
+      const [a, b] = pair.map((hole) => holeAt(layout, hole));
+      expect(Math.hypot(b![0] - a![0], b![1] - a![1])).toBeCloseTo(PITCH * Math.hypot(pair[1][0] - pair[0][0], pair[1][1] - pair[0][1]), 9);
+      expect(tileOf(pair[0])).not.toBe(tileOf(pair[1]));
+      for (const hole of pair) expect(holeHere(solids[tileOf(hole)]!, ...holeAt(layout, hole)), `${hole}`).toBe(true);
+    }
+  }, 60_000);
+});
+
+describe("a grid base's tiles", () => {
+  test("keep the joiner room and lap tab rebates on their outer edges, whatever the bumpers", () => {
+    const shape = drawerShape({ inside: [120, 120, 40] })!;
+    const layout = layoutBoard(shape, { kind: "grid", tile: [6, 6] });
+    const t = layout.tiles[0]!;
+    const withBumpers = tileSolid(wasm, layout, t).volume();
+    expect(tileSolid(wasm, { ...layout, bumpers: [] }, t).volume()).toBeCloseTo(withBumpers, 6);
+  });
+});
+
 describe("building an overlay tile", () => {
-  test("prints face down without supports, its latch sockets in solid pads, with the holes over them blind", () => {
+  test("prints face down without supports, its latch sockets in solid pads, with the holes over them closed", () => {
     // Clear of the board's edges, so every outer edge is free and chamfered.
     const layout = overlay({ at: [20, 20], holes: [16, 16] }, [90, 90, 90]);
     expect(layout.free).toEqual(["left", "right", "front", "back"]);
@@ -157,16 +280,16 @@ describe("building an overlay tile", () => {
     expect(solid.status()).toBe("NoError");
     expect(overhangs(printable(solid).getMesh())).toBe(0);
 
-    const own = layout.blind.map((hole) => holeAt(layout, hole)).filter(([x, y]) => x > t.box.x0 && x < t.box.x1 && y > t.box.y0 && y < t.box.y1);
+    const own = layout.closed.map((hole) => holeAt(layout, hole)).filter(([x, y]) => x > t.box.x0 && x < t.box.x1 && y > t.box.y0 && y < t.box.y1);
     expect(own.length).toBeGreaterThan(0);
     for (const [x, y] of own) expect(solidDown(solid, x, y)).toBeGreaterThan(0);
     // A hole away from every latch goes right through.
     const open = [...Array(t.size[0]).keys()].flatMap((i) => [...Array(t.size[1]).keys()].map((j) => [t.first[0] + i, t.first[1] + j] as const))
-      .find((hole) => !layout.blind.some(([i, j]) => i === hole[0] && j === hole[1]))!;
+      .find((hole) => !layout.closed.some(([i, j]) => i === hole[0] && j === hole[1]))!;
     expect(solidDown(solid, ...holeAt(layout, open))).toBe(0);
 
     // Each latch's pocket is open from below, in a pad that's solid round it.
-    const { pad, pocket } = socketOf(latchShape());
+    const { pad, pocket } = socketOf([latchShape()]);
     for (const { at: [x, y] } of layout.latches.filter((l) => l.tile === 0)) {
       expect(solid.intersect(wasm.Manifold.cube([1, 1, 1], true).translate([x, y, 1])).volume()).toBe(0);
       const wall = (pad[0] + pocket[0]) / 4;
@@ -198,9 +321,37 @@ describe("an overlay in a drawer", () => {
     expect(check(JSON.stringify(plain)).warnings).toBeUndefined();
   });
 
-  test("reports overlays that overlap, or share an id", () => {
-    const found = problems((d) => d.base.overlays.push({ id: "front", kind: "grid", at: [100, 100], holes: [10, 10] }));
-    expect(found.map((p) => p.path)).toEqual(expect.arrayContaining(["base.overlays[1].id", "base.overlays[1]"]));
+  /** An empty 80 cm pegboard drawer with a 16 × 16-hole overlay at [0, 0] and these after it. */
+  const onBoard = (...more: object[]) =>
+    check(JSON.stringify({
+      format: "drawer/0.4", name: "Board", drawer: { inside: [700, 500, 100] }, items: {}, layout: [],
+      base: { kind: "pegboard", preset: "uppdatera-80", overlays: [{ id: "a", kind: "grid", at: [0, 0], holes: [16, 16] }, ...more.map((o) => ({ kind: "grid", holes: [16, 16], ...o }))] },
+    })).problems;
+  const SIDE = 16 * PITCH;
+
+  test("reports an overlay off the board", () => {
+    expect(onBoard({ id: "b", at: [600, 0] }).map((p) => p.path)).toEqual(["base.overlays[1]"]);
+  });
+
+  test("reports overlays that overlap", () => {
+    expect(onBoard({ id: "b", at: [SIDE - 10, 0] })).toEqual([expect.objectContaining({ path: "base.overlays[1]", message: "overlaps overlay a" })]);
+  });
+
+  test("reports overlays that share an id", () => {
+    expect(onBoard({ id: "a", at: [300, 0] }).map((p) => p.path)).toEqual(["base.overlays[1].id"]);
+  });
+
+  test("lets overlays touch edge to edge", () => {
+    expect(onBoard({ id: "b", at: [SIDE, 0] }, { id: "c", at: [0, SIDE] })).toEqual([]);
+  });
+
+  test("gives the full height to a holder whose `on` names no overlay, and reports the name", () => {
+    const found = problems((d) => {
+      d.holders.find((h: any) => h.id === "mug-tray").on = "nowhere";
+      d.items["mug-large"].cylinder[1] = 150 - THICKNESS + 1;
+    });
+    expect(found.map((p) => p.path)).toContain("holders[3].on");
+    expect(found.filter((p) => p.message.includes("on overlay"))).toEqual([]);
   });
 
   test("reports a holder on an overlay that isn't there, and fixings with no overlay named", () => {
@@ -264,7 +415,7 @@ holders:
 `;
   const BED = [90, 90, 90] as const;
 
-  test("plates its tiles, and the latches with spares, and lists the latches and blind holes", async () => {
+  test("plates its tiles, and the latches with spares, and lists the latches and closed holes", async () => {
     const drawer = (load(SMALL) as { drawer: Drawer }).drawer;
     expect(check(SMALL, { bed: BED }).problems).toEqual([]);
     const [layout] = drawerOverlays(drawer, { bed: BED });
@@ -283,7 +434,7 @@ holders:
 
     const parts = strFromU8(files.find((f) => f.name === "parts.md")!.data);
     expect(parts).toContain(`${counts.latches} spring latches`);
-    expect(parts).toContain(`${counts.blind} blind holes`);
+    expect(parts).toContain(`${counts.closed} holes are closed`);
     const calibration = strFromU8(unzipSync(files.find((f) => f.name === "calibration.3mf")!.data)["3D/3dmodel.model"]!);
     expect(calibration).toContain("latch-strip-");
   }, 120_000);

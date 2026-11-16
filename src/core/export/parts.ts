@@ -1,4 +1,5 @@
-import { boardHole, type BoardLayout } from "../grid/layout.ts";
+import { boardHole } from "../grid/layout.ts";
+import type { Board } from "../grid/overlay.ts";
 import { GRID, type Fit, type Variant } from "../grid/parameters.ts";
 import { METHODS, pretty, type Plan } from "../plan.ts";
 import { hasSpecSheet, specPath } from "../spec.ts";
@@ -25,15 +26,15 @@ export interface BoardCounts {
   floorScrews: number;
   /** An overlay's spring latches, spares included. */
   latches: number;
-  /** Holes made blind by a latch's socket. */
-  blind: number;
+  /** Holes closed over a latch's socket. */
+  closed: number;
   /** Joiners and pegs by the variant they're sized for, spares included. */
   variants: Partial<Record<Variant, { joiners: number; pegs: number }>>;
 }
 
 export interface BoardSummary {
   /** The grid board, or each overlay on a pegboard. */
-  layouts: BoardLayout[];
+  layouts: Board[];
   counts: BoardCounts;
   printed: PrintedFile[];
   /** The board's estimated weight in each variant. */
@@ -69,17 +70,16 @@ function describe(printed: PrintedFile): string {
 }
 
 /** A line saying what a board or overlay is. */
-function boardLine(layout: BoardLayout): string {
-  const id = (layout as { id?: string }).id;
+function boardLine(layout: Board): string {
   const size = `${layout.variant}, ${layout.holes[0]} × ${layout.holes[1]} holes`;
-  return id ? `- Overlay ${id}: ${size}, ${layout.latches?.length ?? 0} latches, ${layout.blind?.length ?? 0} blind holes over their sockets.` : `Grid board, ${size}.`;
+  return layout.kind === "overlay" ? `- Overlay ${layout.id}: ${size}, ${layout.latches.length} latches, ${layout.closed.length} holes closed over their sockets.` : `Grid board, ${size}.`;
 }
 
 export function partsList({ name, bed, plan: drawerPlan, fit, library, board, spares, density }: PartsListInput): string {
   const lines = [`# ${name}: parts list`, ""];
   if (board) {
     const { layouts, counts, printed, weights } = board;
-    const overlaid = layouts.some((layout) => layout.latches);
+    const overlaid = layouts.some((layout) => layout.kind === "overlay");
     lines.push(
       ...(overlaid ? ["Grid overlays on the UPPDATERA pegboard:", "", ...layouts.map(boardLine), ""] : [boardLine(layouts[0]!)]),
       `For a ${bed[0]} × ${bed[1]} mm bed. Print in PETG without supports, as plated. Weights are estimates at ${density} g/cm³.`,
@@ -98,7 +98,7 @@ export function partsList({ name, bed, plan: drawerPlan, fit, library, board, sp
         "## Latches",
         "",
         `- ${counts.latches} spring latches. Press one into each socket under the tiles, clip the tiles together, lay the overlay roughly in place and press it down.`,
-        `- ${counts.blind} blind holes, over the latches' sockets: a screw or pin there can't go all the way in.`,
+        `- ${counts.closed} holes are closed over the latches' sockets: a holder can't be screwed or pinned there.`,
       );
     }
     if (weights.length > 0) {

@@ -5,7 +5,7 @@ import { drawerShape } from "../drawers.ts";
 import { bumperSolid, joinerSolid, latchSolid, pegSolid, printable, tileSolid } from "../grid/board.ts";
 import { latchStrip, roundOne, roundTwo } from "../grid/calibration.ts";
 import { boardHole, layoutBoard, type BoardLayout } from "../grid/layout.ts";
-import { drawerOverlays, type OverlayLayout } from "../grid/overlay.ts";
+import { drawerOverlays, type Board } from "../grid/overlay.ts";
 import { GRID, gridFit, VARIANT_NAMES, type Fit, type PrinterFit, type Variant } from "../grid/parameters.ts";
 import { onBed, tile } from "../grid/tile.ts";
 import { plan } from "../plan.ts";
@@ -48,8 +48,7 @@ const SAMPLE = 6;
 export const withSpares = (n: number) => Math.ceil(n * (1 + SPARES));
 
 /** What a grid board, or a pegboard's overlays, take besides tiles and bumpers. */
-export function boardCounts(drawer: Drawer, layouts: BoardLayout | readonly BoardLayout[]): BoardCounts {
-  const all: readonly BoardLayout[] = Array.isArray(layouts) ? layouts : [layouts as BoardLayout];
+export function boardCounts(drawer: Drawer, all: readonly Board[]): BoardCounts {
   const holders = drawer.holders ?? [];
   const fixings = fixingsOf(holders, all);
   const pins = fixings.filter((fixing) => fixing.by === "pin").length;
@@ -68,7 +67,7 @@ export function boardCounts(drawer: Drawer, layouts: BoardLayout | readonly Boar
     holderScrews: fixings.length - pins,
     floorScrews: sum((layout) => layout.countersinks.length),
     latches: withSpares(latches),
-    blind: sum((layout) => layout.blind?.length ?? 0),
+    closed: sum((layout) => layout.closed?.length ?? 0),
     variants,
   };
 }
@@ -121,7 +120,7 @@ export function exportDrawer(wasm: ManifoldToplevel, drawer: Drawer, options: Ex
   });
 
   let board: BoardSummary | undefined;
-  const layouts: BoardLayout[] = drawer.base?.kind === "grid" ? [layoutBoard(drawerShape(drawer.drawer)!, drawer.base, { bed, fit })] : drawerOverlays(drawer, { bed, fit });
+  const layouts: Board[] = drawer.base?.kind === "grid" ? [layoutBoard(drawerShape(drawer.drawer)!, drawer.base, { bed, fit })] : drawerOverlays(drawer, { bed, fit });
   if (layouts.length > 0) {
     const problems = layouts.flatMap((layout) => layout.problems);
     if (problems.length > 0) throw new Error(problems.map((problem) => `${problem.at.join(".")}: ${problem.message}`).join("\n"));
@@ -129,7 +128,7 @@ export function exportDrawer(wasm: ManifoldToplevel, drawer: Drawer, options: Ex
     const printed: PrintedFile[] = [];
 
     for (const layout of layouts) {
-      const id = (layout as Partial<OverlayLayout>).id;
+      const id = layout.kind === "overlay" ? layout.id : undefined;
       for (const boardTile of layout.tiles) {
         const label = id ? `overlay ${id} tile ${boardTile.label}` : `tile ${boardTile.label}`;
         say(label);
@@ -144,7 +143,7 @@ export function exportDrawer(wasm: ManifoldToplevel, drawer: Drawer, options: Ex
       }
     }
 
-    const overlaid = layouts.some((layout) => layout.latches);
+    const overlaid = layouts.some((layout) => layout.kind === "overlay");
     const extras = overlaid ? "joiners, pegs and latches" : "bumpers, joiners and pegs";
     say(extras);
     const variants = Object.entries(counts.variants) as [Variant, { joiners: number; pegs: number }][];
@@ -174,7 +173,7 @@ export function exportDrawer(wasm: ManifoldToplevel, drawer: Drawer, options: Ex
   }
 
   const drawerPlan = plan(drawer, bed, fit);
-  const sheetBoard = board ? { layout: board.layouts, fit } : undefined;
+  const sheetBoard = board ? { layouts: board.layouts, fit } : undefined;
   for (const holder of drawerPlan.holders.filter((holder) => hasSpecSheet(holder.method))) {
     files.push({ name: specPath(holder.id), data: strToU8(specSheet(drawerPlan, holder, name, sheetBoard)) });
   }

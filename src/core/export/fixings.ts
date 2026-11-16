@@ -1,5 +1,6 @@
 import { boardHole, holeAt, type BoardLayout, type Hole } from "../grid/layout.ts";
 import { GRID, type Fit } from "../grid/parameters.ts";
+import type { Board } from "../grid/overlay.ts";
 import type { Holder } from "../schema.ts";
 
 // How a holder is fixed to the grid, hole by hole, and what its own side needs: dunnage lists
@@ -22,12 +23,11 @@ export const SCREW = `${GRID.screw.diameter}×${GRID.screw.length}`;
 export const round = (mm: number) => Number(mm.toFixed(2));
 
 /** The board a holder is fixed to: the grid base, or the overlay it names with `on`. */
-export function boardFor(layouts: BoardLayout | readonly BoardLayout[], holder: { on?: string }): BoardLayout | undefined {
-  const all: readonly BoardLayout[] = Array.isArray(layouts) ? layouts : [layouts as BoardLayout];
-  return all.find((layout) => (layout as { id?: string }).id === holder.on);
+export function boardFor(boards: readonly Board[], holder: { on?: string }): Board | undefined {
+  return boards.find((board) => (holder.on === undefined ? board.kind === "grid" : board.kind === "overlay" && board.id === holder.on));
 }
 
-export function fixingsOf(holders: readonly Holder[], layouts: BoardLayout | readonly BoardLayout[]): Fixing[] {
+export function fixingsOf(holders: readonly Holder[], layouts: readonly Board[]): Fixing[] {
   return holders.flatMap((holder) => {
     const layout = boardFor(layouts, holder);
     return layout ? (holder.fix ?? []).map(({ hole, by }) => ({ holder: holder.id, hole, by, at: holeAt(layout, hole) })) : [];

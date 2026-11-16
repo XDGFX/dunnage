@@ -163,7 +163,7 @@ h1, h2, h3 { margin: 0; font-weight: 500; text-wrap: balance; }
 /* An overlay reads as the grid board laid on the pegboard: its free edges drawn heavier, as the chamfered edge you'd feel. */
 .plan .overlay .free-edge { stroke: rgba(255, 255, 255, 0.7); stroke-width: 1.6; }
 .plan .overlay .latch { fill: none; stroke: var(--guide); stroke-width: 1.2; stroke-dasharray: 2.5 1.5; }
-.plan .overlay .blind { fill: #2a2a2a; stroke: none; }
+.plan .overlay .closed { fill: #2a2a2a; stroke: none; }
 .plan .overlay-label { font: 500 10px var(--mono); fill: var(--muted); }
 .plan .overlay.bad .tile { stroke: var(--bad); }
 .plan .obstruction { pointer-events: none; }

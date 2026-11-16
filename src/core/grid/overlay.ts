@@ -1,9 +1,9 @@
 import { drawerShape, type DrawerShape, type Side } from "../drawers.ts";
 import type { Box } from "../geometry.ts";
 import { pegboard, type Pegboard } from "../pegboard.ts";
-import type { Drawer } from "../schema.ts";
-import { latchShape, socketOf } from "./latch.ts";
-import { bedTile, boardJoiners, boardHole, boardTiles, cutAxis, type BoardLatch, type BoardLayout, type Hole } from "./layout.ts";
+import { PRINTER_PRESETS, type Drawer } from "../schema.ts";
+import { latchShape, socketOf, type Socket } from "./latch.ts";
+import { bedTile, boardJoiners, boardHole, boardTiles, cutAxis, type BoardLatch, type BoardLayout, type GridLayout, type Hole } from "./layout.ts";
 import { GRID, gridFit, type PrinterFit, type Variant } from "./parameters.ts";
 import { PITCH } from "./tile.ts";
 
@@ -21,24 +21,43 @@ export interface OverlaySpec {
 }
 
 export interface OverlayLayout extends BoardLayout {
+  kind: "overlay";
   id: string;
   latches: BoardLatch[];
-  blind: Hole[];
+  closed: Hole[];
   free: Side[];
   /** Where it lies, in the drawer. */
   box: Box;
 }
+
+/** A board holders fix to: the grid base, or an overlay on a pegboard. */
+export type Board = GridLayout | OverlayLayout;
 
 export interface OverlayOptions {
   bed?: readonly [number, number, number];
   fit?: PrinterFit;
 }
 
-const DEFAULT_BED = [256, 256, 256] as const;
-/** Closer than this to the board's edge, an overlay's edge is at the drawer wall. */
-const AT_WALL = 0.5;
-/** How finely the overlay is sampled to find the point farthest from a latch. */
-const SAMPLE = 2;
+const DEFAULT_BED = PRINTER_PRESETS["bambu-p1s"];
+// An overlay edge within `at_wall` of the pegboard's edge counts as at the drawer wall, since the board fills the drawer.
+const { at_wall: AT_WALL, sample: SAMPLE } = GRID.overlay;
+
+/**
+ * The holes over latch pockets centred at `centres`, in a grid of `nx` × `ny` holes from `origin`:
+ * the socket fills the tile there, so they're closed.
+ */
+export function closedHoles(origin: readonly [number, number], [nx, ny]: readonly [number, number], centres: readonly (readonly [number, number])[], socket: Socket, hole: number): Hole[] {
+  const r = hole / 2;
+  const [px, py] = socket.pocket;
+  const closed: Hole[] = [];
+  for (let i = 0; i < nx; i++) {
+    for (let j = 0; j < ny; j++) {
+      const [x, y] = [origin[0] + (i + 0.5) * PITCH, origin[1] + (j + 0.5) * PITCH];
+      if (centres.some(([lx, ly]) => Math.abs(x - lx) < px / 2 + r && Math.abs(y - ly) < py / 2 + r)) closed.push([i, j]);
+    }
+  }
+  return closed;
+}
 
 export function layoutOverlay(shape: DrawerShape, board: Pegboard, spec: OverlaySpec, index: number, options: OverlayOptions = {}): OverlayLayout {
   const at = (...path: (string | number)[]) => ["base", "overlays", index, ...path];
@@ -63,8 +82,8 @@ export function layoutOverlay(shape: DrawerShape, board: Pegboard, spec: Overlay
     return gap > AT_WALL;
   });
 
-  const empty: Omit<OverlayLayout, "tiles" | "joiners" | "latches" | "blind" | "problems"> = {
-    id: spec.id, variant, shape, fit: 0, holes: [nx, ny], origin, box, free,
+  const empty: Omit<OverlayLayout, "tiles" | "joiners" | "latches" | "closed" | "problems"> = {
+    kind: "overlay", id: spec.id, variant, shape, fit: 0, holes: [nx, ny], origin, box, free,
     gap: { left: 0, right: 0, front: 0, back: 0 }, lapTab: 0, bumpers: [], dropped: [], countersinks: [],
   };
 
@@ -74,7 +93,7 @@ export function layoutOverlay(shape: DrawerShape, board: Pegboard, spec: Overlay
   const rows = cutAxis(ny, mostY, room[1], [0, 0]);
   if (!columns || !rows) {
     problems.push({ at: at("holes"), message: `can't be cut into tiles that fit a ${bed[0]} × ${bed[1]} mm bed` });
-    return { ...empty, tiles: [], joiners: [], latches: [], blind: [], problems };
+    return { ...empty, tiles: [], joiners: [], latches: [], closed: [], problems };
   }
   const tiles = boardTiles(origin, columns, rows);
   const { joiners, shortest } = boardJoiners(origin, columns, rows, () => false);
@@ -82,23 +101,11 @@ export function layoutOverlay(shape: DrawerShape, board: Pegboard, spec: Overlay
     problems.push({ at: at("holes"), message: `makes a joined tile edge only ${shortest} ${shortest === 1 ? "hole" : "holes"} long: two joiners per join need at least 3` });
   }
 
-  const latch = latchShape(fit.latch);
-  const socket = socketOf(latch, fit.latch);
+  const socket = socketOf([latchShape(fit.latch)], fit.latch);
   const { latches, problem } = chooseLatches(board, tiles, box, socket.pad);
   if (problem) problems.push({ at: at(), message: problem });
-
-  // A hole is blind where its bore would open into a latch's pocket.
-  const r = boardHole(variant, fit) / 2;
-  const blind: Hole[] = [];
-  const [px, py] = socket.pocket;
-  for (let i = 0; i < nx; i++) {
-    for (let j = 0; j < ny; j++) {
-      const [x, y] = [origin[0] + (i + 0.5) * PITCH, origin[1] + (j + 0.5) * PITCH];
-      const over = latches.some(({ at: [lx, ly] }) => Math.abs(x - lx) < px / 2 + r && Math.abs(y - ly) < py / 2 + r);
-      if (over) blind.push([i, j]);
-    }
-  }
-  return { ...empty, tiles, joiners, latches, blind, problems };
+  const closed = closedHoles(origin, [nx, ny], latches.map((l) => l.at), socket, boardHole(variant, fit));
+  return { ...empty, tiles, joiners, latches, closed, problems };
 }
 
 /** Every overlay on a drawer's pegboard, laid out; none for any other base. */
