@@ -3,7 +3,7 @@ import Module, { type Manifold } from "manifold-3d";
 import { beforeAll, describe, expect, test } from "vitest";
 import { parse } from "yaml";
 import { buildBoard, bumperSolid, joinerSolid, pegSolid, printable, tileSolid } from "../src/core/grid/board.ts";
-import { cornerCuts, holeAt, joinerReach, layoutBoard, OUTWARD, type BoardLayout, type GridBase } from "../src/core/grid/layout.ts";
+import { bedTile, cornerCuts, cornerHoles, holeAt, joinerReach, layoutBoard, OUTWARD, tileSizes, type BoardLayout, type GridBase } from "../src/core/grid/layout.ts";
 import { GRID, gridFit, type Variant } from "../src/core/grid/parameters.ts";
 import { overhangs } from "../src/core/grid/printability.ts";
 import { PITCH, THICKNESS, VARIANTS, WEB, seatedJoiner } from "../src/core/grid/tile.ts";
@@ -171,6 +171,45 @@ describe("laying out a board", () => {
         expect([i, j, layout.dropped.some(([a, b]) => a === i && b === j)]).toEqual([i, j, cut]);
       }
     }
+  });
+
+  describe("queries", () => {
+    test("tile sizes are each column's width and each row's depth", () => {
+      const layout = layoutBoard(drawerShape({ preset: "ikea-maximera-80x60-low" })!, GRID_BASE);
+      expect(tileSizes(layout)).toEqual({
+        columns: layout.tiles.filter((t) => t.row === 0).map((t) => t.size[0]),
+        rows: layout.tiles.filter((t) => t.col === 0).map((t) => t.size[1]),
+      });
+      expect(tileSizes(layout).columns.reduce((a, b) => a + b)).toBe(layout.holes[0]);
+    });
+
+    test("the bed's largest tile is the most holes that fit inside its margin", () => {
+      const [x, y] = bedTile(P1S);
+      expect(x * PITCH).toBeLessThanOrEqual(P1S[0] - GRID.tile.bed_margin);
+      expect((x + 1) * PITCH).toBeGreaterThan(P1S[0] - GRID.tile.bed_margin);
+      expect(y).toBe(x);
+    });
+
+    test("corner holes are the board's four corners when the drawer's are square", () => {
+      const layout = layoutBoard(drawerShape({ preset: "ikea-maximera-80x60-low" })!, GRID_BASE);
+      const [nx, ny] = layout.holes;
+      expect(cornerHoles(layout)).toEqual([[0, 0], [nx - 1, 0], [0, ny - 1], [nx - 1, ny - 1]]);
+    });
+
+    test("corner holes step in past the holes a rounded corner cuts", () => {
+      const layout = layoutBoard(shape({ inside: [130, 110, 80], corner_radius: 40 }), GRID_BASE, { bed: [80, 80, 80] });
+      const holes = cornerHoles(layout);
+      expect(holes).toHaveLength(4);
+      for (const hole of holes) expect(layout.dropped).not.toContainEqual(hole);
+      expect(holes[0]![0]).toBe(holes[0]![1]);
+      expect(holes[0]![0]).toBeGreaterThan(0);
+    });
+
+    test("a board one hole wide has each corner hole once", () => {
+      const layout = layoutBoard(shape({ inside: [2 * (GRID.bumper.fit + GRID.bumper.min) + PITCH, 100, 80] }), GRID_BASE);
+      expect(layout.holes[0]).toBe(1);
+      expect(cornerHoles(layout)).toEqual([[0, 0], [0, layout.holes[1] - 1]]);
+    });
   });
 });
 

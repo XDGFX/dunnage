@@ -1,4 +1,4 @@
-import { flow, read } from "../core/index.ts";
+import { flow, gridFit, read, type Fit } from "../core/index.ts";
 import coffee from "../../fixtures/coffee.drawer.yml?raw";
 import p1s from "../../fixtures/p1s.printer.yml?raw";
 
@@ -8,14 +8,20 @@ import p1s from "../../fixtures/p1s.printer.yml?raw";
 
 export type Mode = "folder" | "files" | "demo";
 
+/** What a printer profile gives a drawer: its bed, and its grid fits over the calibrated defaults. */
+export interface Profile {
+  bed: [number, number, number];
+  fit: Fit;
+}
+
 export interface Workspace {
   mode: Mode;
   /** The folder's name, or what stands in for it. */
   name: string;
   /** Drawer file names, such as `coffee.drawer.yml`. */
   drawers: string[];
-  /** Printer beds by profile name, from `<name>.printer.yml`. */
-  printers: Record<string, [number, number, number]>;
+  /** Printer profiles by name, from `<name>.printer.yml`. */
+  printers: Record<string, Profile>;
   readDrawer(file: string): Promise<string>;
   /** Writes a drawer back. False when this workspace can't, and it has to be downloaded. */
   writeDrawer(file: string, text: string): Promise<boolean>;
@@ -26,18 +32,19 @@ export interface Workspace {
 export const DRAWER = /\.drawer\.ya?ml$/;
 const PRINTER = /\.printer\.ya?ml$/;
 const DEFAULT_BED: [number, number, number] = [256, 256, 256];
+const DEFAULT_FIT = gridFit();
 
 export const canOpenFolders = () => typeof window !== "undefined" && "showDirectoryPicker" in window;
 
-function bedOf(text: string): [number, number, number] | null {
+function profileOf(text: string): Profile | null {
   const { file } = read(text);
-  return file?.kind === "printer" ? file.printer.bed : null;
+  return file?.kind === "printer" ? { bed: file.printer.bed, fit: file.printer.fit } : null;
 }
 
-/** The bed for a drawer's printer, or the common 256 mm one when there's no profile. */
-export function bedFor(workspace: Workspace, printer: string | undefined): { bed: [number, number, number]; found: boolean } {
-  const bed = printer ? workspace.printers[printer] : undefined;
-  return bed ? { bed, found: true } : { bed: DEFAULT_BED, found: false };
+/** A drawer's printer, or the common 256 mm bed and the calibrated fits when there's no profile. */
+export function printerFor(workspace: Workspace, printer: string | undefined): Profile & { found: boolean } {
+  const profile = printer ? workspace.printers[printer] : undefined;
+  return profile ? { ...profile, found: true } : { bed: DEFAULT_BED, fit: DEFAULT_FIT, found: false };
 }
 
 // --- A folder, with the File System Access API ----------------------------------------------
@@ -87,8 +94,8 @@ async function folder(dir: DirectoryHandle): Promise<Workspace> {
   const printers: Workspace["printers"] = {};
   for (const [name, handle] of files) {
     if (!PRINTER.test(name)) continue;
-    const bed = bedOf(await (await handle.getFile()).text());
-    if (bed) printers[name.replace(PRINTER, "")] = bed;
+    const profile = profileOf(await (await handle.getFile()).text());
+    if (profile) printers[name.replace(PRINTER, "")] = profile;
   }
   const write = async (handle: FileHandle, text: string) => {
     const stream = await handle.createWritable();
@@ -159,8 +166,8 @@ export function demo(): Workspace {
 function inMemory(mode: Mode, name: string, files: Map<string, string>): Workspace {
   const printers: Workspace["printers"] = {};
   for (const [file, text] of files) {
-    const bed = PRINTER.test(file) ? bedOf(text) : null;
-    if (bed) printers[file.replace(PRINTER, "")] = bed;
+    const profile = PRINTER.test(file) ? profileOf(text) : null;
+    if (profile) printers[file.replace(PRINTER, "")] = profile;
   }
   return {
     mode,

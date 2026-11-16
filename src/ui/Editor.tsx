@@ -9,7 +9,7 @@ import { reading, useHistory } from "./model.ts";
 import { Panel } from "./Panel.tsx";
 import { PlanView } from "./PlanView.tsx";
 import { AddThingSheet, FileSheet, MakeSheet, SpecSheet, type NewThing } from "./sheets.tsx";
-import { bedFor, download, type Workspace } from "./workspace.ts";
+import { download, printerFor, type Workspace } from "./workspace.ts";
 
 // three.js is big, so the 3D view loads the first time it's opened.
 const Preview3D = lazy(() => import("./Preview3D.tsx").then((m) => ({ default: m.Preview3D })));
@@ -39,8 +39,8 @@ export function Editor({ workspace, file, initial, onOpen, onNew, onClose }: Pro
   const history = useHistory(initial);
   const { text, apply } = history;
   const printer = useMemo(() => /^printer:\s*["']?([\w.-]+)/m.exec(text)?.[1], [text]);
-  const { bed, found: printerFound } = bedFor(workspace, printer);
-  const r = useMemo(() => reading(text, bed), [text, bed]);
+  const { bed, fit, found: printerFound } = printerFor(workspace, printer);
+  const r = useMemo(() => reading(text, bed, fit), [text, bed, fit]);
   const p = r.plan;
   const [sels, setSels] = useState<string[]>([]);
   const [view, setView] = useState<"plan" | "3d">("plan");
@@ -272,7 +272,7 @@ export function Editor({ workspace, file, initial, onOpen, onNew, onClose }: Pro
           </section>
           <aside className="rail">
             <Panel
-              plan={p} drawer={r.drawer} issues={r.issues} general={r.general} sels={live}
+              plan={p} drawer={r.drawer} issues={r.issues} general={r.general} warnings={r.warnings} sels={live}
               select={select} apply={apply} onLock={onLock} onSpec={(id) => setSheet({ kind: "spec", id })}
               onAddThing={() => setSheet({ kind: "add" })} onRemove={onRemove} onPutBack={onPutBack}
               onShowFile={(line) => setSheet({ kind: "file", line })}

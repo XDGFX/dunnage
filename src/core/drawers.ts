@@ -48,6 +48,23 @@ export const DRAWER_PRESETS: Record<string, DrawerPreset> = Object.fromEntries(
   ),
 );
 
+/** A built-in drawer's name to show: `ikea-maximera-80x60-low` as `MAXIMERA 80 × 60, low`. */
+export function presetName(preset: string): string {
+  const m = /^ikea-maximera-(.+)-(low|medium|high)$/.exec(preset);
+  if (!m) return preset;
+  const size = m[1]!.startsWith("us-") ? `US ${m[1]!.slice(3)} in` : m[1]!.replace("x", " × ");
+  return `MAXIMERA ${size}, ${m[2]}`;
+}
+
+/** The fewest `walls` fields that give these leans: a pair as `sides` or `ends` where both match, and none for upright walls. */
+export function wallFields(walls: Record<Side, number>): NonNullable<ShapeFields["walls"]> {
+  const { left, right, front, back } = walls;
+  return {
+    ...(left || right ? (left === right ? { sides: left } : { left, right }) : {}),
+    ...(front || back ? (front === back ? { ends: front } : { front, back }) : {}),
+  };
+}
+
 /** A drawer's shape: its preset's, with any field the file sets laid over it. Undefined when nothing gives an `inside`. */
 export function drawerShape(fields: ShapeFields): DrawerShape | undefined {
   const preset = fields.preset === undefined ? undefined : DRAWER_PRESETS[fields.preset];

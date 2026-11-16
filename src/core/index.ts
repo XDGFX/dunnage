@@ -1,11 +1,11 @@
 export { check, FormatError, load, read } from "./check.ts";
 export type { CheckOptions, CheckResult, DunnageFile, LoadedPrinter, Problem } from "./check.ts";
-export { DRAWER_PRESETS, drawerShape } from "./drawers.ts";
+export { DRAWER_PRESETS, drawerShape, presetName, wallFields } from "./drawers.ts";
 export type { DrawerPreset, DrawerShape, Side } from "./drawers.ts";
 export { FORMATS, MIGRATIONS, migrate, readHeader } from "./format.ts";
 export { GRID, gridFit, VARIANT_NAMES } from "./grid/parameters.ts";
 export type { Fit, Variant } from "./grid/parameters.ts";
-export { cornerCuts, holeAt, holeProblem, lapTabDepth, layoutBoard, OUTWARD } from "./grid/layout.ts";
+export { bedTile, cornerCuts, cornerHoles, holeAt, holeProblem, lapTabDepth, layoutBoard, OUTWARD, tileSizes } from "./grid/layout.ts";
 export type { BoardBumper, BoardLayout, BoardTile, GridBase, Hole, LayoutOptions } from "./grid/layout.ts";
 export { buildBoard, bumperSolid, joinerSolid, pegSolid, printable, tileSolid } from "./grid/board.ts";
 export type { BoardParts } from "./grid/board.ts";
@@ -23,7 +23,7 @@ export { arrange, bodyOf, putBackSpot, seat, snapAngle, solve, wrap } from "./sn
 export type { ArrangeOp, Body, Move, Snap } from "./snap.ts";
 export {
   addComment, addThing, answerQuestion, closeConcern, holdTogether, lockHolder, moveThings, placeThing, removeThing,
-  seatOnPegs, setAside, setBase, setFit, setMethod, setPose, setPoses, setRotate, setRule, splitHolder, unlockHolder,
+  seatOnPegs, setAside, setBase, setDrawerPreset, setFit, setWall, setMethod, setPose, setPoses, setRotate, setRule, splitHolder, unlockHolder,
 } from "./actions.ts";
 export { specSheet } from "./spec.ts";
 export { posesOf, samePose } from "./shape.ts";

@@ -145,7 +145,7 @@ export function layoutBoard(shape: DrawerShape, base: GridBase, options: LayoutO
 
   // Tile sizes: the biggest the bed (or `base.tile`) allows, then balanced. A side bumper runs past
   // the corners at each end of its column, so it has to fit the bed too.
-  const largest = [Math.floor(room[0] / PITCH), Math.floor(room[1] / PITCH)];
+  const largest = bedTile(bed);
   if (base.tile) {
     const [tx, ty] = base.tile;
     if (tx > largest[0]! || ty > largest[1]!) {
@@ -300,6 +300,35 @@ export function cornerCuts(shape: DrawerShape, corner: { radius: number; cut: nu
   const u = x < W / 2 ? x : W - x;
   const v = y < D / 2 ? y : D - y;
   return u < R && v < R && Math.hypot(R - u, R - v) > corner.cut;
+}
+
+/** The largest tile a bed takes, in holes, less its margin. */
+export function bedTile(bed: readonly [number, number, number]): [number, number] {
+  return [Math.floor((bed[0] - GRID.tile.bed_margin) / PITCH), Math.floor((bed[1] - GRID.tile.bed_margin) / PITCH)];
+}
+
+/** Each tile column's width and each tile row's depth, in holes, from the left and the front. */
+export function tileSizes(layout: BoardLayout): { columns: number[]; rows: number[] } {
+  return {
+    columns: layout.tiles.filter((t) => t.row === 0).map((t) => t.size[0]),
+    rows: layout.tiles.filter((t) => t.col === 0).map((t) => t.size[1]),
+  };
+}
+
+/** The hole nearest each corner of the board that a rounded drawer corner leaves, each once. */
+export function cornerHoles(layout: BoardLayout): Hole[] {
+  const [nx, ny] = layout.holes;
+  if (nx < 1 || ny < 1) return [];
+  const dropped = new Set(layout.dropped.map(([i, j]) => `${i},${j}`));
+  const holes = new Map<string, Hole>();
+  for (const [i, j, di, dj] of [[0, 0, 1, 1], [nx - 1, 0, -1, 1], [0, ny - 1, 1, -1], [nx - 1, ny - 1, -1, -1]] as const) {
+    // Step in along the diagonal past any holes the corner cuts.
+    let k = 0;
+    while (k < Math.min(nx, ny) - 1 && dropped.has(`${i + k * di},${j + k * dj}`)) k++;
+    const hole: Hole = [i + k * di, j + k * dj];
+    holes.set(`${hole[0]},${hole[1]}`, hole);
+  }
+  return [...holes.values()];
 }
 
 /** Where a hole's centre is on the floor. */

@@ -1,11 +1,13 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import {
-  addComment, answerQuestion, BASES, closeConcern, fitOf, holdTogether, lower, METHODS, posesOf, pretty, roundAllOver, samePose, seatOnPegs, setAside, setBase, setFit,
+  addComment, answerQuestion, BASES, closeConcern, fitOf, GRID, holdTogether, lower, METHODS, posesOf, pretty, roundAllOver, samePose, seatOnPegs, setAside, setBase, setFit,
   setMethod, setPose, setPoses, setRotate, setRule, worst, wrap,
   type BaseKey, type Drawer, type Issue, type Method, type Plan, type PlannedThing, type Pose, type Problem,
 } from "../core/index.ts";
 import { Icon } from "./icons.tsx";
+import { GridBase } from "./GridBase.tsx";
 import { MethodPicker, unavailable } from "./MethodPicker.tsx";
+import { NumberField } from "./NumberField.tsx";
 
 // The side panel shows only what's selected: one thing and everything about it, several things,
 // or with nothing selected, the drawer itself.
@@ -15,6 +17,8 @@ export interface PanelProps {
   drawer: Drawer;
   issues: Map<string, Issue[]>;
   general: Problem[];
+  /** `dunnage check` warnings: worth knowing, not wrong. */
+  warnings?: Problem[];
   sels: string[];
   select: (ids: string[]) => void;
   apply: (edit: (text: string) => string) => void;
@@ -66,27 +70,6 @@ function Issues({ list }: { list: Issue[] }) {
     <div className="issues">
       {list.map((issue, k) => <p key={k} className={`issue ${issue.level}`}>{issue.text}</p>)}
     </div>
-  );
-}
-
-/** A number field that edits on change, not on every keystroke. */
-function NumberField({ id, value, min, max, step, onCommit, label, disabled, width }: { id: string; value: number; min?: number; max?: number; step?: number; onCommit: (v: number) => void; label?: string; disabled?: boolean; width?: number }) {
-  return (
-    <input
-      key={value}
-      id={id}
-      className="field num"
-      type="number"
-      defaultValue={value}
-      min={min}
-      max={max}
-      step={step}
-      disabled={disabled}
-      aria-label={label}
-      style={width ? { width } : undefined}
-      onBlur={(e) => Number(e.target.value) !== value && e.target.value !== "" && onCommit(Number(e.target.value))}
-      onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-    />
   );
 }
 
@@ -287,7 +270,7 @@ function Several({ plan: p, things, select, apply }: PanelProps & { things: Plan
 
 // --- Nothing selected: the drawer --------------------------------------------------------
 
-function Overview({ plan: p, drawer, issues, general, select, apply, onAddThing, onShowFile }: PanelProps) {
+function Overview({ plan: p, drawer, issues, general, warnings = [], select, apply, onAddThing, onShowFile }: PanelProps) {
   const review = drawer.review ?? {};
   const flagged = [
     ...p.things.filter((t) => !t.aside && worst(issues.get(t.id) ?? []) === "bad").map((t) => ({ id: t.id, text: issues.get(t.id)!.find((i) => i.level === "bad")!.text, sel: [t.id] })),
@@ -300,7 +283,7 @@ function Overview({ plan: p, drawer, issues, general, select, apply, onAddThing,
   const baseText: Record<BaseKey, string> = {
     bare: "Holders sit on the floor and hold each other by touching.",
     gridfinity: `${p.base.grid?.nx ?? 0} × ${p.base.grid?.ny ?? 0} cells of ${p.base.grid?.pitch ?? 42} mm, centred. Each bin claims the cells its things cover.`,
-    grid: "A printed board of holes that holders screw or pin into. Board layout isn't drawn yet.",
+    grid: `A printed board of holes on a ${GRID.pitch} mm pitch, in tiles with bumpers out to the walls. Holders screw or pin into it.`,
     "uppdatera-60": "Things rest against IKEA pegs in fixed holes.",
     "uppdatera-80": "Things rest against IKEA pegs in fixed holes.",
   };
@@ -310,7 +293,13 @@ function Overview({ plan: p, drawer, issues, general, select, apply, onAddThing,
       <Head eyebrow="Drawer" title={drawer.name} sub={`${p.width} × ${p.depth} × ${p.height} mm inside · ${p.placed.length} things · ${p.holders.filter((h) => h.rect).length} holders`} />
       <p className="note">Click a thing on the plan to see and change everything about it.</p>
 
-      <Section title={flagged.length || general.length ? `Needs attention (${flagged.length + general.length})` : "Nothing needs attention"}>
+      <Section title={flagged.length || general.length || warnings.length ? `Needs attention (${flagged.length + general.length + warnings.length})` : "Nothing needs attention"}>
+        {warnings.map((problem, k) => (
+          <button key={`w${k}`} type="button" className="flag warn" onClick={() => onShowFile(problem.line)}>
+            <b>{problem.path || "The file"}{problem.line ? `, line ${problem.line}` : ""}</b>
+            <span>{problem.message}</span>
+          </button>
+        ))}
         {general.map((problem, k) => (
           <button key={`g${k}`} type="button" className="flag" onClick={() => onShowFile(problem.line)}>
             <b>{problem.path || "The file"}{problem.line ? `, line ${problem.line}` : ""}</b>
@@ -349,6 +338,7 @@ function Overview({ plan: p, drawer, issues, general, select, apply, onAddThing,
           {Object.entries(BASES).map(([key, base]) => <option key={key} value={key}>{base.name}</option>)}
         </select>
         <p className="note">{baseText[p.base.key]}</p>
+        {p.base.layout && <GridBase drawer={drawer} layout={p.base.layout} bed={p.bed} apply={apply} />}
         <details className="more">
           <summary>Layout rules: {rules.edge_margin} mm edge margin, {rules.gap} mm gap, {rules.angle_step}° steps</summary>
           <div className="kv">

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { PEG, RAD, type Plan, type PlannedHolder } from "../core/index.ts";
+import { useBoard } from "./useBoard.ts";
 
 // The drawer in 3D: the holders dunnage works out, what they hold, and the base under them.
 // Holders are drawn from their footprints and methods, as blocks; a holder's real printed shape
@@ -23,6 +24,9 @@ export function Preview3D({ plan: p, sels, select }: Props) {
   const view = useRef({ yaw: -0.45, pitch: 0.8, distance: 0 });
   const selectRef = useRef(select);
   selectRef.current = select;
+  const redraw = useRef<(() => void) | null>(null);
+  // Called before the scene's effect, so a new board is ready when the scene is rebuilt round it.
+  const board = useBoard(p.base.layout, p.fit, redraw);
 
   useEffect(() => {
     const element = host.current!;
@@ -74,6 +78,8 @@ export function Preview3D({ plan: p, sels, select }: Props) {
     block(0, D, -12, W, 12, H + 12, material(COLOURS.wall, 0.55));
     if (base.grid) block(base.grid.ox, base.grid.oy, 0, base.grid.nx * base.grid.pitch, base.grid.ny * base.grid.pitch, base.z, material(COLOURS.board));
     if (base.board) block(base.board.x0, base.board.y0, -8, base.board.width, base.board.depth, 8, material(COLOURS.board));
+    const boardGroup = board.group.current;
+    if (boardGroup) root.add(boardGroup);
 
     const selectedHolders = new Set(sels.map((id) => p.things.find((t) => t.id === id)?.holder?.id).filter(Boolean));
     for (const h of p.holders) if (h.rect) holder(h);
@@ -169,6 +175,7 @@ export function Preview3D({ plan: p, sels, select }: Props) {
     };
     aim();
     size();
+    redraw.current = draw;
 
     let drag: { x: number; y: number; yaw: number; pitch: number; moved: boolean } | null = null;
     const canvas = renderer.domElement;
@@ -191,7 +198,8 @@ export function Preview3D({ plan: p, sels, select }: Props) {
         const rect = canvas.getBoundingClientRect();
         const ray = new THREE.Raycaster();
         ray.setFromCamera(new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1), camera);
-        const hit = ray.intersectObjects(root.children, true).find((h) => h.object.userData.id);
+        // The board has nothing to select, and its many triangles are slow to test.
+        const hit = ray.intersectObjects(root.children.filter((o) => o !== boardGroup), true).find((h) => h.object.userData.id);
         selectRef.current(hit ? [hit.object.userData.id as string] : [], e.shiftKey);
       }
       drag = null;
@@ -212,6 +220,9 @@ export function Preview3D({ plan: p, sels, select }: Props) {
 
     return () => {
       observer.disconnect();
+      if (redraw.current === draw) redraw.current = null;
+      // The board outlives this scene, so it's taken out before everything else is disposed.
+      if (boardGroup) root.remove(boardGroup);
       scene.traverse((object) => {
         if (object instanceof THREE.Mesh) object.geometry.dispose();
       });
@@ -221,9 +232,10 @@ export function Preview3D({ plan: p, sels, select }: Props) {
     };
   }, [p, sels]);
 
+  const building = board.status ? `${board.status} · ` : "";
   return (
     <div className="three" ref={host}>
-      <p className="hint">Drag to turn · scroll to zoom · click a thing to select it</p>
+      <p className="hint">{building}Drag to turn · scroll to zoom · click a thing to select it</p>
     </div>
   );
 }

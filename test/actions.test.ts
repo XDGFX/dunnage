@@ -7,6 +7,8 @@ import {
   answerQuestion,
   check,
   closeConcern,
+  DRAWER_PRESETS,
+  drawerShape,
   holdTogether,
   lockHolder,
   moveThings,
@@ -14,9 +16,12 @@ import {
   seatOnPegs,
   setAside,
   setBase,
+  setDrawerPreset,
+  setIn,
   setMethod,
   setPose,
   setRotate,
+  setWall,
   splitHolder,
   unlockHolder,
 } from "../src/core/index.ts";
@@ -158,5 +163,63 @@ holders:
     const [x, y] = thing(seatOnPegs(text, ["jar"], [256, 256, 256]), "jar").at;
     expect(Math.hypot(x - 322, y - 243)).toBeLessThanOrEqual(3);
     expect([x, y]).not.toEqual([322, 243]);
+  });
+});
+
+describe("the drawer's shape", () => {
+  const MEASURED = `format: drawer/0.3
+name: Test
+drawer:
+  inside: [560, 400, 75]
+  corner_radius: 3
+base: { kind: grid }
+items: {}
+layout: []
+`;
+
+  test("naming a built-in drawer drops the sizes that would override it", () => {
+    const text = setDrawerPreset(MEASURED, "ikea-maximera-80x60-low");
+    expect(data(text).drawer).toEqual({ preset: "ikea-maximera-80x60-low" });
+    valid(text);
+  });
+
+  test("describing it by hand starts from the built-in drawer's shape", () => {
+    const preset = DRAWER_PRESETS["ikea-maximera-80x60-low"];
+    const text = setDrawerPreset(setDrawerPreset(MEASURED, "ikea-maximera-80x60-low"), null);
+    expect(data(text).drawer).toEqual({ inside: preset.inside, walls: { sides: preset.walls.left }, floor_edge: preset.floor_edge });
+    expect(drawerShape(data(text).drawer)).toEqual(drawerShape({ preset: "ikea-maximera-80x60-low" }));
+    valid(text);
+  });
+
+  test("keeps walls that differ side to side", () => {
+    const text = setDrawerPreset(setIn(MEASURED, ["drawer", "walls"], { left: 5, back: 2 }), null);
+    expect(data(text).drawer.walls).toEqual({ left: 5, right: 0, front: 0, back: 2 });
+  });
+});
+
+describe("wall lean", () => {
+  const WALLS = `format: drawer/0.3
+name: Test
+drawer:
+  inside: [560, 400, 75]
+  walls: { left: 20, right: 0, ends: 3 }
+base: { kind: grid }
+items: {}
+layout: []
+`;
+  const walls = (text: string) => drawerShape(data(text).drawer)!.walls;
+
+  test("setting one wall leaves the others as the file has them", () => {
+    const text = setWall(WALLS, "right", 5);
+    expect(data(text).drawer.walls).toEqual({ left: 20, right: 5, ends: 3 });
+    expect(walls(text)).toEqual({ left: 20, right: 5, front: 3, back: 3 });
+    valid(text);
+  });
+
+  test("setting a pair replaces that pair's own values, and only theirs", () => {
+    const text = setWall(WALLS, "sides", 10);
+    expect(data(text).drawer.walls).toEqual({ ends: 3, sides: 10 });
+    expect(walls(text)).toEqual({ left: 10, right: 10, front: 3, back: 3 });
+    valid(text);
   });
 });
