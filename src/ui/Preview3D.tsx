@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { PEG, RAD, type Plan, type PlannedHolder } from "../core/index.ts";
+import { partKey, useBoard } from "./useBoard.ts";
 
 // The drawer in 3D: the holders dunnage works out, what they hold, and the base under them.
 // Holders are drawn from their footprints and methods, as blocks; a holder's real printed shape
@@ -15,6 +16,7 @@ interface Props {
 const COLOURS = {
   floor: 0x121212, wall: 0x262626, petg: 0x34343a, selected: 0x40c057, locked: 0x8f78f2, ply: 0xc9a26b,
   peg: 0xe8e8e8, board: 0x1b1b1b, custom: 0xffffff, ceramic: 0xeef0f2, glass: 0xcde6f0, thingSelected: 0x9ae6a8,
+  tile: 0x3a3a40, bumper: 0x55555c,
 };
 
 export function Preview3D({ plan: p, sels, select }: Props) {
@@ -23,6 +25,7 @@ export function Preview3D({ plan: p, sels, select }: Props) {
   const view = useRef({ yaw: -0.45, pitch: 0.8, distance: 0 });
   const selectRef = useRef(select);
   selectRef.current = select;
+  const board = useBoard(p.base.layout);
 
   useEffect(() => {
     const element = host.current!;
@@ -74,6 +77,22 @@ export function Preview3D({ plan: p, sels, select }: Props) {
     block(0, D, -12, W, 12, H + 12, material(COLOURS.wall, 0.55));
     if (base.grid) block(base.grid.ox, base.grid.oy, 0, base.grid.nx * base.grid.pitch, base.grid.ny * base.grid.pitch, base.z, material(COLOURS.board));
     if (base.board) block(base.board.x0, base.board.y0, -8, base.board.width, base.board.depth, 8, material(COLOURS.board));
+    if (base.layout) {
+      // Each part shows as a plain block until its solid is built.
+      const parts = [
+        ...base.layout.bumpers.map((b, index) => ({ key: partKey({ kind: "bumper", index }), box: b.floor, colour: COLOURS.bumper })),
+        ...base.layout.tiles.map((t, index) => ({ key: partKey({ kind: "tile", index }), box: t.box, colour: COLOURS.tile })),
+      ];
+      for (const { key, box, colour } of parts) {
+        const built = board?.geometries.get(key);
+        if (built) {
+          const mesh = new THREE.Mesh(built, material(colour));
+          mesh.castShadow = mesh.receiveShadow = true;
+          mesh.userData.shared = true;
+          root.add(mesh);
+        } else block(box.x0, box.y0, 0, box.x1 - box.x0, box.y1 - box.y0, base.z, material(colour, 0.35));
+      }
+    }
 
     const selectedHolders = new Set(sels.map((id) => p.things.find((t) => t.id === id)?.holder?.id).filter(Boolean));
     for (const h of p.holders) if (h.rect) holder(h);
@@ -213,17 +232,18 @@ export function Preview3D({ plan: p, sels, select }: Props) {
     return () => {
       observer.disconnect();
       scene.traverse((object) => {
-        if (object instanceof THREE.Mesh) object.geometry.dispose();
+        if (object instanceof THREE.Mesh && !object.userData.shared) object.geometry.dispose();
       });
       for (const m of materials.values()) m.dispose();
       renderer.dispose();
       element.removeChild(canvas);
     };
-  }, [p, sels]);
+  }, [p, sels, board]);
 
+  const building = board && board.geometries.size < board.total ? `Building the board: ${board.geometries.size} of ${board.total} parts · ` : "";
   return (
     <div className="three" ref={host}>
-      <p className="hint">Drag to turn · scroll to zoom · click a thing to select it</p>
+      <p className="hint">{building}Drag to turn · scroll to zoom · click a thing to select it</p>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { boxesOverlap, boxOf, boxPart, grow, polygon, push, RAD, spansOverlap, turn, unionOf, type Box, type Point } from "./geometry.ts";
 import { drawerShape } from "./drawers.ts";
+import { layoutBoard, type BoardLayout } from "./grid/layout.ts";
 import { GRID } from "./grid/parameters.ts";
 import type { Drawer, Holder, Item, Pose, Thing } from "./schema.ts";
 import { footprint, outline, overlap, posesOf, rectangle, samePose, type Part } from "./shape.ts";
@@ -55,6 +56,8 @@ export interface Base {
   z: number;
   grid?: { pitch: number; nx: number; ny: number; ox: number; oy: number };
   board?: { x0: number; y0: number; width: number; depth: number; holes: Point[] };
+  /** A grid board's tiles, bumpers and holes, laid out for the plan's bed. */
+  layout?: BoardLayout;
 }
 
 export interface Shape {
@@ -178,6 +181,7 @@ export function plan(drawer: Drawer, bed: readonly [number, number, number]): Pl
   const [width, depth, height] = drawerShape(drawer.drawer)!.inside;
   const rules = { edge_margin: 0, gap: 0, angle_step: 15, ...drawer.rules };
   const base = baseOf(drawer, width, depth, rules.edge_margin);
+  if (drawer.base?.kind === "grid") base.layout = layoutBoard(drawerShape(drawer.drawer)!, drawer.base, { bed });
 
   const things: PlannedThing[] = [];
   for (const [index, thing] of drawer.layout.entries()) {

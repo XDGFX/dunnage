@@ -1,5 +1,6 @@
 import { parse } from "yaml";
 import { read } from "./check.ts";
+import { DRAWER_PRESETS, drawerShape } from "./drawers.ts";
 import { half } from "./geometry.ts";
 import { BASES, plan, type BaseKey, type Method } from "./plan.ts";
 import type { Drawer, Holder, Pose } from "./schema.ts";
@@ -212,7 +213,31 @@ export function setBase(text: string, key: BaseKey): string {
   return "preset" in base ? setIn(text, ["base", "preset"], base.preset) : text;
 }
 
-export const setRule = (text: string, rule: "edge_margin" | "gap" | "angle_step", value: number) => setIn(text, ["rules", rule], value);
+const SHAPE_FIELDS = ["inside", "walls", "corner_radius", "floor_edge"] as const;
+
+/**
+ * Names a built-in drawer, dropping the shape fields that would override it. With `null`, the
+ * drawer is described directly instead, starting from the shape the preset gave it.
+ */
+export function setDrawerPreset(text: string, preset: string | null): string {
+  if (preset !== null) {
+    if (!DRAWER_PRESETS[preset]) throw new Error(`no built-in drawer ${preset}`);
+    // Set first, so `drawer:` is never left empty.
+    text = setIn(text, ["drawer", "preset"], preset);
+    for (const field of SHAPE_FIELDS) text = deleteIn(text, ["drawer", field]);
+    return text;
+  }
+  const shape = drawerShape(drawerOf(text).drawer);
+  if (!shape) return deleteIn(text, ["drawer", "preset"]);
+  text = deleteIn(setIn(text, ["drawer", "inside"], shape.inside), ["drawer", "preset"]);
+  const { left, right, front, back } = shape.walls;
+  const walls = { ...(left || right ? (left === right ? { sides: left } : { left, right }) : {}), ...(front || back ? (front === back ? { ends: front } : { front, back }) : {}) };
+  text = Object.keys(walls).length ? setIn(text, ["drawer", "walls"], walls) : deleteIn(text, ["drawer", "walls"]);
+  for (const field of ["corner_radius", "floor_edge"] as const) text = shape[field] ? setIn(text, ["drawer", field], shape[field]) : deleteIn(text, ["drawer", field]);
+  return text;
+}
+
+export const setRule =(text: string, rule: "edge_margin" | "gap" | "angle_step", value: number) => setIn(text, ["rules", rule], value);
 
 // --- The review ------------------------------------------------------------------------------
 

@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useRef, type PointerEvent as ReactPointerEvent } from "react";
 import {
-  boxesOverlap, HELD, lower, METHODS, mm, moveThings, partsAt, partsHit, PEG, seat, seatOnPegs, setAside, setRotate, SLOT, snapAngle, solve, turn, unionOf, worst, wrap,
-  type Box, type Issue, type Move, type Plan, type PlannedHolder, type PlannedThing, type Point, type Snap,
+  boxesOverlap, GRID, HELD, holeAt, lower, METHODS, mm, moveThings, partsAt, partsHit, PEG, seat, seatOnPegs, setAside, setRotate, SLOT, snapAngle, solve, turn, unionOf, worst, wrap,
+  type BoardLayout, type Box, type Issue, type Move, type Plan, type PlannedHolder, type PlannedThing, type Point, type Snap,
 } from "../core/index.ts";
 
 // The plan: the drawer from above, with the counter in front of it. It's the interface: drag a
@@ -276,6 +276,7 @@ export function PlanView({ plan: p, issues, sels, select, apply }: Props) {
   const group = sels.map(thing).filter((t): t is PlannedThing => !!t && !t.aside);
   const groupBox = group.length > 1 && !group.some((t) => t.holder?.locked) ? unionOf(group.map((t) => t.box)) : null;
   const anyAside = p.things.some((t) => t.aside);
+  const corner = Math.max(4, p.base.layout?.shape.corner_radius ?? 0);
 
   return (
     <svg
@@ -296,7 +297,7 @@ export function PlanView({ plan: p, issues, sels, select, apply }: Props) {
         {anyAside ? "Set aside: out of the drawer, still in the file" : "Drag a thing here to take it out of the drawer"}
       </text>
 
-      <rect className="floor" x={0} y={0} width={W} height={D} rx={4} onPointerDown={startMarquee} />
+      <rect className="floor" x={0} y={0} width={W} height={D} rx={corner} onPointerDown={startMarquee} />
       <BaseLayer p={p} Y={Y} />
       {p.obstructions.map((o) => (
         <g key={o.name} className="obstruction">
@@ -305,7 +306,7 @@ export function PlanView({ plan: p, issues, sels, select, apply }: Props) {
         </g>
       ))}
       {p.rules.edge_margin > 0 && <rect className="margin" x={p.rules.edge_margin} y={p.rules.edge_margin} width={W - 2 * p.rules.edge_margin} height={D - 2 * p.rules.edge_margin} />}
-      <rect className="wall" x={0} y={0} width={W} height={D} rx={4} />
+      <rect className="wall" x={0} y={0} width={W} height={D} rx={corner} />
       <text className="front" x={W / 2} y={D + 15} textAnchor="middle">Front of the drawer</text>
       <text className="dims" x={W} y={-14} textAnchor="end">{`${W} × ${D} × ${p.height} mm inside · ${p.base.name}`}</text>
 
@@ -375,9 +376,10 @@ export function PlanView({ plan: p, issues, sels, select, apply }: Props) {
 }
 
 function BaseLayer({ p, Y }: { p: Plan; Y: (y: number) => number }) {
-  const { grid, board } = p.base;
+  const { grid, board, layout } = p.base;
   const W = p.width;
   const D = p.depth;
+  if (layout) return <GridBoard layout={layout} D={D} Y={Y} />;
   if (grid) {
     const x1 = grid.ox + grid.nx * grid.pitch;
     const y1 = grid.oy + grid.ny * grid.pitch;
@@ -404,6 +406,50 @@ function BaseLayer({ p, Y }: { p: Plan; Y: (y: number) => number }) {
   for (let x = 50; x < W; x += 50) lines.push(<line key={`x${x}`} className="grid" x1={x} y1={0} x2={x} y2={D} />);
   for (let y = 50; y < D; y += 50) lines.push(<line key={`y${y}`} className="grid" x1={0} y1={Y(y)} x2={W} y2={Y(y)} />);
   return <g className="base">{lines}</g>;
+}
+
+/** A grid board: tiles with their `row-col` labels, bumpers out to the walls, and the holes. */
+function GridBoard({ layout, D, Y }: { layout: BoardLayout; D: number; Y: (y: number) => number }) {
+  const pitch = GRID.pitch;
+  const hole = (GRID.fit.grid_hole[layout.variant] ?? GRID.fit.grid_hole[GRID.variant]!) / 2;
+  const R = layout.shape.corner_radius;
+  const [W] = layout.shape.inside;
+  const rect = (b: Box) => ({ x: b.x0, y: Y(b.y1), width: b.x1 - b.x0, height: b.y1 - b.y0 });
+  // A rounded corner cuts the board at `cut` round the corner's own centre.
+  const inset = layout.corner ? R - layout.corner.cut : 0;
+  return (
+    <g className="base">
+      <defs>
+        <pattern id="grid-holes" width={pitch} height={pitch} patternUnits="userSpaceOnUse" x={layout.origin[0]} y={D - layout.origin[1]}>
+          <circle className="grid-hole" cx={pitch / 2} cy={pitch / 2} r={hole} />
+        </pattern>
+        {layout.corner && (
+          <clipPath id="grid-corners">
+            <rect x={inset} y={inset} width={W - 2 * inset} height={D - 2 * inset} rx={layout.corner.cut} />
+          </clipPath>
+        )}
+      </defs>
+      <g clipPath={layout.corner ? "url(#grid-corners)" : undefined}>
+        {layout.bumpers.map((b) => (
+          <g key={`${b.side}-${b.index}`}>
+            <rect className="bumper-top" {...rect(b.top)} />
+            <rect className="bumper" {...rect(b.floor)} />
+          </g>
+        ))}
+        {layout.tiles.map((t) => <rect key={t.label} className="tile" {...rect(t.box)} />)}
+        {layout.tiles.map((t) => <rect key={`h${t.label}`} className="tile-holes" {...rect(t.box)} fill="url(#grid-holes)" />)}
+      </g>
+      {layout.dropped.map(([i, j]) => {
+        const [x, y] = holeAt(layout, [i, j]);
+        return <path key={`d${i}-${j}`} className="dropped" d={`M${x - 2.5} ${Y(y) - 2.5}l5 5m0 -5l-5 5`} />;
+      })}
+      {layout.countersinks.map(([i, j]) => {
+        const [x, y] = holeAt(layout, [i, j]);
+        return <circle key={`c${i}-${j}`} className="countersink" cx={x} cy={Y(y)} r={GRID.countersink.head / 2} />;
+      })}
+      {layout.tiles.map((t) => <text key={`l${t.label}`} className="tile-label" x={t.box.x0 + 5} y={Y(t.box.y0) - 5}>{t.label}</text>)}
+    </g>
+  );
 }
 
 function HolderShape({ p, h, Y, selected, issues }: { p: Plan; h: PlannedHolder; Y: (y: number) => number; selected: boolean; issues: Issue[] }) {

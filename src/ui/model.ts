@@ -12,13 +12,16 @@ export interface Reading {
   issues: Map<string, Issue[]>;
   /** Problems the file has that belong to no one thing or holder. */
   general: Problem[];
+  /** What `dunnage check` says is worth knowing but isn't wrong, such as an unverified built-in drawer. */
+  warnings: Problem[];
 }
 
 const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export function reading(text: string, bed: readonly [number, number, number]): Reading {
-  const result = read(text);
-  if (result.file?.kind !== "drawer") return { problems: result.problems, issues: new Map(), general: result.problems };
+  const result = read(text, { bed });
+  const warnings = result.warnings ?? [];
+  if (result.file?.kind !== "drawer") return { problems: result.problems, issues: new Map(), general: result.problems, warnings };
   const drawer = result.file.drawer;
   const plan = planOf(drawer, bed);
   const issues = new Map<string, Issue[]>();
@@ -33,7 +36,7 @@ export function reading(text: string, bed: readonly [number, number, number]): R
   }
   for (const t of plan.placed) for (const issue of t.issues) add(t.id, issue);
   for (const h of plan.holders) for (const issue of h.issues) add(h.id, issue);
-  return { problems: result.problems, drawer, plan, issues, general };
+  return { problems: result.problems, drawer, plan, issues, general, warnings };
 }
 
 export interface History {

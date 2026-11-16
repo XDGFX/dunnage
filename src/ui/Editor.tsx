@@ -272,7 +272,7 @@ export function Editor({ workspace, file, initial, onOpen, onNew, onClose }: Pro
           </section>
           <aside className="rail">
             <Panel
-              plan={p} drawer={r.drawer} issues={r.issues} general={r.general} sels={live}
+              plan={p} drawer={r.drawer} issues={r.issues} general={r.general} warnings={r.warnings} sels={live}
               select={select} apply={apply} onLock={onLock} onSpec={(id) => setSheet({ kind: "spec", id })}
               onAddThing={() => setSheet({ kind: "add" })} onRemove={onRemove} onPutBack={onPutBack}
               onShowFile={(line) => setSheet({ kind: "file", line })}

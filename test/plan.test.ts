@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
-import { load, plan, specSheet, type Drawer } from "../src/core/index.ts";
+import { drawerShape, layoutBoard, load, plan, specSheet, type Drawer } from "../src/core/index.ts";
 
 const BED: [number, number, number] = [256, 256, 256];
 const coffee = () => {
@@ -152,5 +152,20 @@ describe("specSheet", () => {
     expect(sheet).toContain("# Glass cradles front: custom holder spec");
     expect(sheet).toContain("Purpose: Hold two glasses on their sides so they can't roll or slide.");
     expect(sheet).toContain("- Glass: cylinder Ø70 × 160 mm, lying, turned 90°; centre at (200, 198); top at 70 mm.");
+  });
+});
+
+describe("on a grid board", () => {
+  // The schema builds `preset` from a list, so its static type is lost.
+  const grid = drawer({ drawer: { preset: "ikea-maximera-80x60-low" as never }, base: { kind: "grid" } });
+
+  test("lays the board out for the plan's bed", () => {
+    const small: [number, number, number] = [180, 180, 180];
+    expect(plan(grid, BED).base.layout).toEqual(layoutBoard(drawerShape(grid.drawer)!, { kind: "grid" }, { bed: BED }));
+    expect(plan(grid, small).base.layout!.tiles.length).toBeGreaterThan(plan(grid, BED).base.layout!.tiles.length);
+  });
+
+  test("has no board on other bases", () => {
+    expect(plan(drawer({}), BED).base.layout).toBeUndefined();
   });
 });
