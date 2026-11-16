@@ -26,4 +26,15 @@ export {
   seatOnPegs, setAside, setBase, setFit, setMethod, setPose, setPoses, setRotate, setRule, splitHolder, unlockHolder,
 } from "./actions.ts";
 export { specSheet } from "./spec.ts";
+export type { SpecBoard } from "./spec.ts";
+export { boardCounts, exportDrawer, PLATE_GAP, SPARES, withSpares, zipExport } from "./export/export.ts";
+export type { ExportedFile, ExportOptions } from "./export/export.ts";
+export { fixingsOf, holderSide, pegDiameter } from "./export/fixings.ts";
+export type { Fixing, FixBy } from "./export/fixings.ts";
+export { LIBRARY } from "./export/library.ts";
+export type { Library, LibraryPart } from "./export/library.ts";
+export { plates } from "./export/plates.ts";
+export type { Placement, PlateItem } from "./export/plates.ts";
+export { MODEL_PATH, model, to3mf } from "./export/threemf.ts";
+export type { PlacedPart } from "./export/threemf.ts";
 export { posesOf, samePose } from "./shape.ts";
