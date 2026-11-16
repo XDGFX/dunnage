@@ -1,12 +1,13 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import {
-  addComment, answerQuestion, BASES, closeConcern, fitOf, holdTogether, lower, METHODS, posesOf, pretty, roundAllOver, samePose, seatOnPegs, setAside, setBase, setFit,
+  addComment, answerQuestion, BASES, closeConcern, fitOf, GRID, holdTogether, lower, METHODS, posesOf, pretty, roundAllOver, samePose, seatOnPegs, setAside, setBase, setFit,
   setMethod, setPose, setPoses, setRotate, setRule, worst, wrap,
   type BaseKey, type Drawer, type Issue, type Method, type Plan, type PlannedThing, type Pose, type Problem,
 } from "../core/index.ts";
 import { Icon } from "./icons.tsx";
 import { GridBase } from "./GridBase.tsx";
 import { MethodPicker, unavailable } from "./MethodPicker.tsx";
+import { NumberField } from "./NumberField.tsx";
 
 // The side panel shows only what's selected: one thing and everything about it, several things,
 // or with nothing selected, the drawer itself.
@@ -69,27 +70,6 @@ function Issues({ list }: { list: Issue[] }) {
     <div className="issues">
       {list.map((issue, k) => <p key={k} className={`issue ${issue.level}`}>{issue.text}</p>)}
     </div>
-  );
-}
-
-/** A number field that edits on change, not on every keystroke. */
-export function NumberField({ id, value, min, max, step, onCommit, label, disabled, width }: { id: string; value: number; min?: number; max?: number; step?: number; onCommit: (v: number) => void; label?: string; disabled?: boolean; width?: number }) {
-  return (
-    <input
-      key={value}
-      id={id}
-      className="field num"
-      type="number"
-      defaultValue={value}
-      min={min}
-      max={max}
-      step={step}
-      disabled={disabled}
-      aria-label={label}
-      style={width ? { width } : undefined}
-      onBlur={(e) => Number(e.target.value) !== value && e.target.value !== "" && onCommit(Number(e.target.value))}
-      onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-    />
   );
 }
 
@@ -303,7 +283,7 @@ function Overview({ plan: p, drawer, issues, general, warnings = [], select, app
   const baseText: Record<BaseKey, string> = {
     bare: "Holders sit on the floor and hold each other by touching.",
     gridfinity: `${p.base.grid?.nx ?? 0} × ${p.base.grid?.ny ?? 0} cells of ${p.base.grid?.pitch ?? 42} mm, centred. Each bin claims the cells its things cover.`,
-    grid: "A printed board of holes on a 9.5 mm pitch, in tiles with bumpers out to the walls. Holders screw or pin into it.",
+    grid: `A printed board of holes on a ${GRID.pitch} mm pitch, in tiles with bumpers out to the walls. Holders screw or pin into it.`,
     "uppdatera-60": "Things rest against IKEA pegs in fixed holes.",
     "uppdatera-80": "Things rest against IKEA pegs in fixed holes.",
   };
@@ -358,7 +338,7 @@ function Overview({ plan: p, drawer, issues, general, warnings = [], select, app
           {Object.entries(BASES).map(([key, base]) => <option key={key} value={key}>{base.name}</option>)}
         </select>
         <p className="note">{baseText[p.base.key]}</p>
-        {p.base.layout && <GridBase drawer={drawer} layout={p.base.layout} apply={apply} />}
+        {p.base.layout && <GridBase drawer={drawer} layout={p.base.layout} bed={p.bed} apply={apply} />}
         <details className="more">
           <summary>Layout rules: {rules.edge_margin} mm edge margin, {rules.gap} mm gap, {rules.angle_step}° steps</summary>
           <div className="kv">

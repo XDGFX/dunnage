@@ -1,10 +1,10 @@
 import { useState, type FormEvent } from "react";
 import {
-  deleteIn, DRAWER_PRESETS, drawerShape, GRID, mm, setDrawerPreset, setIn, VARIANT_NAMES,
-  type BoardLayout, type Drawer, type GridBase as Grid, type Path, type Variant,
+  bedTile, cornerHoles, deleteIn, DRAWER_PRESETS, drawerShape, GRID, mm, presetName, setDrawerPreset, setIn, setWall, tileSizes, VARIANT_NAMES,
+  type BoardLayout, type Drawer, type GridBase as Grid, type Path, type Side, type Variant,
 } from "../core/index.ts";
 import { Icon } from "./icons.tsx";
-import { NumberField } from "./Panel.tsx";
+import { NumberField } from "./NumberField.tsx";
 
 // The grid base's settings: the drawer it lies in, built-in or measured, and how the board is cut
 // into tiles and bumpers.
@@ -12,8 +12,11 @@ import { NumberField } from "./Panel.tsx";
 interface Props {
   drawer: Drawer;
   layout: BoardLayout;
+  bed: readonly [number, number, number];
   apply: (edit: (text: string) => string) => void;
 }
+
+const WALL_TEXT: Record<Side, string> = { left: "Left wall lean", right: "Right wall lean", front: "Front wall lean", back: "Back wall lean" };
 
 const VARIANT_TEXT: Record<Variant, string> = {
   "light-thin": "Light, thin walls",
@@ -22,15 +25,7 @@ const VARIANT_TEXT: Record<Variant, string> = {
   standard: "Standard",
 };
 
-/** `ikea-maximera-80x60-low` as `MAXIMERA 80 × 60, low`. */
-export function presetName(preset: string): string {
-  const m = /^ikea-maximera-(.+)-(low|medium|high)$/.exec(preset);
-  if (!m) return preset;
-  const size = m[1].startsWith("us-") ? `US ${m[1].slice(3)} in` : m[1].replace("x", " × ");
-  return `MAXIMERA ${size}, ${m[2]}`;
-}
-
-export function GridBase({ drawer, layout, apply }: Props) {
+export function GridBase({ drawer, layout, bed, apply }: Props) {
   const base = drawer.base as Grid;
   const shape = drawerShape(drawer.drawer)!;
   const preset = drawer.drawer.preset;
@@ -38,11 +33,13 @@ export function GridBase({ drawer, layout, apply }: Props) {
   const clear = (path: Path) => apply((text) => deleteIn(text, path));
   const [w, d, h] = shape.inside;
 
-  const setWalls = (pair: "sides" | "ends", value: number) =>
-    apply((text) => {
-      for (const side of pair === "sides" ? ["left", "right"] : ["front", "back"]) text = deleteIn(text, ["drawer", "walls", side]);
-      return setIn(text, ["drawer", "walls", pair], value);
-    });
+  // A pair that leans alike is one field; one that differs is a field a wall, so neither is lost.
+  type WallRow = { label: string; value: number; wall: Side | "sides" | "ends" };
+  const wallRows = ([["sides", "left", "right", "Side walls lean"], ["ends", "front", "back", "Front and back lean"]] as const).flatMap(([pair, a, b, text]): WallRow[] =>
+    shape.walls[a] === shape.walls[b]
+      ? [{ label: text, value: shape.walls[a], wall: pair }]
+      : [a, b].map((side) => ({ label: WALL_TEXT[side], value: shape.walls[side], wall: side })),
+  );
 
   const split = base.bumpers?.split ?? "even";
   const splitX = split === "even" ? "even" : (split.x ?? "even");
@@ -53,14 +50,16 @@ export function GridBase({ drawer, layout, apply }: Props) {
   const sinks = base.countersinks ?? [];
   const setSinks = (list: [number, number][]) => (list.length ? set(["base", "countersinks"], list) : clear(["base", "countersinks"]));
   const [nx, ny] = layout.holes;
-  // The hole nearest each corner that a rounded corner leaves, stepping in along the diagonal.
-  const corners = ([[0, 0, 1, 1], [nx - 1, 0, -1, 1], [0, ny - 1, 1, -1], [nx - 1, ny - 1, -1, -1]] as const).map(([i, j, di, dj]) => {
-    let k = 0;
-    while (k < Math.min(nx, ny) && layout.dropped.some(([a, b]) => a === i + k * di && b === j + k * dj)) k++;
-    return [i + k * di, j + k * dj] as [number, number];
-  });
-  const columns = layout.tiles.filter((t) => t.row === 0).map((t) => t.size[0]);
-  const rows = layout.tiles.filter((t) => t.col === 0).map((t) => t.size[1]);
+  const corners = cornerHoles(layout) as [number, number][];
+  const { columns, rows } = tileSizes(layout);
+  // The format takes both axes, so the one left blank is filled in at the bed's largest, as it was.
+  const most = bedTile(bed);
+  const setTile = (axis: 0 | 1, v: number | undefined) => {
+    if (v === undefined) return clear(["base", "tile"]);
+    const tile: [number, number] = [base.tile?.[0] ?? most[0], base.tile?.[1] ?? most[1]];
+    tile[axis] = v;
+    set(["base", "tile"], tile);
+  };
 
   return (
     <div className="grid-base">
@@ -79,7 +78,7 @@ export function GridBase({ drawer, layout, apply }: Props) {
       <p className="note">
         {preset
           ? `Filled in from ${presetName(preset)}. Change any size below to override it.`
-          : "Measure the inside at the floor, on top of any liner."}
+          : "Measure the inside at the floor, on top of any liner. Choosing a built-in drawer replaces these sizes; undo brings them back."}
       </p>
       <div className="kv">
         <label>Inside at the floor<small>Width, depth and usable height, mm</small></label>
@@ -88,10 +87,10 @@ export function GridBase({ drawer, layout, apply }: Props) {
           <NumberField id="g-d" label="Depth" value={d} min={1} width={60} onCommit={(v) => set(["drawer", "inside"], [w, v, h])} />
           <NumberField id="g-h" label="Height" value={h} min={1} width={60} onCommit={(v) => set(["drawer", "inside"], [w, d, v])} />
         </span>
-        <label htmlFor="g-sides">Side walls lean<small>Degrees out from upright</small></label>
-        <NumberField id="g-sides" value={shape.walls.left} min={0} max={45} onCommit={(v) => setWalls("sides", v)} />
-        <label htmlFor="g-ends">Front and back lean</label>
-        <NumberField id="g-ends" value={shape.walls.front} min={0} max={45} onCommit={(v) => setWalls("ends", v)} />
+        {wallRows.map((row, k) => [
+          <label key={`l-${row.wall}`} htmlFor={`g-${row.wall}`}>{row.label}{k === 0 && <small>Degrees out from upright</small>}</label>,
+          <NumberField key={`f-${row.wall}`} id={`g-${row.wall}`} value={row.value} min={0} max={45} onCommit={(v) => apply((text) => setWall(text, row.wall, v))} />,
+        ])}
         <label htmlFor="g-radius">Corner radius<small>Seen from above, mm</small></label>
         <NumberField id="g-radius" value={shape.corner_radius} min={0} step={0.5} onCommit={(v) => set(["drawer", "corner_radius"], Math.max(0, v))} />
         <label htmlFor="g-edge">Floor edge<small>The fillet where the floor meets the walls, mm</small></label>
@@ -114,10 +113,10 @@ export function GridBase({ drawer, layout, apply }: Props) {
         </p>
       )}
       <div className="kv">
-        <label>Largest tile<small>In holes; blank for the biggest that fits the bed</small></label>
+        <label>Largest tile<small>Across and deep, in holes. Blank for the biggest the bed takes; setting one sets the other to that.</small></label>
         <span className="triple">
-          <OptionalNumber label="Largest tile across" value={base.tile?.[0]} onCommit={(v) => (v === undefined ? clear(["base", "tile"]) : set(["base", "tile"], [v, base.tile?.[1] ?? Math.max(...rows, 1)]))} />
-          <OptionalNumber label="Largest tile deep" value={base.tile?.[1]} onCommit={(v) => (v === undefined ? clear(["base", "tile"]) : set(["base", "tile"], [base.tile?.[0] ?? Math.max(...columns, 1), v]))} />
+          <OptionalNumber label="Largest tile across" value={base.tile?.[0]} onCommit={(v) => setTile(0, v)} />
+          <OptionalNumber label="Largest tile deep" value={base.tile?.[1]} onCommit={(v) => setTile(1, v)} />
         </span>
         <label htmlFor="g-split-x">Bumpers across<small>Which side takes the thicker bumper</small></label>
         <select id="g-split-x" className="select" value={splitX} onChange={(e) => setSplit(e.target.value, splitY)}>

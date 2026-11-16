@@ -1,7 +1,7 @@
 import { boxesOverlap, boxOf, boxPart, grow, polygon, push, RAD, spansOverlap, turn, unionOf, type Box, type Point } from "./geometry.ts";
 import { drawerShape } from "./drawers.ts";
 import { layoutBoard, type BoardLayout } from "./grid/layout.ts";
-import { GRID } from "./grid/parameters.ts";
+import { GRID, gridFit, type Fit } from "./grid/parameters.ts";
 import type { Drawer, Holder, Item, Pose, Thing } from "./schema.ts";
 import { footprint, outline, overlap, posesOf, rectangle, samePose, type Part } from "./shape.ts";
 
@@ -164,6 +164,8 @@ export interface Plan {
   rules: { edge_margin: number; gap: number; angle_step: number };
   base: Base;
   bed: readonly [number, number, number];
+  /** The printer's grid fits, over the calibrated defaults. */
+  fit: Fit;
   things: PlannedThing[];
   placed: PlannedThing[];
   holders: PlannedHolder[];
@@ -175,13 +177,14 @@ export interface Plan {
 export const baseKey = (base: Drawer["base"]): BaseKey =>
   !base || base.kind === "bare" ? "bare" : base.kind === "pegboard" ? base.preset : base.kind;
 
-/** Works out the plan for a drawer, for a printer with this bed. */
-export function plan(drawer: Drawer, bed: readonly [number, number, number]): Plan {
+/** Works out the plan for a drawer, for a printer with this bed and these grid fits. */
+export function plan(drawer: Drawer, bed: readonly [number, number, number], printerFit?: Partial<Fit>): Plan {
+  const fit = gridFit(printerFit);
   // `read` gives a drawer to plan only once its shape resolves.
   const [width, depth, height] = drawerShape(drawer.drawer)!.inside;
   const rules = { edge_margin: 0, gap: 0, angle_step: 15, ...drawer.rules };
   const base = baseOf(drawer, width, depth, rules.edge_margin);
-  if (drawer.base?.kind === "grid") base.layout = layoutBoard(drawerShape(drawer.drawer)!, drawer.base, { bed });
+  if (drawer.base?.kind === "grid") base.layout = layoutBoard(drawerShape(drawer.drawer)!, drawer.base, { bed, fit });
 
   const things: PlannedThing[] = [];
   for (const [index, thing] of drawer.layout.entries()) {
@@ -246,7 +249,7 @@ export function plan(drawer: Drawer, bed: readonly [number, number, number]): Pl
   });
 
   const result: Plan = {
-    width, depth, height, rules, base, bed, things, placed, holders, obstructions,
+    width, depth, height, rules, base, bed, fit, things, placed, holders, obstructions,
     counterDepth: Math.max(110, row + rowDepth + 64),
   };
   for (const h of holders) shapeHolder(result, h);

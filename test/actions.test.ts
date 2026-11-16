@@ -21,6 +21,7 @@ import {
   setMethod,
   setPose,
   setRotate,
+  setWall,
   splitHolder,
   unlockHolder,
 } from "../src/core/index.ts";
@@ -193,5 +194,32 @@ layout: []
   test("keeps walls that differ side to side", () => {
     const text = setDrawerPreset(setIn(MEASURED, ["drawer", "walls"], { left: 5, back: 2 }), null);
     expect(data(text).drawer.walls).toEqual({ left: 5, right: 0, front: 0, back: 2 });
+  });
+});
+
+describe("wall lean", () => {
+  const WALLS = `format: drawer/0.3
+name: Test
+drawer:
+  inside: [560, 400, 75]
+  walls: { left: 20, right: 0, ends: 3 }
+base: { kind: grid }
+items: {}
+layout: []
+`;
+  const walls = (text: string) => drawerShape(data(text).drawer)!.walls;
+
+  test("setting one wall leaves the others as the file has them", () => {
+    const text = setWall(WALLS, "right", 5);
+    expect(data(text).drawer.walls).toEqual({ left: 20, right: 5, ends: 3 });
+    expect(walls(text)).toEqual({ left: 20, right: 5, front: 3, back: 3 });
+    valid(text);
+  });
+
+  test("setting a pair replaces that pair's own values, and only theirs", () => {
+    const text = setWall(WALLS, "sides", 10);
+    expect(data(text).drawer.walls).toEqual({ ends: 3, sides: 10 });
+    expect(walls(text)).toEqual({ left: 10, right: 10, front: 3, back: 3 });
+    valid(text);
   });
 });

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
-import { drawerShape, layoutBoard, load, plan, specSheet, type Drawer } from "../src/core/index.ts";
+import { drawerShape, GRID, gridFit, layoutBoard, load, plan, specSheet, type Drawer } from "../src/core/index.ts";
 
 const BED: [number, number, number] = [256, 256, 256];
 const coffee = () => {
@@ -163,6 +163,14 @@ describe("on a grid board", () => {
     const small: [number, number, number] = [180, 180, 180];
     expect(plan(grid, BED).base.layout).toEqual(layoutBoard(drawerShape(grid.drawer)!, { kind: "grid" }, { bed: BED }));
     expect(plan(grid, small).base.layout!.tiles.length).toBeGreaterThan(plan(grid, BED).base.layout!.tiles.length);
+  });
+
+  test("lays the board out with the printer's fits", () => {
+    const fit = { grid_hole: { [GRID.variant]: 5 } };
+    const p = plan(grid, BED, fit);
+    expect(p.fit).toEqual(gridFit(fit));
+    expect(p.base.layout).toEqual(layoutBoard(drawerShape(grid.drawer)!, { kind: "grid" }, { bed: BED, fit }));
+    expect(p.base.layout!.lapTab).toBeLessThan(plan(grid, BED).base.layout!.lapTab);
   });
 
   test("has no board on other bases", () => {

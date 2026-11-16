@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { plan as planOf, read, type Drawer, type Issue, type Plan, type Problem } from "../core/index.ts";
+import { plan as planOf, read, type Drawer, type Fit, type Issue, type Plan, type Problem } from "../core/index.ts";
 
 // One drawer file being edited: its text, what's undone and redone, and what dunnage makes of
 // it. The text is the state; the drawer and its plan are worked out from it after every edit.
@@ -18,12 +18,12 @@ export interface Reading {
 
 const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-export function reading(text: string, bed: readonly [number, number, number]): Reading {
-  const result = read(text, { bed });
+export function reading(text: string, bed: readonly [number, number, number], fit?: Partial<Fit>): Reading {
+  const result = read(text, { bed, fit });
   const warnings = result.warnings ?? [];
   if (result.file?.kind !== "drawer") return { problems: result.problems, issues: new Map(), general: result.problems, warnings };
   const drawer = result.file.drawer;
-  const plan = planOf(drawer, bed);
+  const plan = planOf(drawer, bed, fit);
   const issues = new Map<string, Issue[]>();
   const add = (id: string, issue: Issue) => issues.set(id, [...(issues.get(id) ?? []), issue]);
   const general: Problem[] = [];
