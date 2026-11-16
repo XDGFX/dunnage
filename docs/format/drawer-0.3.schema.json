@@ -350,7 +350,7 @@
                 }
               ],
               "minItems": 2,
-              "description": "[x, y] in holes."
+              "description": "The largest tile, [x, y] in holes; tiles are balanced under it."
             },
             "bumpers": {
               "type": "object",

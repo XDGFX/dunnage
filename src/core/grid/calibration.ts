@@ -1,6 +1,6 @@
 import type { Manifold, ManifoldToplevel } from "manifold-3d";
 import { GRID } from "./parameters.ts";
-import { JOINER, PITCH, VARIANTS, holeCentre, onBed, seatedJoiner, tile, type Dots, type Variant } from "./tile.ts";
+import { PITCH, VARIANTS, holeCentre, onBed, peg as pegShape, printJoiner, tile, type Dots, type Variant } from "./tile.ts";
 
 // Test prints for #7, which settle the open numbers in the grid spec (#6 §7), each round as small
 // as it can be. Labels are cone dots on the top face: count them.
@@ -39,15 +39,9 @@ export const JOINER_FITS = [0.2, 0.3, 0.4, 0.5, 0.6];
  */
 export const PEG_CLEARANCES = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8];
 /** The tightest peg's length; each looser one is a step longer, so they sort by eye. */
-const PEG_LENGTH = 12;
+const PEG_LENGTH = GRID.peg.length;
 const PEG_STEP = 2;
 const pegLength = (n: number) => PEG_LENGTH + PEG_STEP * n;
-const PEG_CHAMFER = GRID.peg.chamfer;
-/**
- * Where the flat is cut, as an angle up the peg from its bottom. Above 45°, so the curve rises off
- * the flat steeply enough to print without support.
- */
-const PEG_FLAT_ANGLE = GRID.peg.flat_angle;
 /** Holders put at least this much plastic under a screw head (#6 §6). */
 const FLANGE = GRID.screw.flange;
 const SCREW_CLEARANCE = GRID.screw.clearance;
@@ -190,51 +184,6 @@ export function roundThree(wasm: ManifoldToplevel, choices: (Choice & { fit: num
 export function describeFit(fit: number): string {
   if (fit === 0) return "line-to-line";
   return fit < 0 ? `${(-fit).toFixed(2)} mm interference` : `${fit.toFixed(2)} mm clearance`;
-}
-
-/**
- * A joiner turned over to print: its flat side, flush with the back in use, on the bed, and its rings
- * standing up. The webs are too small for dots, so `notches` V-notches round the end of one ring
- * label it.
- */
-export function printJoiner(wasm: ManifoldToplevel, variant: Variant, hole: number, fit: number, notches = 0): Manifold {
-  const { Manifold } = wasm;
-  let seated = seatedJoiner(wasm, variant, hole, fit);
-  if (notches) {
-    const { min } = seated.boundingBox();
-    const radius = hole / 2 + VARIANTS[variant].wall + fit + JOINER.wall / 2;
-    const side = 0.6;
-    // A square prism on its edge, along a radius, cuts a 45° V across the ring's end.
-    const notch = Manifold.cube([JOINER.wall + 2, side, side], true).rotate([45, 0, 0]).translate([radius, 0, min[2]]);
-    const cuts = Array.from({ length: notches }, (_, n) => notch.rotate([0, 0, (360 * n) / notches + 45]).translate([-PITCH / 2, -PITCH / 2, 0]));
-    seated = seated.subtract(Manifold.union(cuts));
-  }
-  return onBed(seated.rotate([180, 0, 0]));
-}
-
-/**
- * A round peg with one flat, chamfered at both ends, lying on the flat so its layers run along its
- * length.
- */
-function pegShape(wasm: ManifoldToplevel, diameter: number, length: number): Manifold {
-  const { Manifold, CrossSection } = wasm;
-  const r = diameter / 2;
-  const c = PEG_CHAMFER;
-  // The half-profile in (radius, length), revolved round the peg's axis, then laid along x.
-  const round = CrossSection.ofPolygons([
-    [
-      [0, 0],
-      [r - c, 0],
-      [r, c],
-      [r, length - c],
-      [r - c, length],
-      [0, length],
-    ],
-  ])
-    .revolve(64)
-    .rotate([0, 90, 0]);
-  const cut = r * Math.cos((PEG_FLAT_ANGLE * Math.PI) / 180);
-  return onBed(round.intersect(Manifold.cube([length + 2, 2 * r + 2, 2 * r], true).translate([length / 2, 0, r - cut])));
 }
 
 /** A flange for one screw, and a wall with a diamond hole to hang a weight from or pull on. */

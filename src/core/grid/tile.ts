@@ -60,7 +60,17 @@ export interface TileOptions {
   /** Cut the band for joiners at the edge holes. A test piece that never joins can leave it whole. */
   joiners?: boolean;
   dots?: readonly Dots[];
+  /** Holes left out, bosses and all: those a rounded drawer corner cuts. */
+  drop?: (i: number, j: number) => boolean;
+  /** Holes countersunk in the face for a screw into the drawer floor. */
+  countersink?: (i: number, j: number) => boolean;
+  /** Keep only this region, in the tile's own coordinates, with a band along its new edge. */
+  clip?: CrossSection;
 }
+
+/** A floor screw's countersink: the head's diameter on the face, narrowing to the hole. */
+const COUNTERSINK = GRID.countersink;
+const countersinkDepth = (r: number) => (COUNTERSINK.head / 2 - r) / Math.tan(((COUNTERSINK.angle / 2) * Math.PI) / 180);
 
 export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
   const { Manifold, CrossSection } = wasm;
@@ -70,9 +80,10 @@ export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
     value === undefined ? fallback : typeof value === "number" ? value : value(i, j);
   const width = nx * PITCH;
   const depth = ny * PITCH;
-  const holes: { x: number; y: number; r: number; boss: number; edges: Vec2[] }[] = [];
+  const holes: { x: number; y: number; r: number; boss: number; edges: Vec2[]; sunk: boolean }[] = [];
   for (let i = 0; i < nx; i++) {
     for (let j = 0; j < ny; j++) {
+      if (options.drop?.(i, j)) continue;
       const r = byHole(options.hole, i, j, 0) / 2;
       // Which way the band lies from an edge hole: one way, or two at a corner.
       const edges: Vec2[] = [];
@@ -80,7 +91,7 @@ export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
       if (i === nx - 1) edges.push([1, 0]);
       if (j === 0) edges.push([0, -1]);
       if (j === ny - 1) edges.push([0, 1]);
-      holes.push({ x: holeCentre(i), y: holeCentre(j), r, boss: r + byHole(options.wall, i, j, spec.wall), edges });
+      holes.push({ x: holeCentre(i), y: holeCentre(j), r, boss: r + byHole(options.wall, i, j, spec.wall), edges, sunk: options.countersink?.(i, j) ?? false });
     }
   }
 
@@ -94,12 +105,22 @@ export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
   const flares = holes.map(({ x, y, boss }) =>
     Manifold.extrude(CrossSection.circle(boss + BOSS_CHAMFER, SEGMENTS), BOSS_CHAMFER, 0, 0, boss / (boss + BOSS_CHAMFER)).translate([x, y, skin]),
   );
-  const solid = Manifold.union([
+  // A countersunk hole's boss is widened to carry the head, up to the web, below the joiners' rings.
+  const sunkBosses = holes
+    .filter((h) => h.sunk)
+    .map(({ x, y, boss, r }) => Manifold.cylinder(WEB.height, COUNTERSINK.head / 2 + boss - r, COUNTERSINK.head / 2 + boss - r, SEGMENTS).translate([x, y, 0]));
+  let solid = Manifold.union([
     Manifold.extrude(CrossSection.union([band, ...bosses]), THICKNESS),
     Manifold.extrude(outline, skin),
     Manifold.extrude(web, WEB.height),
     ...flares,
+    ...sunkBosses,
   ]);
+  if (options.clip) {
+    const kept = outline.intersect(options.clip);
+    const edge = kept.subtract(options.clip.offset(-spec.band, "Round", 2, SEGMENTS));
+    solid = solid.intersect(Manifold.extrude(kept, THICKNESS)).add(Manifold.extrude(edge, THICKNESS));
+  }
 
   const voids: Manifold[] = [];
   if (joiners) {
@@ -117,10 +138,11 @@ export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
       }
     }
   }
-  for (const { x, y, r } of holes) {
+  for (const { x, y, r, sunk } of holes) {
     voids.push(Manifold.cylinder(THICKNESS + 2, r, r, SEGMENTS).translate([x, y, -1]));
-    // A 45° lead-in on the face, which also hides elephant's foot.
-    voids.push(Manifold.cylinder(LEAD_IN + EPS, r + LEAD_IN + EPS, r, SEGMENTS).translate([x, y, -EPS]));
+    // A 45° lead-in on the face, which also hides elephant's foot; or the countersink in its place.
+    const [depth, mouth] = sunk ? [countersinkDepth(r), COUNTERSINK.head / 2] : [LEAD_IN, r + LEAD_IN];
+    voids.push(Manifold.cylinder(depth + EPS, mouth + EPS, r, SEGMENTS).translate([x, y, -EPS]));
   }
   for (const dots of options.dots ?? []) voids.push(faceDots(wasm, dots));
 
@@ -150,6 +172,76 @@ export function seatedJoiner(wasm: ManifoldToplevel, variant: Variant, hole: num
     Manifold.extrude(rings.subtract(bores), ringHeight),
     Manifold.extrude(webs.subtract(bores), JOINER.webHeight).translate([0, 0, ringHeight - JOINER.webHeight]),
   ]).translate([0, 0, WEB.height]);
+}
+
+/**
+ * The room a seated joiner needs in a solid part, such as a bumper, centred like `seatedJoiner`:
+ * round each of the four bosses down to the web, and slots for its webs. The bosses stay.
+ */
+export function joinerRoom(wasm: ManifoldToplevel, variant: Variant, hole: number): Manifold {
+  const { Manifold, CrossSection } = wasm;
+  const boss = hole / 2 + VARIANTS[variant].wall;
+  const half = PITCH / 2;
+  const corners = [-1, 1].flatMap((sx) => [-1, 1].map((sy): Vec2 => [sx * half, sy * half]));
+  const bosses = CrossSection.union(corners.map(([x, y]) => CrossSection.circle(boss, SEGMENTS).translate(x, y)));
+  const rings = CrossSection.union(corners.map(([x, y]) => CrossSection.circle(boss + JOINER.wall + RING_ROOM, SEGMENTS).translate(x, y)));
+  const w = JOINER.webWidth + 2 * SLOT_ROOM;
+  const frame = CrossSection.square([PITCH + w, PITCH + w], true).subtract(CrossSection.square([PITCH - w, PITCH - w], true));
+  return Manifold.union([
+    Manifold.extrude(rings.subtract(bosses), THICKNESS - WEB.height + 1).translate([0, 0, WEB.height]),
+    Manifold.extrude(frame.subtract(bosses), JOINER.webHeight + 1).translate([0, 0, THICKNESS - JOINER.webHeight]),
+  ]);
+}
+
+/**
+ * A joiner turned over to print: its flat side, flush with the back in use, on the bed, and its rings
+ * standing up. The webs are too small for dots, so `notches` V-notches round the end of one ring
+ * label it.
+ */
+export function printJoiner(wasm: ManifoldToplevel, variant: Variant, hole: number, fit: number, notches = 0): Manifold {
+  const { Manifold } = wasm;
+  let seated = seatedJoiner(wasm, variant, hole, fit);
+  if (notches) {
+    const { min } = seated.boundingBox();
+    const radius = hole / 2 + VARIANTS[variant].wall + fit + JOINER.wall / 2;
+    const side = 0.6;
+    // A square prism on its edge, along a radius, cuts a 45° V across the ring's end.
+    const notch = Manifold.cube([JOINER.wall + 2, side, side], true).rotate([45, 0, 0]).translate([radius, 0, min[2]]);
+    const cuts = Array.from({ length: notches }, (_, n) => notch.rotate([0, 0, (360 * n) / notches + 45]).translate([-PITCH / 2, -PITCH / 2, 0]));
+    seated = seated.subtract(Manifold.union(cuts));
+  }
+  return onBed(seated.rotate([180, 0, 0]));
+}
+
+/**
+ * Where a peg's flat is cut, as an angle up the peg from its bottom. Above 45°, so the curve rises
+ * off the flat steeply enough to print without support.
+ */
+const PEG_FLAT_ANGLE = GRID.peg.flat_angle;
+
+/**
+ * A round peg with one flat, chamfered at both ends, lying on the flat so its layers run along its
+ * length.
+ */
+export function peg(wasm: ManifoldToplevel, diameter: number, length: number = GRID.peg.length): Manifold {
+  const { Manifold, CrossSection } = wasm;
+  const r = diameter / 2;
+  const c = GRID.peg.chamfer;
+  // The half-profile in (radius, length), revolved round the peg's axis, then laid along x.
+  const round = CrossSection.ofPolygons([
+    [
+      [0, 0],
+      [r - c, 0],
+      [r, c],
+      [r, length - c],
+      [r - c, length],
+      [0, length],
+    ],
+  ])
+    .revolve(64)
+    .rotate([0, 90, 0]);
+  const cut = r * Math.cos((PEG_FLAT_ANGLE * Math.PI) / 180);
+  return onBed(round.intersect(Manifold.cube([length + 2, 2 * r + 2, 2 * r], true).translate([length / 2, 0, r - cut])));
 }
 
 /** Cone dots, 45° so the face prints without bridging. */

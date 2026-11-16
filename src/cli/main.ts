@@ -2,7 +2,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
-import { check, type CheckResult, type Problem } from "../core/index.ts";
+import { check, load, read, type CheckResult, type Fit, type Problem } from "../core/index.ts";
 
 const usage = `Usage: dunnage <command> [--json] <file...>
 
@@ -61,7 +61,20 @@ function checkFile(file: string): CheckResult {
   } catch (error) {
     return { problems: [{ path: "", message: `can't read it: ${(error as Error).message}` }] };
   }
-  return check(text, { printerExists: (name) => existsSync(join(dirname(file), `${name}.printer.yml`)) });
+  const printerFile = (name: string) => join(dirname(file), `${name}.printer.yml`);
+  return check(text, { printerExists: (name) => existsSync(printerFile(name)), ...printerOf(text, printerFile) });
+}
+
+/** The bed and fits of the printer a drawer file names, when its profile is beside it and reads cleanly. */
+function printerOf(text: string, printerFile: (name: string) => string): { bed?: [number, number, number]; fit?: Fit } {
+  try {
+    const drawer = read(text).file;
+    if (drawer?.kind !== "drawer" || drawer.drawer.printer === undefined) return {};
+    const printer = load(readFileSync(printerFile(drawer.drawer.printer), "utf8"));
+    return printer.kind === "printer" ? { bed: printer.printer.bed, fit: printer.printer.fit } : {};
+  } catch {
+    return {};
+  }
 }
 
 function fail(message: string): never {
