@@ -3,6 +3,7 @@
 //   bun scripts/grid-calibration.ts round-1
 //   bun scripts/grid-calibration.ts round-2 --variant light,3.3,0.6
 //   bun scripts/grid-calibration.ts round-3 --variant light,3.3,0.6,0.3
+//   bun scripts/grid-calibration.ts latches --variant light-thin,3.2,0.6
 //
 // A variant is <variant>,<hole mm>,<skin mm>, and for round 3 the joiner fit too (negative is
 // interference). Without --variant, rounds 2 and 3 use the grid parameters file's values. Files go
@@ -11,7 +12,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import Module from "manifold-3d";
-import { roundOne, roundThree, roundTwo, variantList, type Part } from "../src/core/grid/calibration.ts";
+import { latchStrip, roundOne, roundThree, roundTwo, variantList, type Part } from "../src/core/grid/calibration.ts";
 import { GRID } from "../src/core/grid/parameters.ts";
 import { toStl } from "../src/core/grid/stl.ts";
 import { VARIANTS, tile, type Variant } from "../src/core/grid/tile.ts";
@@ -28,7 +29,7 @@ const { positionals, values } = parseArgs({
 });
 
 const round = positionals[0];
-if (round !== "round-1" && round !== "round-2" && round !== "round-3") fail("Say round-1, round-2 or round-3.");
+if (round !== "round-1" && round !== "round-2" && round !== "round-3" && round !== "latches") fail("Say round-1, round-2, round-3 or latches.");
 
 const wasm = await Module();
 wasm.setup();
@@ -45,7 +46,7 @@ if (round === "round-1") {
     if (bad) fail(`${usage}, not ${v}.`);
     return { variant: variant as Variant, hole: Number(hole), skin: Number(skin), fit: Number(fit) };
   });
-  parts = withFit ? roundThree(wasm, choices) : roundTwo(wasm, choices);
+  parts = withFit ? roundThree(wasm, choices) : round === "latches" ? latchStrip(wasm, choices[0]!) : roundTwo(wasm, choices);
 }
 
 const out = values.out ?? join("out", "grid-calibration", round);

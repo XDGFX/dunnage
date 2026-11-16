@@ -19,7 +19,7 @@ const BED = [256, 256, 256] as const;
 
 /** A small grid drawer: four little tiles, a custom holder on a pin and a ply holder on a screw. */
 const SMALL = `
-format: drawer/0.3
+format: drawer/0.4
 name: Small grid
 drawer: { inside: [120, 120, 40] }
 base: { kind: grid, tile: [6, 6], countersinks: [[0, 0]] }
@@ -140,7 +140,8 @@ describe("boardCounts", () => {
     const drawer = small();
     const layout = layoutBoard(drawerShape(drawer.drawer)!, drawer.base as GridBase);
     expect(layout.joiners.length).toBeGreaterThan(0);
-    expect(boardCounts(drawer, layout)).toEqual({ joiners: withSpares(layout.joiners.length), pegs: withSpares(2), holderScrews: 1, floorScrews: 1 });
+    const [joiners, pegs] = [withSpares(layout.joiners.length), withSpares(2)];
+    expect(boardCounts(drawer, layout)).toEqual({ joiners, pegs, holderScrews: 1, floorScrews: 1, latches: 0, blind: 0, variants: { [layout.variant]: { joiners, pegs } } });
     expect(withSpares(2)).toBe(3);
   });
 });

@@ -1,7 +1,7 @@
 import type { DrawerShape, Side } from "../drawers.ts";
 import type { Box } from "../geometry.ts";
 import { PRINTER_PRESETS, type Drawer } from "../schema.ts";
-import { GRID, gridFit, type Fit, type Variant } from "./parameters.ts";
+import { GRID, gridFit, type Fit, type PrinterFit, type Variant } from "./parameters.ts";
 import { PITCH, THICKNESS, VARIANTS } from "./tile.ts";
 
 // A grid board laid out on the drawer floor (#6 §4–§5) in plane geometry, in mm from the floor's
@@ -40,6 +40,13 @@ export interface BoardBumper {
   tab: Box;
 }
 
+export interface BoardLatch {
+  /** The slot's centre, where the latch is centred, in the drawer. */
+  at: [number, number];
+  /** The tile it presses into, by index in `tiles`. */
+  tile: number;
+}
+
 export interface BoardLayout {
   variant: Variant;
   shape: DrawerShape;
@@ -62,6 +69,12 @@ export interface BoardLayout {
   countersinks: Hole[];
   /** The radius rounded drawer corners are cut to, round the corner's own centre; absent when the corners are square. */
   corner?: { radius: number; cut: number };
+  /** An overlay's spring latches, each under the tile it presses into. */
+  latches?: BoardLatch[];
+  /** Holes made blind by a latch's socket under them. */
+  blind?: Hole[];
+  /** An overlay's edges that face the pegboard rather than a drawer wall, which get a wide band and a chamfer. */
+  free?: Side[];
   /** What stops the board being laid out as asked, by the drawer file field it's about. */
   problems: { at: Path; message: string }[];
 }
@@ -70,7 +83,7 @@ export interface LayoutOptions {
   /** The printer's bed. Default: the Bambu P1S's. */
   bed?: readonly [number, number, number];
   /** The printer's fits over the calibrated defaults. */
-  fit?: Partial<Fit>;
+  fit?: PrinterFit;
 }
 
 /** Each wall's outward direction on the floor. */
@@ -156,37 +169,18 @@ export function layoutBoard(shape: DrawerShape, base: GridBase, options: LayoutO
     }
   }
   const cap = [Math.min(base.tile?.[0] ?? Infinity, largest[0]!), Math.min(base.tile?.[1] ?? Infinity, largest[1]!)];
-  const tileSizes = (n: number, most: number, length: number, [front, back]: [number, number]): number[] | undefined => {
-    for (let k = Math.max(1, Math.ceil(n / most)); k <= n; k++) {
-      const sizes = balanced(n, k);
-      const fits = k === 1 ? sizes[0]! * PITCH + front + back <= length : sizes[0]! * PITCH + front <= length && sizes.at(-1)! * PITCH + back <= length;
-      if (sizes[0]! <= most && fits) return sizes;
-    }
-    return undefined;
-  };
-  const columns = cap[0]! < 1 ? undefined : tileSizes(nx, cap[0]!, room[0], [0, 0]);
-  const rows = cap[1]! < 1 ? undefined : tileSizes(ny, cap[1]!, room[1], [gap.front + flare("front"), gap.back + flare("back")]);
+  const columns = cap[0]! < 1 ? undefined : cutAxis(nx, cap[0]!, room[0], [0, 0]);
+  const rows = cap[1]! < 1 ? undefined : cutAxis(ny, cap[1]!, room[1], [gap.front + flare("front"), gap.back + flare("back")]);
   const sideWidth = Math.max(gap.left + flare("left"), gap.right + flare("right")) + lapTab;
   const endDepth = Math.max(gap.front + flare("front"), gap.back + flare("back")) + lapTab;
   if (!columns || !rows || sideWidth > room[0] || endDepth > room[1]) {
     return empty(`can't be laid out in tiles and bumpers that fit a ${bed[0]} × ${bed[1]} mm bed with its ${GRID.tile.bed_margin} mm margin`);
   }
 
-  const starts = (sizes: number[]) => sizes.reduce<number[]>((at, size) => [...at, at.at(-1)! + size], [0]);
   const [xs, ys] = [starts(columns), starts(rows)];
   const atX = (i: number) => origin[0] + i * PITCH;
   const atY = (j: number) => origin[1] + j * PITCH;
-
-  const tiles: BoardTile[] = rows.flatMap((sy, row) =>
-    columns.map((sx, col) => ({
-      row,
-      col,
-      label: `${row + 1}-${col + 1}`,
-      first: [xs[col]!, ys[row]!] as const,
-      size: [sx, sy] as [number, number],
-      box: { x0: atX(xs[col]!), y0: atY(ys[row]!), x1: atX(xs[col + 1]!), y1: atY(ys[row + 1]!) },
-    })),
-  );
+  const tiles = boardTiles(origin, columns, rows);
 
   // One bumper per outside tile edge. The side bumpers run past the corners to the front and back walls.
   const board: Box = { x0: atX(0), y0: atY(0), x1: atX(nx), y1: atY(ny) };
@@ -218,33 +212,7 @@ export function layoutBoard(shape: DrawerShape, base: GridBase, options: LayoutO
   // Joiners: two along every join, one where four parts meet. A bumper too thin to hold a joiner's
   // rings clear of the wall and the floor edge is held by its lap tab alone.
   const reach = joinerReach(variant, fits) + shape.floor_edge;
-  const joinable = (side: Side) => gap[side] >= reach;
-  const joiners: [number, number][] = [];
-  let shortest = Infinity;
-  const twoAlong = (from: number, holes: number) => {
-    const at = [...new Set([Math.round(holes / 4), holes - Math.round(holes / 4)])].filter((g) => g >= 1 && g < holes).map((g) => from + g * PITCH);
-    if (at.length < 2) shortest = Math.min(shortest, holes);
-    return at;
-  };
-  // Edges between columns, and the board's left and right edges.
-  for (let a = 0; a <= columns.length; a++) {
-    const outer = a === 0 ? "left" : a === columns.length ? "right" : undefined;
-    if (outer && !joinable(outer)) continue;
-    for (let row = 0; row < rows.length; row++) {
-      for (const y of twoAlong(atY(ys[row]!), rows[row]!)) joiners.push([atX(xs[a]!), y]);
-      if (row > 0) joiners.push([atX(xs[a]!), atY(ys[row]!)]);
-    }
-  }
-  // Edges between rows, and the board's front and back edges.
-  for (let b = 0; b <= rows.length; b++) {
-    const outer = b === 0 ? "front" : b === rows.length ? "back" : undefined;
-    if (outer && !joinable(outer)) continue;
-    for (let col = 0; col < columns.length; col++) {
-      for (const x of twoAlong(atX(xs[col]!), columns[col]!)) joiners.push([x, atY(ys[b]!)]);
-      // Where four tiles meet is counted once, on the column edges above.
-      if (col > 0 && outer) joiners.push([atX(xs[col]!), atY(ys[b]!)]);
-    }
-  }
+  const { joiners, shortest } = boardJoiners(origin, columns, rows, (side) => gap[side] >= reach);
   if (shortest < Infinity) {
     problems.push({
       at: base.tile ? ["base", "tile"] : ["drawer"],
@@ -291,6 +259,76 @@ export function layoutBoard(shape: DrawerShape, base: GridBase, options: LayoutO
     variant, shape, fit: clearance, holes: [nx, ny], origin, gap, lapTab, tiles, bumpers, joiners, dropped, countersinks,
     ...(corner ? { corner } : {}), problems,
   };
+}
+
+/**
+ * Cuts `n` holes into as few balanced tiles as fit under `most` holes and `length` mm, the end
+ * tiles with `ends` more to carry (the bumpers that run past a corner).
+ */
+export function cutAxis(n: number, most: number, length: number, [front, back]: readonly [number, number]): number[] | undefined {
+  for (let k = Math.max(1, Math.ceil(n / most)); k <= n; k++) {
+    const sizes = balanced(n, k);
+    const fits = k === 1 ? sizes[0]! * PITCH + front + back <= length : sizes[0]! * PITCH + front <= length && sizes.at(-1)! * PITCH + back <= length;
+    if (sizes[0]! <= most && fits) return sizes;
+  }
+  return undefined;
+}
+
+const starts = (sizes: number[]) => sizes.reduce<number[]>((at, size) => [...at, at.at(-1)! + size], [0]);
+
+/** Tiles in rows and columns of these sizes, in holes, from `origin`. */
+export function boardTiles(origin: readonly [number, number], columns: number[], rows: number[]): BoardTile[] {
+  const [xs, ys] = [starts(columns), starts(rows)];
+  const atX = (i: number) => origin[0] + i * PITCH;
+  const atY = (j: number) => origin[1] + j * PITCH;
+  return rows.flatMap((sy, row) =>
+    columns.map((sx, col) => ({
+      row,
+      col,
+      label: `${row + 1}-${col + 1}`,
+      first: [xs[col]!, ys[row]!] as const,
+      size: [sx, sy] as [number, number],
+      box: { x0: atX(xs[col]!), y0: atY(ys[row]!), x1: atX(xs[col + 1]!), y1: atY(ys[row + 1]!) },
+    })),
+  );
+}
+
+/**
+ * Joiners: two along every join, one where four parts meet, and along an outer edge only where
+ * `outer` says a part there takes them. `shortest` is the shortest joined edge with room for
+ * fewer than two, in holes.
+ */
+export function boardJoiners(origin: readonly [number, number], columns: number[], rows: number[], outer: (side: Side) => boolean): { joiners: [number, number][]; shortest: number } {
+  const [xs, ys] = [starts(columns), starts(rows)];
+  const atX = (i: number) => origin[0] + i * PITCH;
+  const atY = (j: number) => origin[1] + j * PITCH;
+  const joiners: [number, number][] = [];
+  let shortest = Infinity;
+  const twoAlong = (from: number, holes: number) => {
+    const at = [...new Set([Math.round(holes / 4), holes - Math.round(holes / 4)])].filter((g) => g >= 1 && g < holes).map((g) => from + g * PITCH);
+    if (at.length < 2) shortest = Math.min(shortest, holes);
+    return at;
+  };
+  // Edges between columns, and the left and right edges.
+  for (let a = 0; a <= columns.length; a++) {
+    const edge = a === 0 ? "left" : a === columns.length ? "right" : undefined;
+    if (edge && !outer(edge)) continue;
+    for (let row = 0; row < rows.length; row++) {
+      for (const y of twoAlong(atY(ys[row]!), rows[row]!)) joiners.push([atX(xs[a]!), y]);
+      if (row > 0) joiners.push([atX(xs[a]!), atY(ys[row]!)]);
+    }
+  }
+  // Edges between rows, and the front and back edges.
+  for (let b = 0; b <= rows.length; b++) {
+    const edge = b === 0 ? "front" : b === rows.length ? "back" : undefined;
+    if (edge && !outer(edge)) continue;
+    for (let col = 0; col < columns.length; col++) {
+      for (const x of twoAlong(atX(xs[col]!), columns[col]!)) joiners.push([x, atY(ys[b]!)]);
+      // Where four tiles meet is counted once, on the column edges above.
+      if (col > 0 && edge) joiners.push([atX(xs[col]!), atY(ys[b]!)]);
+    }
+  }
+  return { joiners, shortest };
 }
 
 /** Whether a point on the floor is in what a rounded corner cuts away. */

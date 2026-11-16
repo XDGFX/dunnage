@@ -21,8 +21,17 @@ export const SCREW = `${GRID.screw.diameter}×${GRID.screw.length}`;
 /** To the hundredth of a mm, for text. */
 export const round = (mm: number) => Number(mm.toFixed(2));
 
-export function fixingsOf(holders: readonly Holder[], layout: BoardLayout): Fixing[] {
-  return holders.flatMap((holder) => (holder.fix ?? []).map(({ hole, by }) => ({ holder: holder.id, hole, by, at: holeAt(layout, hole) })));
+/** The board a holder is fixed to: the grid base, or the overlay it names with `on`. */
+export function boardFor(layouts: BoardLayout | readonly BoardLayout[], holder: { on?: string }): BoardLayout | undefined {
+  const all: readonly BoardLayout[] = Array.isArray(layouts) ? layouts : [layouts as BoardLayout];
+  return all.find((layout) => (layout as { id?: string }).id === holder.on);
+}
+
+export function fixingsOf(holders: readonly Holder[], layouts: BoardLayout | readonly BoardLayout[]): Fixing[] {
+  return holders.flatMap((holder) => {
+    const layout = boardFor(layouts, holder);
+    return layout ? (holder.fix ?? []).map(({ hole, by }) => ({ holder: holder.id, hole, by, at: holeAt(layout, hole) })) : [];
+  });
 }
 
 /** A printed peg's diameter: smaller than the board hole by the calibrated peg fit. */

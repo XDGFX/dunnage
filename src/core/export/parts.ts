@@ -2,12 +2,12 @@ import { boardHole, type BoardLayout } from "../grid/layout.ts";
 import { GRID, type Fit, type Variant } from "../grid/parameters.ts";
 import { METHODS, pretty, type Plan } from "../plan.ts";
 import { hasSpecSheet, specPath } from "../spec.ts";
-import { fixingsOf, holderSide, SCREW } from "./fixings.ts";
+import { boardFor, fixingsOf, holderSide, SCREW } from "./fixings.ts";
 import type { Library } from "./library.ts";
 
 // The parts list: what to print, what to buy, and where each holder comes from.
 
-export type PartKind = "tile" | "bumper" | "joiner" | "peg" | "calibration";
+export type PartKind = "tile" | "bumper" | "joiner" | "peg" | "latch" | "calibration";
 
 export interface PrintedFile {
   file: string;
@@ -15,7 +15,7 @@ export interface PrintedFile {
   kinds: Partial<Record<PartKind, number>>;
   grams: number;
   /** A tile's label and size in holes, for its row. */
-  tile?: { label: string; size: [number, number] };
+  tile?: { label: string; size: [number, number]; overlay?: string };
 }
 
 export interface BoardCounts {
@@ -23,10 +23,17 @@ export interface BoardCounts {
   pegs: number;
   holderScrews: number;
   floorScrews: number;
+  /** An overlay's spring latches, spares included. */
+  latches: number;
+  /** Holes made blind by a latch's socket. */
+  blind: number;
+  /** Joiners and pegs by the variant they're sized for, spares included. */
+  variants: Partial<Record<Variant, { joiners: number; pegs: number }>>;
 }
 
 export interface BoardSummary {
-  layout: BoardLayout;
+  /** The grid board, or each overlay on a pegboard. */
+  layouts: BoardLayout[];
   counts: BoardCounts;
   printed: PrintedFile[];
   /** The board's estimated weight in each variant. */
@@ -51,21 +58,31 @@ const NAMES: Record<PartKind, [string, string]> = {
   bumper: ["bumper", "bumpers"],
   joiner: ["joiner", "joiners"],
   peg: ["peg", "pegs"],
+  latch: ["latch", "latches"],
   calibration: ["calibration part", "calibration parts"],
 };
 
 function describe(printed: PrintedFile): string {
-  if (printed.tile) return `Tile ${printed.tile.label}, ${printed.tile.size[0]} × ${printed.tile.size[1]} holes`;
-  if (printed.kinds.calibration) return "Calibration print (docs/grid-calibration.md): screw pilot holes, boss walls, joiner and peg fits";
+  if (printed.tile) return `${printed.tile.overlay ? `Overlay ${printed.tile.overlay}, tile` : "Tile"} ${printed.tile.label}, ${printed.tile.size[0]} × ${printed.tile.size[1]} holes`;
+  if (printed.kinds.calibration) return "Calibration print (docs/grid-calibration.md): screw pilot holes, boss walls, joiner and peg fits, and the latch strip when there are overlays";
   return (Object.entries(printed.kinds) as [PartKind, number][]).map(([kind, count]) => `${count} ${NAMES[kind][count === 1 ? 0 : 1]}`).join(", ");
+}
+
+/** A line saying what a board or overlay is. */
+function boardLine(layout: BoardLayout): string {
+  const id = (layout as { id?: string }).id;
+  const size = `${layout.variant}, ${layout.holes[0]} × ${layout.holes[1]} holes`;
+  return id ? `- Overlay ${id}: ${size}, ${layout.latches?.length ?? 0} latches, ${layout.blind?.length ?? 0} blind holes over their sockets.` : `Grid board, ${size}.`;
 }
 
 export function partsList({ name, bed, plan: drawerPlan, fit, library, board, spares, density }: PartsListInput): string {
   const lines = [`# ${name}: parts list`, ""];
   if (board) {
-    const { layout, counts, printed, weights } = board;
+    const { layouts, counts, printed, weights } = board;
+    const overlaid = layouts.some((layout) => layout.latches);
     lines.push(
-      `Grid board, ${layout.variant}, ${layout.holes[0]} × ${layout.holes[1]} holes, for a ${bed[0]} × ${bed[1]} mm bed. Print in PETG without supports, as plated. Weights are estimates at ${density} g/cm³.`,
+      ...(overlaid ? ["Grid overlays on the UPPDATERA pegboard:", "", ...layouts.map(boardLine), ""] : [boardLine(layouts[0]!)]),
+      `For a ${bed[0]} × ${bed[1]} mm bed. Print in PETG without supports, as plated. Weights are estimates at ${density} g/cm³.`,
       "",
       "## Printed",
       "",
@@ -73,26 +90,37 @@ export function partsList({ name, bed, plan: drawerPlan, fit, library, board, sp
       "|---|---|---|",
       ...printed.map((row) => `| \`${row.file}\` | ${describe(row)} | ${Math.round(row.grams)} g |`),
       "",
-      `Joiners and pegs include ${Math.round(spares * 100)}% spares, rounded up.`,
-      "",
-      "## Board weight by variant",
-      "",
-      "| Variant | Est. weight |",
-      "|---|---|",
-      ...weights.map(({ variant, grams }) => `| ${variant}${variant === layout.variant ? " (this board)" : ""} | ${Math.round(grams)} g |`),
-      "",
-      "The other variants are scaled from this board's tiles by the volume of a sample tile in each.",
-      "",
-      "## Hardware",
-      "",
-      `- ${counts.holderScrews} × ${SCREW} wood screws (or M${SCREW} machine screws), to fix holders.`,
+      `${overlaid ? "Joiners, pegs and latches" : "Joiners and pegs"} include ${Math.round(spares * 100)}% spares, rounded up.`,
     );
+    if (overlaid) {
+      lines.push(
+        "",
+        "## Latches",
+        "",
+        `- ${counts.latches} spring latches. Press one into each socket under the tiles, clip the tiles together, lay the overlay roughly in place and press it down.`,
+        `- ${counts.blind} blind holes, over the latches' sockets: a screw or pin there can't go all the way in.`,
+      );
+    }
+    if (weights.length > 0) {
+      lines.push(
+        "",
+        "## Board weight by variant",
+        "",
+        "| Variant | Est. weight |",
+        "|---|---|",
+        ...weights.map(({ variant, grams }) => `| ${variant}${variant === layouts[0]!.variant ? " (this board)" : ""} | ${Math.round(grams)} g |`),
+        "",
+        "The other variants are scaled from this board's tiles by the volume of a sample tile in each.",
+      );
+    }
+    lines.push("", "## Hardware", "", `- ${counts.holderScrews} × ${SCREW} wood screws (or M${SCREW} machine screws), to fix holders.`);
     if (counts.floorScrews > 0) lines.push(`- ${counts.floorScrews} × countersunk screws to fix the board to the drawer floor, heads up to ${GRID.countersink.head} mm.`);
   }
   lines.push("", "## Holders", "", "| Holder | Method | Fixings | Get it |", "|---|---|---|---|");
   for (const holder of drawerPlan.holders) {
-    const fixings = board ? fixingsOf([holder.source], board.layout) : [];
-    const fixed = fixings.map((fixing) => `${fixing.by} in [${fixing.hole.join(", ")}]`).join(", ") || "none";
+    const fixings = board ? fixingsOf([holder.source], board.layouts) : [];
+    const where = holder.source.on ? ` of overlay ${holder.source.on}` : "";
+    const fixed = fixings.map((fixing) => `${fixing.by} in [${fixing.hole.join(", ")}]${where}`).join(", ") || "none";
     const part = library[holder.method];
     const get = hasSpecSheet(holder.method) ? `build it: [\`${specPath(holder.id)}\`](${specPath(holder.id)})`
       : !METHODS[holder.method].printed ? "nothing to print"
@@ -100,11 +128,12 @@ export function partsList({ name, bed, plan: drawerPlan, fit, library, board, sp
       : "not in the library yet";
     lines.push(`| ${pretty(holder.id)} | ${METHODS[holder.method].name} | ${fixed} | ${get} |`);
   }
-  if (board && drawerPlan.holders.some((holder) => holder.source.fix?.length)) {
+  const pinned = board ? drawerPlan.holders.map((holder) => boardFor(board.layouts, holder.source)).find((layout, k) => layout && drawerPlan.holders[k]!.source.fix?.length) : undefined;
+  if (pinned) {
     lines.push(
       "",
-      `A holder fixed by screw needs ${holderSide("screw", board.layout, fit)}.`,
-      `One fixed by pin needs ${holderSide("pin", board.layout, fit)}; the peg stays in the holder and lifts out of the board's ${boardHole(board.layout.variant, fit)} mm hole.`,
+      `A holder fixed by screw needs ${holderSide("screw", pinned, fit)}.`,
+      `One fixed by pin needs ${holderSide("pin", pinned, fit)}; the peg stays in the holder and lifts out of the board's ${boardHole(pinned.variant, fit)} mm hole.`,
     );
   }
   lines.push("");

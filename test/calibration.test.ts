@@ -1,6 +1,7 @@
 import Module from "manifold-3d";
 import { beforeAll, describe, expect, test } from "vitest";
-import { roundOne, roundThree, roundTwo, type Part } from "../src/core/grid/calibration.ts";
+import { LATCH_CATCHES, LATCH_LEGS, latchStrip, roundOne, roundThree, roundTwo, type Part } from "../src/core/grid/calibration.ts";
+import { GRID, gridFit } from "../src/core/grid/parameters.ts";
 import { overhangs } from "../src/core/grid/printability.ts";
 
 let wasm: Awaited<ReturnType<typeof Module>>;
@@ -22,6 +23,15 @@ function expectPrintable(part: Part) {
   expect(max[1] - min[1], part.name).toBeLessThanOrEqual(FITS);
 }
 
+
+describe("the latch strip", () => {
+  test("is a strip with a socket per slot and a latch per leg and catch, and they print without supports", () => {
+    const parts = latchStrip(wasm, { variant: GRID.variant, hole: gridFit().grid_hole[GRID.variant]!, skin: GRID.face });
+    parts.forEach(expectPrintable);
+    const latches = parts.find((part) => part.name === "latches")!;
+    expect(latches.solid.decompose().length).toBe(LATCH_LEGS.length * LATCH_CATCHES.length);
+  });
+});
 
 describe("round one", () => {
   test("is two small strips, and they print without supports", () => {

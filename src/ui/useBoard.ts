@@ -10,7 +10,7 @@ import type { BoardJob, BoardMesh, BoardPart, BoardReply } from "./boardWorker.t
 const COLOURS = { tile: 0x3a3a40, bumper: 0x55555c };
 const MOST_WORKERS = 6;
 
-export const partKey = (part: BoardPart) => `${part.kind}-${part.index}`;
+export const partKey = (part: BoardPart) => `${part.board}-${part.kind}-${part.index}`;
 
 export interface Board {
   /** The board, for the scene to add to its root; null with no board to show. */
@@ -19,24 +19,25 @@ export interface Board {
   status: string | null;
 }
 
-/** Builds the board for `layout`, calling `redraw` as each part arrives. */
-export function useBoard(layout: BoardLayout | undefined, fit: Fit, redraw: RefObject<(() => void) | null>): Board {
+/** Builds the boards in `layouts` (a grid base, or a pegboard's overlays), calling `redraw` as each part arrives. */
+export function useBoard(layouts: BoardLayout[], fit: Fit, redraw: RefObject<(() => void) | null>): Board {
   const group = useRef<THREE.Group | null>(null);
   const [status, setStatus] = useState<string | null>(null);
-  const key = layout?.tiles.length ? JSON.stringify([layout, fit]) : "";
+  const key = layouts.some((layout) => layout.tiles.length) ? JSON.stringify([layouts, fit]) : "";
 
   useEffect(() => {
-    if (!layout || !key) return setStatus(null);
+    if (!key) return setStatus(null);
     const board = new THREE.Group();
     const solid = { tile: new THREE.MeshStandardMaterial({ color: COLOURS.tile, roughness: 0.75 }), bumper: new THREE.MeshStandardMaterial({ color: COLOURS.bumper, roughness: 0.75 }) };
     const pending = { tile: new THREE.MeshStandardMaterial({ color: COLOURS.tile, transparent: true, opacity: 0.35 }), bumper: new THREE.MeshStandardMaterial({ color: COLOURS.bumper, transparent: true, opacity: 0.35 }) };
     // Bumpers are quick, so they come first.
     const parts: BoardPart[] = [
-      ...layout.bumpers.map((_, index) => ({ kind: "bumper" as const, index })),
-      ...layout.tiles.map((_, index) => ({ kind: "tile" as const, index })),
+      ...layouts.flatMap((layout, board) => layout.bumpers.map((_, index) => ({ board, kind: "bumper" as const, index }))),
+      ...layouts.flatMap((layout, board) => layout.tiles.map((_, index) => ({ board, kind: "tile" as const, index }))),
     ];
     const height = GRID.thickness;
     for (const part of parts) {
+      const layout = layouts[part.board]!;
       const box = part.kind === "tile" ? layout.tiles[part.index].box : layout.bumpers[part.index].floor;
       const block = new THREE.Mesh(new THREE.BoxGeometry(box.x1 - box.x0, height, box.y1 - box.y0), pending[part.kind]);
       // Drawer x, y, z to three.js x, z, -y.
@@ -69,7 +70,7 @@ export function useBoard(layout: BoardLayout | undefined, fit: Fit, redraw: RefO
         progress();
         redraw.current?.();
       };
-      const job: BoardJob = { layout, fit, parts: share };
+      const job: BoardJob = { layouts, fit, parts: share };
       worker.postMessage(job);
       workers.push(worker);
     }

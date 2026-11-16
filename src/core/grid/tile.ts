@@ -1,4 +1,5 @@
 import type { CrossSection, Manifold, ManifoldToplevel, Vec2 } from "manifold-3d";
+import type { Side } from "../drawers.ts";
 import { GRID, type Variant } from "./parameters.ts";
 
 // The `grid` base from #6: a board of through holes on a 9.5 mm pitch, printed face-down. The top
@@ -57,8 +58,14 @@ export interface TileOptions {
   wall?: ByHole;
   /** The top face's thickness. */
   skin?: number;
-  /** Cut the band for joiners at the edge holes. A test piece that never joins can leave it whole. */
-  joiners?: boolean;
+  /** Cut the band for joiners at the edge holes, on every edge or these. A test piece that never joins can leave it whole. */
+  joiners?: boolean | readonly Side[];
+  /** Holes that stop short of the back, by how deep they go from the face. */
+  blind?: (i: number, j: number) => number | undefined;
+  /** More solid, full height, such as a latch's pad. */
+  solids?: CrossSection;
+  /** More to cut away, z from the face, such as a latch's socket. */
+  voids?: Manifold[];
   dots?: readonly Dots[];
   /** Holes left out, bosses and all: those a rounded drawer corner cuts. */
   drop?: (i: number, j: number) => boolean;
@@ -80,7 +87,7 @@ export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
     value === undefined ? fallback : typeof value === "number" ? value : value(i, j);
   const width = nx * PITCH;
   const depth = ny * PITCH;
-  const holes: { x: number; y: number; r: number; boss: number; edges: Vec2[]; sunk: boolean }[] = [];
+  const holes: { x: number; y: number; r: number; boss: number; edges: Vec2[]; sunk: boolean; stop?: number }[] = [];
   for (let i = 0; i < nx; i++) {
     for (let j = 0; j < ny; j++) {
       if (options.drop?.(i, j)) continue;
@@ -91,7 +98,7 @@ export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
       if (i === nx - 1) edges.push([1, 0]);
       if (j === 0) edges.push([0, -1]);
       if (j === ny - 1) edges.push([0, 1]);
-      holes.push({ x: holeCentre(i), y: holeCentre(j), r, boss: r + byHole(options.wall, i, j, spec.wall), edges, sunk: options.countersink?.(i, j) ?? false });
+      holes.push({ x: holeCentre(i), y: holeCentre(j), r, boss: r + byHole(options.wall, i, j, spec.wall), edges, sunk: options.countersink?.(i, j) ?? false, stop: options.blind?.(i, j) });
     }
   }
 
@@ -110,7 +117,7 @@ export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
     .filter((h) => h.sunk)
     .map(({ x, y, boss, r }) => Manifold.cylinder(WEB.height, COUNTERSINK.head / 2 + boss - r, COUNTERSINK.head / 2 + boss - r, SEGMENTS).translate([x, y, 0]));
   let solid = Manifold.union([
-    Manifold.extrude(CrossSection.union([band, ...bosses]), THICKNESS),
+    Manifold.extrude(CrossSection.union([band, ...bosses, ...(options.solids ? [options.solids] : [])]), THICKNESS),
     Manifold.extrude(outline, skin),
     Manifold.extrude(web, WEB.height),
     ...flares,
@@ -126,6 +133,9 @@ export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
   if (joiners) {
     // Round each edge boss, room for a ring down to the web; and where the joiner's webs cross the
     // band, a slot from the back. The bosses themselves are left whole.
+    const sideOf = ([dx, dy]: Vec2): Side => (dx < 0 ? "left" : dx > 0 ? "right" : dy < 0 ? "front" : "back");
+    const joined = (edge: Vec2) => joiners === true || joiners.includes(sideOf(edge));
+    for (const hole of holes) hole.edges = hole.edges.filter(joined);
     for (const { x, y, boss, edges } of holes.filter((h) => h.edges.length)) {
       const circle = CrossSection.circle(boss, SEGMENTS);
       const ring = CrossSection.circle(boss + JOINER.wall + RING_ROOM, SEGMENTS).subtract(circle);
@@ -138,13 +148,21 @@ export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
       }
     }
   }
-  for (const { x, y, r, sunk } of holes) {
-    voids.push(Manifold.cylinder(THICKNESS + 2, r, r, SEGMENTS).translate([x, y, -1]));
+  for (const { x, y, r, sunk, stop } of holes) {
+    if (stop === undefined) voids.push(Manifold.cylinder(THICKNESS + 2, r, r, SEGMENTS).translate([x, y, -1]));
+    else if (stop >= r + LEAD_IN) {
+      // A blind hole ends in a 45° cone, so it prints face down without a bridge.
+      voids.push(Manifold.cylinder(stop - r + 1, r, r, SEGMENTS).translate([x, y, -1]), Manifold.cylinder(r, r, 0, SEGMENTS).translate([x, y, stop - r]));
+    } else {
+      // Too shallow for its cone to clear the lead-in: closed.
+      continue;
+    }
     // A 45° lead-in on the face, which also hides elephant's foot; or the countersink in its place.
     const [depth, mouth] = sunk ? [countersinkDepth(r), COUNTERSINK.head / 2] : [LEAD_IN, r + LEAD_IN];
     voids.push(Manifold.cylinder(depth + EPS, mouth + EPS, r, SEGMENTS).translate([x, y, -EPS]));
   }
   for (const dots of options.dots ?? []) voids.push(faceDots(wasm, dots));
+  voids.push(...(options.voids ?? []));
 
   return solid.subtract(Manifold.union(voids));
 }

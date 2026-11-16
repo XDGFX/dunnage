@@ -23,8 +23,8 @@ describe("dunnage check", () => {
   test("accepts the coffee drawer and the P1S printer", async () => {
     const result = await dunnage("check", "fixtures/coffee.drawer.yml", "fixtures/p1s.printer.yml");
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain("fixtures/coffee.drawer.yml: ok, drawer/0.3");
-    expect(result.stdout).toContain("fixtures/p1s.printer.yml: ok, printer/0.3");
+    expect(result.stdout).toContain("fixtures/coffee.drawer.yml: ok, drawer/0.4");
+    expect(result.stdout).toContain("fixtures/p1s.printer.yml: ok, printer/0.4");
   });
 
   test("warns about an unverified built-in drawer without failing", async () => {
@@ -34,7 +34,7 @@ describe("dunnage check", () => {
     const result = await dunnage("check", file);
     expect(result.code).toBe(0);
     expect(result.stdout).toMatch(new RegExp(`^${file}:\\d+:\\d+: warning: drawer\\.preset: `, "m"));
-    expect(result.stdout).toContain(`${file}: ok, drawer/0.3, 1 warning`);
+    expect(result.stdout).toContain(`${file}: ok, drawer/0.4, 1 warning`);
   });
 
   test("puts each problem at its file, line and path, and fails", async () => {
@@ -54,12 +54,12 @@ describe("dunnage check", () => {
   });
 
   test("speaks JSON for agents", async () => {
-    const file = scratch("bad.printer.yml", "format: printer/0.3\nbed: [256, 256]\n");
+    const file = scratch("bad.printer.yml", "format: printer/0.4\nbed: [256, 256]\n");
     const result = await dunnage("check", "--json", "fixtures/p1s.printer.yml", file);
     expect(result.code).toBe(1);
     expect(JSON.parse(result.stdout)).toEqual([
-      { file: "fixtures/p1s.printer.yml", format: "printer/0.3", problems: [] },
-      { file, format: "printer/0.3", problems: [{ path: "bed", message: expect.any(String), line: 2, column: 1 }] },
+      { file: "fixtures/p1s.printer.yml", format: "printer/0.4", problems: [] },
+      { file, format: "printer/0.4", problems: [{ path: "bed", message: expect.any(String), line: 2, column: 1 }] },
     ]);
   });
 
@@ -83,7 +83,9 @@ describe("dunnage export", () => {
     expect(result.code).toBe(0);
     expect(existsSync(join(out, "parts.md"))).toBe(true);
     expect(existsSync(join(out, "specs", "glass-cradles-front.md"))).toBe(true);
-  });
+    expect(existsSync(join(out, "overlay-front-tile-1-1.3mf"))).toBe(true);
+    // The coffee drawer's overlay has three full tiles to build.
+  }, 180_000);
 
   test("refuses a drawer with problems", async () => {
     const file = scratch("bad.drawer.yml", "format: drawer/0.3\nname: Bad\ndrawer: { inside: [100, 100, 50] }\nitems: {}\nlayout: [{ id: ghost, at: [0, 0] }]\n");

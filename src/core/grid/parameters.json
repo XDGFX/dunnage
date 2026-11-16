@@ -18,7 +18,8 @@
     "grid_hole": { "light-thin": 3.2 },
     "peg": 0.6,
     "peg_fixed": 0.5,
-    "joiner": 0.28
+    "joiner": 0.28,
+    "latch": { "leg": 1.2, "catch": 45, "press": 0.1 }
   },
   "peg": { "chamfer": 0.4, "flat_angle": 50, "length": 12 },
   "screw": { "diameter": 4, "length": 12, "clearance": 4.5, "flange": 4.5 },
@@ -26,5 +27,23 @@
   "label": { "dot": 0.6, "spacing": 1.6, "inset": 0.62 },
   "tile": { "bed_margin": 10 },
   "bumper": { "fit": 0.3, "min": 5, "max": 10 },
-  "lap_tab": { "depth": 2, "thickness": 1.2, "clearance": 0.2, "slope": 45 }
+  "lap_tab": { "depth": 2, "thickness": 1.2, "clearance": 0.2, "slope": 45 },
+  "overlay": { "band": 2.4, "chamfer": 1.5, "reach": 120, "edge_room": 9 },
+  "latch": {
+    "side": 1, "tolerance": 1, "hold": 0.6, "entry": 0.3, "lead_in": 40,
+    "root": 3.5, "plug": [4, 7], "room": 0.3, "bow": 0.8, "wall": 1.2, "floor": 0.5, "clear": 0.5,
+    "strain": 0.04
+  },
+  "uppdatera": {
+    "$comment": "IKEA UPPDATERA, from #13 §5. Only the board sizes are IKEA's; every field in `unverified` waits for calipers on a real board.",
+    "unverified": ["slot", "pitch", "row", "edge", "skin", "thickness", "cup"],
+    "boards": { "uppdatera-60": [475, 500], "uppdatera-80": [675, 500] },
+    "slot": [17, 7],
+    "pitch": 40,
+    "row": 20,
+    "edge": 25,
+    "skin": 2,
+    "thickness": 7.5,
+    "cup": [23, 5.5]
+  }
 }

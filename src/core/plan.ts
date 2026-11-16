@@ -1,7 +1,9 @@
 import { boxesOverlap, boxOf, boxPart, grow, polygon, push, RAD, spansOverlap, turn, unionOf, type Box, type Point } from "./geometry.ts";
 import { drawerShape } from "./drawers.ts";
 import { layoutBoard, type BoardLayout } from "./grid/layout.ts";
-import { GRID, gridFit, type Fit } from "./grid/parameters.ts";
+import { drawerOverlays, overlayOf, type OverlayLayout } from "./grid/overlay.ts";
+import { pegboard, UPPDATERA, type Pegboard } from "./pegboard.ts";
+import { GRID, gridFit, type Fit, type PrinterFit } from "./grid/parameters.ts";
 import type { Drawer, Holder, Item, Pose, Thing } from "./schema.ts";
 import { footprint, outline, overlap, posesOf, rectangle, samePose, type Part } from "./shape.ts";
 
@@ -31,18 +33,18 @@ export const METHODS: Record<Method, { name: string; short: string; makes: strin
 };
 
 export type BaseKey = "bare" | "gridfinity" | "grid" | "uppdatera-60" | "uppdatera-80";
-export const BASES: Record<BaseKey, { name: string; base: NonNullable<Drawer["base"]>; z: number; board?: [number, number] }> = {
+export const BASES: Record<BaseKey, { name: string; base: NonNullable<Drawer["base"]>; z: number }> = {
   bare: { name: "Bare drawer floor", base: { kind: "bare" }, z: 0 },
   gridfinity: { name: "Gridfinity baseplate", base: { kind: "gridfinity" }, z: 5 },
   grid: { name: "Grid board", base: { kind: "grid" }, z: GRID.thickness },
   // The drawer height is measured from the top of a pegboard, so the board takes none of it.
-  "uppdatera-60": { name: "UPPDATERA pegboard, 60 cm", base: { kind: "pegboard", preset: "uppdatera-60" }, z: 0, board: [475, 500] },
-  "uppdatera-80": { name: "UPPDATERA pegboard, 80 cm", base: { kind: "pegboard", preset: "uppdatera-80" }, z: 0, board: [675, 500] },
+  "uppdatera-60": { name: "UPPDATERA pegboard, 60 cm", base: { kind: "pegboard", preset: "uppdatera-60" }, z: 0 },
+  "uppdatera-80": { name: "UPPDATERA pegboard, 80 cm", base: { kind: "pegboard", preset: "uppdatera-80" }, z: 0 },
 };
 
 /** UPPDATERA: holes are slots running across the drawer, and pegs are 12 × 6 mm, set across them. */
 export const PEG = { size: [6, 12] as const, height: 132 };
-export const SLOT = [16, 7] as const;
+export const SLOT = UPPDATERA.slot;
 
 /** Gaps between holders on a bare floor narrower than this are closed; wider ones are left on purpose. */
 export const FILL = 40;
@@ -55,9 +57,12 @@ export interface Base {
   /** How far the base lifts what sits on it. */
   z: number;
   grid?: { pitch: number; nx: number; ny: number; ox: number; oy: number };
-  board?: { x0: number; y0: number; width: number; depth: number; holes: Point[] };
+  /** A pegboard, with only the slots no overlay covers in `holes`. */
+  board?: Pegboard;
   /** A grid board's tiles, bumpers and holes, laid out for the plan's bed. */
   layout?: BoardLayout;
+  /** Grid overlays on a pegboard, laid out for the plan's bed. */
+  overlays?: OverlayLayout[];
 }
 
 export interface Shape {
@@ -178,13 +183,20 @@ export const baseKey = (base: Drawer["base"]): BaseKey =>
   !base || base.kind === "bare" ? "bare" : base.kind === "pegboard" ? base.preset : base.kind;
 
 /** Works out the plan for a drawer, for a printer with this bed and these grid fits. */
-export function plan(drawer: Drawer, bed: readonly [number, number, number], printerFit?: Partial<Fit>): Plan {
+export function plan(drawer: Drawer, bed: readonly [number, number, number], printerFit?: PrinterFit): Plan {
   const fit = gridFit(printerFit);
   // `read` gives a drawer to plan only once its shape resolves.
   const [width, depth, height] = drawerShape(drawer.drawer)!.inside;
   const rules = { edge_margin: 0, gap: 0, angle_step: 15, ...drawer.rules };
   const base = baseOf(drawer, width, depth, rules.edge_margin);
   if (drawer.base?.kind === "grid") base.layout = layoutBoard(drawerShape(drawer.drawer)!, drawer.base, { bed, fit });
+  if (base.board && drawer.base?.kind === "pegboard" && drawer.base.overlays?.length) {
+    const overlays = drawerOverlays(drawer, { bed, fit });
+    base.overlays = overlays;
+    // IKEA pegs can't reach a slot under an overlay.
+    const open = base.board.holes.filter(([x, y]) => !overlays.some(({ box }) => x > box.x0 && x < box.x1 && y > box.y0 && y < box.y1));
+    base.board = { ...base.board, holes: open };
+  }
 
   const things: PlannedThing[] = [];
   for (const [index, thing] of drawer.layout.entries()) {
@@ -258,10 +270,12 @@ export function plan(drawer: Drawer, bed: readonly [number, number, number], pri
     const method = h ? METHODS[h.method] : null;
     t.claim = h?.method === "gridfinity" ? t.holdBox : grow(t.holdBox, method?.pad ?? 4);
     const floor = !h || h.source.floor === false ? 0 : method!.floor;
-    t.z0 = base.z + floor;
+    const overlay = h && base.overlays ? overlayOf(base.overlays, h.source) : undefined;
+    const raised = overlay ? GRID.thickness : 0;
+    t.z0 = base.z + raised + floor;
     const top = t.z0 + t.shape.height;
     if (t.z0 > 0 && top > height + 0.01) {
-      const under = [base.z ? `the base (${base.z} mm)` : "", floor ? `the holder's floor (${floor} mm)` : ""].filter(Boolean).join(" and ");
+      const under = [base.z ? `the base (${base.z} mm)` : "", raised ? `overlay ${overlay!.id} (${raised} mm)` : "", floor ? `the holder's floor (${floor} mm)` : ""].filter(Boolean).join(" and ");
       t.issues.push({ level: "bad", text: `Too tall: ${Math.round(top)} mm in a ${height} mm drawer, counting ${under}` });
     }
     if (!h) t.issues.push({ level: "warn", text: "Not held yet" });
@@ -310,20 +324,7 @@ function baseOf(drawer: Drawer, width: number, depth: number, margin: number): B
     const ny = Math.floor((depth - 2 * margin) / pitch);
     base.grid = { pitch, nx, ny, ox: (width - nx * pitch) / 2, oy: (depth - ny * pitch) / 2 };
   }
-  const board = BASES[key].board;
-  if (board) {
-    // Holes on a 40 mm grid plus the same grid offset 20 mm both ways: a cross pattern.
-    const [bw, bd] = board;
-    const x0 = (width - bw) / 2;
-    const y0 = (depth - bd) / 2;
-    const na = Math.floor((bw - 50) / 20);
-    const nb = Math.floor((bd - 50) / 20);
-    const ex = (bw - na * 20) / 2;
-    const ey = (bd - nb * 20) / 2;
-    const holes: Point[] = [];
-    for (let a = 0; a <= na; a++) for (let b = 0; b <= nb; b++) if ((a + b) % 2 === 0) holes.push([x0 + ex + a * 20, y0 + ey + b * 20]);
-    base.board = { x0, y0, width: bw, depth: bd, holes };
-  }
+  if (drawer.base?.kind === "pegboard") base.board = pegboard(drawer.base.preset, width, depth);
   return base;
 }
 
@@ -641,7 +642,7 @@ function checkHolders(p: Plan) {
     const method = METHODS[h.method];
     const say = (level: Level, text: string) => h.issues.push({ level, text });
     if (base.grid && !["gridfinity", "ply", "custom"].includes(h.method)) say("warn", "Not a Gridfinity bin, so it won't lock to the grid");
-    if (base.board && h.method !== "pegs" && h.method !== "custom") say("warn", "Loose on the pegboard: hold it with pegs, or print a peg adapter");
+    if (base.board && h.method !== "pegs" && h.method !== "custom" && h.source.on === undefined) say("warn", "Loose on the pegboard: hold it with pegs, put it on an overlay, or print a peg adapter");
     if (h.method === "gridfinity" && base.grid && h.cells) {
       const [i0, j0, i1, j1] = h.cells;
       if (i0 < 0 || j0 < 0 || i1 > base.grid.nx || j1 > base.grid.ny) say("bad", "Runs off the grid");

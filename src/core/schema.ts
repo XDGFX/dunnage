@@ -74,12 +74,13 @@ const Lock = strict({
   sha256: Type.String({ pattern: "^[0-9a-f]+$" }),
 });
 
-const Hole = Type.Tuple([Type.Integer({ minimum: 0 }), Type.Integer({ minimum: 0 })], { description: "[i, j], a grid hole counted from the drawer's origin hole." });
+const Hole = Type.Tuple([Type.Integer({ minimum: 0 }), Type.Integer({ minimum: 0 })], { description: "[i, j], a grid hole counted from the board's origin hole, or its overlay's." });
 
 const holderFields = {
   id: Id,
   holds: Type.Array(Id, { minItems: 1 }),
   floor: Type.Optional(Type.Boolean()),
+  on: Type.Optional(Type.String({ pattern: ID, description: "The overlay it sits on, and is fixed to." })),
   fix: Type.Optional(
     Type.Array(strict({ hole: Hole, by: Type.Union([Type.Literal("screw"), Type.Literal("pin")]) }), {
       minItems: 1,
@@ -117,7 +118,22 @@ export const Holder = Type.Union([
 const Base = Type.Union([
   strict({ kind: Type.Literal("bare") }),
   strict({ kind: Type.Literal("gridfinity"), pitch: Type.Optional(Length) }),
-  strict({ kind: Type.Literal("pegboard"), preset: Type.Union([Type.Literal("uppdatera-80"), Type.Literal("uppdatera-60")]) }),
+  strict({
+    kind: Type.Literal("pegboard"),
+    preset: Type.Union([Type.Literal("uppdatera-80"), Type.Literal("uppdatera-60")]),
+    overlays: Type.Optional(
+      Type.Array(
+        strict({
+          id: Id,
+          kind: Type.Literal("grid"),
+          variant: Type.Optional(VariantName),
+          at: Type.Tuple([Type.Number({ minimum: 0 }), Type.Number({ minimum: 0 })], { description: "Its front-left corner, from the pegboard's front-left corner, in mm." }),
+          holes: Type.Tuple([Type.Integer({ minimum: 1 }), Type.Integer({ minimum: 1 })], { description: "Its size in grid holes, [x, y]." }),
+        }),
+        { description: "Patches of the grid board on top of the pegboard, latched into its slots." },
+      ),
+    ),
+  }),
   strict({
     kind: Type.Literal("grid"),
     variant: Type.Optional(VariantName),
@@ -214,6 +230,16 @@ export const Printer = strict({
         peg: Type.Optional(Type.Number({ minimum: 0, description: "How much smaller a peg is than a grid hole, across the diameter, in mm." })),
         peg_fixed: Type.Optional(Type.Number({ minimum: 0, description: "How much smaller a peg is than a holder's hole, for a peg that stays put, in mm." })),
         joiner: Type.Optional(Type.Number({ description: "Radial clearance of a joiner's rings over the bosses, in mm; negative is interference." })),
+        latch: Type.Optional(
+          strict(
+            {
+              leg: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "Leg and bar thickness, which sets how stiff the latch is, in mm." })),
+              catch: Type.Optional(Type.Number({ minimum: 15, maximum: 75, description: "The barb's catch, in degrees up from flat." })),
+              press: Type.Optional(Type.Number({ description: "How much tighter a latch's plug is than its socket, a side, in mm; negative is clearance." })),
+            },
+            "An overlay's spring latches, from the latch test strip.",
+          ),
+        ),
       },
       "Calibrated fits for the grid base. Each defaults to the grid parameters file's.",
     ),

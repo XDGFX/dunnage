@@ -12,7 +12,7 @@ const coffee = () => {
 /** A drawer with only what a test needs. */
 function drawer(extra: Partial<Drawer>): Drawer {
   return {
-    format: "drawer/0.3",
+    format: "drawer/0.4",
     name: "Test",
     drawer: { inside: [400, 300, 150] },
     items: {

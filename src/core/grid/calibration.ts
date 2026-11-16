@@ -1,5 +1,8 @@
 import type { Manifold, ManifoldToplevel } from "manifold-3d";
-import { GRID } from "./parameters.ts";
+import { UPPDATERA } from "../pegboard.ts";
+import { latchSockets } from "./board.ts";
+import { latchShape, printLatch, socketOf } from "./latch.ts";
+import { GRID, type LatchFit } from "./parameters.ts";
 import { PITCH, VARIANTS, holeCentre, onBed, peg as pegShape, printJoiner, tile, type Dots, type Variant } from "./tile.ts";
 
 // Test prints for #7, which settle the open numbers in the grid spec (#6 §7), each round as small
@@ -177,6 +180,50 @@ export function roundThree(wasm: ManifoldToplevel, choices: (Choice & { fit: num
       solid: testHolder(wasm),
       copies: choices.length,
       note: `A holder for one 4×12 screw, with a ${FLANGE} mm flange and a loop to hang 1 kg from.`,
+    },
+  ];
+}
+
+/** Latch leg thicknesses to compare, mm: the thicker, the stiffer. */
+export const LATCH_LEGS = [1.0, 1.2, 1.4];
+/** Catch angles to compare, degrees up from flat: the steeper, the sooner it lets go. */
+export const LATCH_CATCHES = [35, 45, 55];
+/** The strip's sockets sit over this many slots in one row of the board. */
+const STRIP_SLOTS = 3;
+
+/** Each test latch, in the order its notches count: legs, then catches within each. */
+export const testLatches = (press = GRID.fit.latch.press): LatchFit[] => LATCH_LEGS.flatMap((leg) => LATCH_CATCHES.map((c) => ({ leg, catch: c, press })));
+
+/**
+ * The overlay's latch test (#13 §6): a strip of tile with a socket over each of three slots in a
+ * row of a real UPPDATERA board, and a latch at every leg and catch, told apart by notches.
+ */
+export function latchStrip(wasm: ManifoldToplevel, { variant, hole, skin }: Choice, press = GRID.fit.latch.press): Part[] {
+  const fits = testLatches(press);
+  const shapes = fits.map((fit) => latchShape(fit));
+  const socket = socketOf(shapes, fits[0]);
+  const margin = 3;
+  const nx = Math.ceil(((STRIP_SLOTS - 1) * UPPDATERA.pitch + socket.pad[0] + 2 * margin) / PITCH);
+  const ny = Math.max(3, Math.ceil((socket.pad[1] + 2 * margin) / PITCH));
+  const centres = Array.from({ length: STRIP_SLOTS }, (_, n) => [(nx * PITCH) / 2 + (n - (STRIP_SLOTS - 1) / 2) * UPPDATERA.pitch, (ny * PITCH) / 2] as const);
+  const { pads, voids, blind } = latchSockets(wasm, centres, socket, hole);
+  return [
+    {
+      name: `latch-strip-${variant}`,
+      solid: tile(wasm, { variant, nx, ny, hole, skin, joiners: false, solids: pads, voids, blind }),
+      copies: 1,
+      note: `A ${variant} strip with ${STRIP_SLOTS} latch sockets ${UPPDATERA.pitch} mm apart, over ${STRIP_SLOTS} slots in one row of a real UPPDATERA board. Press a latch into each socket, then the strip onto the board.`,
+    },
+    {
+      name: "latches",
+      solid: arrange(wasm, shapes.map((shape, n) => printLatch(wasm, shape, [Math.floor(n / LATCH_CATCHES.length) + 1, (n % LATCH_CATCHES.length) + 1])), LATCH_CATCHES.length),
+      copies: 1,
+      note:
+        "One latch per leg and catch. Notches on the bar's left half count the leg: " +
+        LATCH_LEGS.map((leg, n) => `${n + 1} = ${leg} mm`).join(", ") +
+        "; on its right half, the catch: " +
+        LATCH_CATCHES.map((c, n) => `${n + 1} = ${c}°`).join(", ") +
+        ". Keep the one that snaps in by hand, holds the strip down when shaken, and comes off with a firm pull; set it as `fit.latch` in the printer profile.",
     },
   ];
 }

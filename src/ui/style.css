@@ -160,6 +160,12 @@ h1, h2, h3 { margin: 0; font-weight: 500; text-wrap: balance; }
 .plan .tile-label { font: 500 10px var(--mono); fill: var(--muted); }
 .plan .dropped { stroke: var(--bad); stroke-width: 1.2; stroke-linecap: round; }
 .plan .countersink { fill: none; stroke: var(--green-t); stroke-width: 1.2; }
+/* An overlay reads as the grid board laid on the pegboard: its free edges drawn heavier, as the chamfered edge you'd feel. */
+.plan .overlay .free-edge { stroke: rgba(255, 255, 255, 0.7); stroke-width: 1.6; }
+.plan .overlay .latch { fill: none; stroke: var(--guide); stroke-width: 1.2; stroke-dasharray: 2.5 1.5; }
+.plan .overlay .blind { fill: #2a2a2a; stroke: none; }
+.plan .overlay-label { font: 500 10px var(--mono); fill: var(--muted); }
+.plan .overlay.bad .tile { stroke: var(--bad); }
 .plan .obstruction { pointer-events: none; }
 .plan .obstruction rect { fill: url(#hatch); stroke: rgba(255, 255, 255, 0.3); stroke-dasharray: 3 3; }
 .plan .obstruction text { font: 500 11px var(--sans); fill: var(--dim); }
@@ -264,6 +270,11 @@ h1, h2, h3 { margin: 0; font-weight: 500; text-wrap: balance; }
 .grid-base { display: flex; flex-direction: column; gap: 8px; }
 .grid-base h4 { margin: 8px 0 0; font-size: 13px; font-weight: 500; color: var(--muted); }
 .grid-base .triple { display: inline-flex; gap: 4px; }
+.overlay-card { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
+.overlay-head { display: flex; align-items: center; gap: 8px; }
+.overlay-head b { font-family: var(--mono); font-weight: 500; }
+.overlay-head .btn { margin-left: auto; }
+.bad-text { color: var(--bad); }
 .board-sum { font-variant-numeric: tabular-nums; }
 .sinks { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .sinks .tag { font-family: var(--mono); gap: 2px; padding-right: 2px; }

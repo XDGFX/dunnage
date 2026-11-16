@@ -8,7 +8,7 @@
 # For an IKEA MAXIMERA, name a preset instead and override what differs:
 #   drawer: { preset: ikea-maximera-80x60-low }
 
-format: drawer/0.3
+format: drawer/0.4
 name: Tool chest, top drawer
 printer: p1s
 

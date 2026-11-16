@@ -1,10 +1,10 @@
-# drawer/0.3
+# drawer/0.4
 
 A drawer file describes one drawer: what's in it, where each thing sits, and how each thing is
 held. It's the source of truth. The UI edits it by direct manipulation and an agent edits it from
 a description, so every field is meant to be read and written by hand.
 
-The JSON Schema is [drawer-0.3.schema.json](drawer-0.3.schema.json). The worked examples are
+The JSON Schema is [drawer-0.4.schema.json](drawer-0.4.schema.json). The worked examples are
 [`fixtures/coffee.drawer.yml`](../../fixtures/coffee.drawer.yml), and
 [`fixtures/tool-chest.drawer.yml`](../../fixtures/tool-chest.drawer.yml) for a grid base.
 
@@ -24,7 +24,7 @@ The JSON Schema is [drawer-0.3.schema.json](drawer-0.3.schema.json). The worked 
 
 | Field | Required | What |
 |---|---|---|
-| `format` | yes | `drawer/0.3` |
+| `format` | yes | `drawer/0.4` |
 | `name` | yes | What the drawer is called. |
 | `printer` | no | A printer profile, `<printer>.printer.yml` in the same folder. See [printer.md](printer.md). |
 | `drawer` | yes | The drawer's inside. |
@@ -99,13 +99,13 @@ floor, and leave `walls` at 0. `fixtures/tool-chest.drawer.yml` is one.
 
 ## `base`
 
-One base per drawer. A drawer with both a grid and a pegboard is two drawers in this format's eyes.
+One base per drawer, plus any number of grid overlays on a pegboard (see [`overlays`](#overlays)).
 
 | `kind` | Fields | What |
 |---|---|---|
 | `bare` | | Holders sit on the drawer floor. |
 | `gridfinity` | `pitch` (default 42) | A grid of whole cells, as many as fit, centred in the drawer. Each Gridfinity holder claims the smallest block of cells that covers what it holds. |
-| `pegboard` | `preset`: `uppdatera-80` or `uppdatera-60` | IKEA UPPDATERA, 675 × 500 or 475 × 500. The drawer height is measured from the top of the board. |
+| `pegboard` | `preset`: `uppdatera-80` or `uppdatera-60`; `overlays` | IKEA UPPDATERA, 675 × 500 or 475 × 500, centred in the drawer. The drawer height is measured from the top of the board. |
 | `grid` | See below | A printed board of holes on a 9.5 mm pitch, in tiles joined from the back, wedged against the walls by bumpers. Holders screw or pin into its holes. |
 
 ### `grid`
@@ -142,6 +142,47 @@ bosses come closer, so the rebate leaves them whole. A bumper is also joined to 
 it's thick enough to keep a joiner's rings clear of the wall and the floor edge.
 The pitch, hole sizes and every other grid number come from the grid parameters file and the
 printer's `fit` ([printer.md](printer.md)), not from the drawer.
+
+### `overlays`
+
+A patch of the grid board on top of a pegboard, covering part of it. Spring latches under its
+tiles snap into the pegboard's slots when it's pressed down, so it can't slide, turn or lift. The
+rest of the drawer keeps its IKEA pegs.
+
+```yaml
+base:
+  kind: pegboard
+  preset: uppdatera-80
+  overlays:
+    - id: front
+      kind: grid
+      variant: light-thin
+      at: [85, 0]
+      holes: [60, 17]
+```
+
+| Field | Default | What |
+|---|---|---|
+| `id` | | Names the overlay, for holders' `on`. Overlays have their own ids. |
+| `kind` | | `grid`, the only kind for now. |
+| `variant` | `light-thin` | As the `grid` base's. |
+| `at` | | Its front-left corner, in mm from the pegboard's front-left corner. |
+| `holes` | | `[x, y]`, its size in holes: `[60, 17]` is 570 × 161.5 mm. |
+
+Each overlay numbers its holes `[i, j]` from its own front-left hole; there's no drawer-wide hole
+grid. Overlays lie inside the board and don't overlap. An edge on the board's edge stops there, at
+the drawer wall; any other edge is free, with a wide band and a chamfer on the face so nothing
+catches on it. Tiles are cut and joined as the `grid` base's, with joiners only between its own
+tiles.
+
+dunnage picks the slots to latch into: at least two under every tile, at least three per overlay
+not in a line, and no point more than 120 mm from a latch, each with its socket's pad inside one
+tile and clear of its edges. Holes over a latch's socket are blind. The overlay raises what's on it
+by its thickness, 8 mm, so a thing held on one has the drawer's height less 8 mm.
+
+The UPPDATERA sizes the latches are made for (the slot, its pitch and rows, the skin, the board's
+thickness and the cup under each slot) are best guesses until measured, so `check` warns whenever a
+drawer has an overlay. They're in the grid parameters file under `uppdatera`.
 
 ## `rules`
 
@@ -246,7 +287,8 @@ holders:
 | `method` | One of the methods below. |
 | `holds` | The ids of the things it holds, from `layout`. |
 | `floor` | `false` for a holder with no floor under the thing. |
-| `fix` | On a `grid` base, how it's fixed, hole by hole: `[{ hole: [i, j], by: screw }]`. `by` is `screw` (a 4×12 wood screw through the holder) or `pin` (a printed peg, so the holder lifts off). |
+| `on` | The overlay it sits on. A holder is wholly on one overlay, or wholly off them all. |
+| `fix` | On a `grid` base or an overlay, how it's fixed, hole by hole: `[{ hole: [i, j], by: screw }]`. `by` is `screw` (a 4×12 wood screw through the holder) or `pin` (a printed peg, so the holder lifts off). On a pegboard, a holder with `fix` names its overlay with `on`, and the holes are the overlay's. |
 | `lock` | Set once it's built. See below. |
 
 | `method` | Makes | Extra fields |
@@ -308,10 +350,16 @@ Beyond the schema, `dunnage check` reports:
   unverified gets a warning, which doesn't fail the check.
 - **Holders.** A thing is held by at most one holder. `gridfinity` holders need a gridfinity base
   and `pegs` holders a pegboard. A `peg` holder holds only things with an `outlet`. `fix` needs a
-  grid base.
+  grid base, or an overlay named with `on`.
+- **Overlays.** Each lies inside the pegboard, apart from the others, with an id of its own, and
+  lays out in tiles that fit the bed with room for its latches. A holder's `on` names one; what it
+  holds is wholly on that overlay, and what a holder without `on` holds is wholly off them all, so
+  IKEA pegs never need a slot under one. A thing held on an overlay is no taller than the drawer
+  less the overlay's 8 mm. Every overlay draws a warning that the UPPDATERA sizes are unverified,
+  and a `fix` in a hole made blind by a latch's socket draws one too.
 - **The grid board.** It lays out in the drawer, in tiles and bumpers that fit the printer's bed
   (the CLI reads the bed from the named printer profile; otherwise a P1S's). Every `fix` and
-  `countersinks` hole is on the board and not cut away by a rounded corner.
+  `countersinks` hole is on the board, or its overlay, and not cut away by a rounded corner.
 - **The printer profile** named by `printer` is beside the file (the CLI checks this; the core
   can't see files).
 

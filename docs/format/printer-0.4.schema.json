@@ -1,0 +1,140 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/XDGFX/dunnage/main/docs/format/printer-0.4.schema.json",
+  "title": "dunnage printer/0.4",
+  "description": "A dunnage printer file. docs/format/printer.md explains each field, and the checks a schema can't express.",
+  "type": "object",
+  "required": [
+    "format"
+  ],
+  "properties": {
+    "format": {
+      "type": "string",
+      "const": "printer/0.4"
+    },
+    "preset": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "bambu-a1"
+        },
+        {
+          "type": "string",
+          "const": "bambu-a1-mini"
+        },
+        {
+          "type": "string",
+          "const": "bambu-p1s"
+        },
+        {
+          "type": "string",
+          "const": "bambu-x1c"
+        },
+        {
+          "type": "string",
+          "const": "prusa-mk4"
+        }
+      ]
+    },
+    "bed": {
+      "type": "array",
+      "additionalItems": false,
+      "items": [
+        {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "mm"
+        },
+        {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "mm"
+        },
+        {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "mm"
+        }
+      ],
+      "minItems": 3
+    },
+    "clearance": {
+      "type": "number",
+      "minimum": 0
+    },
+    "colour": {
+      "type": "string"
+    },
+    "fit": {
+      "type": "object",
+      "properties": {
+        "grid_hole": {
+          "type": "object",
+          "properties": {
+            "standard": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "mm"
+            },
+            "light-thick": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "mm"
+            },
+            "light": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "mm"
+            },
+            "light-thin": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "mm"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Grid hole diameter by variant, in mm."
+        },
+        "peg": {
+          "type": "number",
+          "minimum": 0,
+          "description": "How much smaller a peg is than a grid hole, across the diameter, in mm."
+        },
+        "peg_fixed": {
+          "type": "number",
+          "minimum": 0,
+          "description": "How much smaller a peg is than a holder's hole, for a peg that stays put, in mm."
+        },
+        "joiner": {
+          "type": "number",
+          "description": "Radial clearance of a joiner's rings over the bosses, in mm; negative is interference."
+        },
+        "latch": {
+          "type": "object",
+          "properties": {
+            "leg": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Leg and bar thickness, which sets how stiff the latch is, in mm."
+            },
+            "catch": {
+              "type": "number",
+              "minimum": 15,
+              "maximum": 75,
+              "description": "The barb's catch, in degrees up from flat."
+            },
+            "press": {
+              "type": "number",
+              "description": "How much tighter a latch's plug is than its socket, a side, in mm; negative is clearance."
+            }
+          },
+          "additionalProperties": false,
+          "description": "An overlay's spring latches, from the latch test strip."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Calibrated fits for the grid base. Each defaults to the grid parameters file's."
+    }
+  },
+  "additionalProperties": false
+}

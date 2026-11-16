@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useRef, type PointerEvent as ReactPointerEvent } from "react";
 import {
   boxesOverlap, GRID, HELD, holeAt, lower, METHODS, mm, moveThings, partsAt, partsHit, PEG, seat, seatOnPegs, setAside, setRotate, SLOT, snapAngle, solve, turn, unionOf, worst, wrap,
-  type BoardLayout, type Box, type Issue, type Move, type Plan, type PlannedHolder, type PlannedThing, type Point, type Snap,
+  type BoardLayout, type Box, type Issue, type OverlayLayout, type Move, type Plan, type PlannedHolder, type PlannedThing, type Point, type Snap,
 } from "../core/index.ts";
 
 // The plan: the drawer from above, with the counter in front of it. It's the interface: drag a
@@ -399,6 +399,7 @@ function BaseLayer({ p, Y }: { p: Plan; Y: (y: number) => number }) {
       <g className="base">
         <rect className="board" x={board.x0} y={Y(board.y0 + board.depth)} width={board.width} height={board.depth} rx={3} />
         {board.holes.map(([x, y]) => <rect key={`${x}-${y}`} className="hole" x={x - SLOT[0] / 2} y={Y(y) - SLOT[1] / 2} width={SLOT[0]} height={SLOT[1]} rx={SLOT[1] / 2} />)}
+        {p.base.overlays?.map((o) => <Overlay key={o.id} overlay={o} D={D} Y={Y} />)}
       </g>
     );
   }
@@ -408,8 +409,33 @@ function BaseLayer({ p, Y }: { p: Plan; Y: (y: number) => number }) {
   return <g className="base">{lines}</g>;
 }
 
+/**
+ * A grid overlay on a pegboard: its tiles and holes as a grid board's, the latches under it as the
+ * slots they press into, and the holes their sockets make blind filled in.
+ */
+function Overlay({ overlay: o, D, Y }: { overlay: OverlayLayout; D: number; Y: (y: number) => number }) {
+  const hole = (GRID.fit.grid_hole[o.variant] ?? GRID.fit.grid_hole[GRID.variant]!) / 2;
+  const { box } = o;
+  const edge = { left: [box.x0, box.y0, box.x0, box.y1], right: [box.x1, box.y0, box.x1, box.y1], front: [box.x0, box.y0, box.x1, box.y0], back: [box.x0, box.y1, box.x1, box.y1] };
+  return (
+    <g className={`overlay${o.problems.length ? " bad" : ""}`}>
+      <GridBoard layout={o} D={D} Y={Y} id={`overlay-${o.id}`} />
+      {o.free.map((side) => {
+        const [x1, y1, x2, y2] = edge[side];
+        return <line key={side} className="free-edge" x1={x1} y1={Y(y1)} x2={x2} y2={Y(y2)} />;
+      })}
+      {o.blind.map((h) => {
+        const [x, y] = holeAt(o, h);
+        return <circle key={`b${h[0]}-${h[1]}`} className="blind" cx={x} cy={Y(y)} r={hole + 0.4} />;
+      })}
+      {o.latches.map(({ at: [x, y] }) => <rect key={`l${x}-${y}`} className="latch" x={x - SLOT[0] / 2} y={Y(y) - SLOT[1] / 2} width={SLOT[0]} height={SLOT[1]} rx={SLOT[1] / 2} />)}
+      <text className="overlay-label" x={box.x1 - 5} y={Y(box.y1) + 13} textAnchor="end">overlay {o.id}, {o.latches.length} latches</text>
+    </g>
+  );
+}
+
 /** A grid board: tiles with their `row-col` labels, bumpers out to the walls, and the holes. */
-function GridBoard({ layout, D, Y }: { layout: BoardLayout; D: number; Y: (y: number) => number }) {
+function GridBoard({ layout, D, Y, id = "grid" }: { layout: BoardLayout; D: number; Y: (y: number) => number; id?: string }) {
   const pitch = GRID.pitch;
   const hole = (GRID.fit.grid_hole[layout.variant] ?? GRID.fit.grid_hole[GRID.variant]!) / 2;
   const R = layout.shape.corner_radius;
@@ -420,7 +446,7 @@ function GridBoard({ layout, D, Y }: { layout: BoardLayout; D: number; Y: (y: nu
   return (
     <g className="base">
       <defs>
-        <pattern id="grid-holes" width={pitch} height={pitch} patternUnits="userSpaceOnUse" x={layout.origin[0]} y={D - layout.origin[1]}>
+        <pattern id={`${id}-holes`} width={pitch} height={pitch} patternUnits="userSpaceOnUse" x={layout.origin[0]} y={D - layout.origin[1]}>
           <circle className="grid-hole" cx={pitch / 2} cy={pitch / 2} r={hole} />
         </pattern>
         {layout.corner && (
@@ -437,7 +463,7 @@ function GridBoard({ layout, D, Y }: { layout: BoardLayout; D: number; Y: (y: nu
           </g>
         ))}
         {layout.tiles.map((t) => <rect key={t.label} className="tile" {...rect(t.box)} />)}
-        {layout.tiles.map((t) => <rect key={`h${t.label}`} className="tile-holes" {...rect(t.box)} fill="url(#grid-holes)" />)}
+        {layout.tiles.map((t) => <rect key={`h${t.label}`} className="tile-holes" {...rect(t.box)} fill={`url(#${id}-holes)`} />)}
       </g>
       {layout.dropped.map(([i, j]) => {
         const [x, y] = holeAt(layout, [i, j]);

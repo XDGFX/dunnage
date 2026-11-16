@@ -1,8 +1,9 @@
 import type { CrossSection, Manifold, ManifoldToplevel, Vec3 } from "manifold-3d";
 import type { Side } from "../drawers.ts";
 import type { Box } from "../geometry.ts";
+import { latchShape, printLatch, socketOf, socketVoid, type Socket } from "./latch.ts";
 import { boardHole, OUTWARD, type BoardBumper, type BoardLayout, type BoardTile, type Hole } from "./layout.ts";
-import { GRID, gridFit, type Fit } from "./parameters.ts";
+import { GRID, gridFit, type PrinterFit } from "./parameters.ts";
 import { joinerRoom, peg, PITCH, printJoiner, THICKNESS, tile, VARIANTS } from "./tile.ts";
 
 // The solids of a laid-out grid board, each built in place the right way up with z from the floor,
@@ -19,7 +20,7 @@ export interface BoardParts {
 const BIG = 1000;
 const RAD = Math.PI / 180;
 
-export function buildBoard(wasm: ManifoldToplevel, layout: BoardLayout, fit?: Partial<Fit>): BoardParts {
+export function buildBoard(wasm: ManifoldToplevel, layout: BoardLayout, fit?: PrinterFit): BoardParts {
   return {
     tiles: layout.tiles.map((t) => ({ tile: t, solid: tileSolid(wasm, layout, t, fit) })),
     bumpers: layout.bumpers.map((b) => ({ bumper: b, solid: bumperSolid(wasm, layout, b, fit) })),
@@ -40,7 +41,9 @@ const standUp = (part: Manifold) => part.mirror([0, 0, 1]).translate([0, 0, THIC
 
 /** Where a `row-col` label's dots sit on a tile's face, in the tile's own coordinates: the row's dots, a gap, then the column's. */
 export function labelDots(layout: BoardLayout, t: BoardTile): { at: [number, number]; count: number }[] {
-  const y = Math.max(VARIANTS[layout.variant].band / 2, GRID.label.inset);
+  // Clear of the chamfer on an overlay's free front edge.
+  const chamfered = t.row === 0 && layout.free?.includes("front") ? GRID.overlay.chamfer + GRID.label.dot : 0;
+  const y = Math.max(VARIANTS[layout.variant].band / 2, GRID.label.inset, chamfered);
   const spacing = GRID.label.spacing;
   const [rowDots, colDots] = [t.row + 1, t.col + 1];
   return [
@@ -75,7 +78,7 @@ function lapTabProfiles(depth: number): { tab: [number, number][]; rebate: [numb
   };
 }
 
-export function tileSolid(wasm: ManifoldToplevel, layout: BoardLayout, t: BoardTile, fit?: Partial<Fit>): Manifold {
+export function tileSolid(wasm: ManifoldToplevel, layout: BoardLayout, t: BoardTile, fit?: PrinterFit): Manifold {
   const hole = boardHole(layout.variant, gridFit(fit));
   const [i0, j0] = t.first;
   const inSet = (holes: readonly Hole[]) => {
@@ -87,6 +90,8 @@ export function tileSolid(wasm: ManifoldToplevel, layout: BoardLayout, t: BoardT
   const clip = cut && !cut.intersect(wasm.CrossSection.square([w, d]).translate(t.box.x0, t.box.y0)).isEmpty()
     ? wasm.CrossSection.square([w + 2, d + 2]).translate(-1, -1).subtract(cut.translate(-t.box.x0, -t.box.y0))
     : undefined;
+  const outer = outerSides(layout, t);
+  const latches = latchesIn(wasm, layout, t, fit);
   const local = tile(wasm, {
     variant: layout.variant,
     nx: t.size[0],
@@ -94,22 +99,72 @@ export function tileSolid(wasm: ManifoldToplevel, layout: BoardLayout, t: BoardT
     hole,
     drop: inSet(layout.dropped),
     countersink: inSet(layout.countersinks),
+    blind: latches?.blind,
+    solids: latches?.pads,
+    voids: latches?.voids,
+    // A board's joiners reach its bumpers; an overlay's are only between its own tiles.
+    joiners: layout.bumpers.length > 0 ? true : SIDES.filter((side) => !outer.includes(side)),
     clip,
     dots: labelDots(layout, t),
   });
-  // A rebate under each edge that meets a bumper, for its lap tab, so the tile still sits flat.
+  let placed = local.translate([t.box.x0, t.box.y0, 0]);
+  if (layout.bumpers.length > 0) {
+    // A rebate under each edge that meets a bumper, for its lap tab, so the tile still sits flat.
+    const { rebate } = lapTabProfiles(layout.lapTab);
+    placed = placed.subtract(wasm.Manifold.union(outer.map((side) => edgePrism(wasm, side, t.box, rebate, 1))));
+  }
+  // An overlay's free edge faces the pegboard: a wide band so it doesn't crack, chamfered on the face so nothing catches.
+  const free = outer.filter((side) => layout.free?.includes(side));
+  if (free.length > 0) {
+    const { band, chamfer: c } = GRID.overlay;
+    placed = placed
+      .add(wasm.Manifold.union(free.map((side) => edgePrism(wasm, side, t.box, [[0, 0], [band, 0], [band, THICKNESS], [0, THICKNESS]]))))
+      .subtract(wasm.Manifold.union(free.map((side) => edgePrism(wasm, side, t.box, [[-1, -1], [c + 1, -1], [-1, c + 1]], 1))));
+  }
+  return standUp(placed);
+}
+
+const SIDES: Side[] = ["left", "right", "front", "back"];
+
+/** The sides of a tile on the board's outside edge. */
+function outerSides(layout: BoardLayout, t: BoardTile): Side[] {
   const lastRow = Math.max(...layout.tiles.map((other) => other.row));
   const lastCol = Math.max(...layout.tiles.map((other) => other.col));
-  const outer: Side[] = [
+  return [
     ...(t.col === 0 ? (["left"] as const) : []),
     ...(t.col === lastCol ? (["right"] as const) : []),
     ...(t.row === 0 ? (["front"] as const) : []),
     ...(t.row === lastRow ? (["back"] as const) : []),
   ];
-  const { rebate } = lapTabProfiles(layout.lapTab);
-  const rebates = outer.map((side) => edgePrism(wasm, side, t.box, rebate, 1));
-  const placed = local.translate([t.box.x0, t.box.y0, 0]);
-  return standUp(rebates.length > 0 ? placed.subtract(wasm.Manifold.union(rebates)) : placed);
+}
+
+/** A tile's latch sockets, for `tile`, or none. */
+function latchesIn(wasm: ManifoldToplevel, layout: BoardLayout, t: BoardTile, fit?: PrinterFit) {
+  const own = (layout.latches ?? []).filter((latch) => layout.tiles[latch.tile]?.label === t.label);
+  if (own.length === 0) return undefined;
+  const fits = gridFit(fit);
+  const socket = socketOf(latchShape(fits.latch), fits.latch);
+  return latchSockets(wasm, own.map(({ at: [x, y] }) => [x - t.box.x0, y - t.box.y0] as const), socket, boardHole(layout.variant, fits));
+}
+
+/**
+ * Latch sockets in a tile, in its own frame, z from the face: a solid pad for each, the room cut in
+ * it, and how deep each hole over the room goes before it stops.
+ */
+export function latchSockets(wasm: ManifoldToplevel, centres: readonly (readonly [number, number])[], socket: Socket, hole: number) {
+  const room = socketVoid(wasm, socket).mirror([0, 0, 1]).translate([0, 0, THICKNESS]);
+  const { CrossSection } = wasm;
+  const pads = CrossSection.union(centres.map(([x, y]) => CrossSection.square(socket.pad, true).translate(x, y)));
+  const voids = centres.map(([x, y]) => room.translate([x, y, 0]));
+  const r = hole / 2;
+  const floor = GRID.latch.floor;
+  const blind = (i: number, j: number) => {
+    const [hx, hy] = [(i + 0.5) * PITCH, (j + 0.5) * PITCH];
+    const over = (size: readonly [number, number]) => centres.some(([x, y]) => Math.abs(hx - x) < size[0] / 2 + r && Math.abs(hy - y) < size[1] / 2 + r);
+    if (over(socket.socket)) return THICKNESS - socket.top - floor;
+    return over(socket.pocket) ? THICKNESS - socket.ceiling - floor : undefined;
+  };
+  return { pads, voids, blind };
 }
 
 /** How far out along `side`'s outward direction a box's edge on that side is. */
@@ -134,7 +189,7 @@ function edgePrism(wasm: ManifoldToplevel, side: Side, box: Box, profile: [numbe
   return wasm.Manifold.hull(points);
 }
 
-export function bumperSolid(wasm: ManifoldToplevel, layout: BoardLayout, b: BoardBumper, fit?: Partial<Fit>): Manifold {
+export function bumperSolid(wasm: ManifoldToplevel, layout: BoardLayout, b: BoardBumper, fit?: PrinterFit): Manifold {
   const { Manifold } = wasm;
   const { floor, top } = b;
   // Made face down: the face's footprint at z = 0 and the floor's at z = THICKNESS.
@@ -174,13 +229,18 @@ export function bumperSolid(wasm: ManifoldToplevel, layout: BoardLayout, b: Boar
 }
 
 /** One joiner, as it prints. */
-export function joinerSolid(wasm: ManifoldToplevel, layout: BoardLayout, fit?: Partial<Fit>): Manifold {
+export function joinerSolid(wasm: ManifoldToplevel, layout: BoardLayout, fit?: PrinterFit): Manifold {
   const fits = gridFit(fit);
   return printJoiner(wasm, layout.variant, boardHole(layout.variant, fits), fits.joiner);
 }
 
+/** One spring latch, as it prints, lying on its side. */
+export function latchSolid(wasm: ManifoldToplevel, fit?: PrinterFit): Manifold {
+  return printLatch(wasm, latchShape(gridFit(fit).latch));
+}
+
 /** One peg, as it prints: smaller than the board hole by the calibrated peg fit. */
-export function pegSolid(wasm: ManifoldToplevel, layout: BoardLayout, fit?: Partial<Fit>): Manifold {
+export function pegSolid(wasm: ManifoldToplevel, layout: BoardLayout, fit?: PrinterFit): Manifold {
   const fits = gridFit(fit);
   return peg(wasm, boardHole(layout.variant, fits) - fits.peg);
 }

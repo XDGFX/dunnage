@@ -12,7 +12,7 @@
 # Units are mm. Origin is the front-left corner of the drawer floor: x runs left to right, y runs
 # front (your side) to back, z up. Rotation is degrees, anticlockwise seen from above.
 
-format: drawer/0.3
+format: drawer/0.4
 name: Coffee and tableware
 printer: p1s                       # a printer profile, kept beside the drawer files
 
@@ -20,9 +20,18 @@ drawer:
   inside: [700, 500, 150]          # width, depth, height
   obstructions: []                 # e.g. { name: Runner bracket, at: [0, 470], size: [700, 30], height: 12 }
 
-# One base per drawer. A drawer with both a grid and a pegboard is two drawers in this file's eyes.
+# One base per drawer, plus any number of overlays on it.
 base:
-  kind: bare
+  kind: pegboard
+  preset: uppdatera-80             # 675 × 500, centred: 12.5 mm to each side wall
+  overlays:
+    # The small brew kit wants the fine grid; the big stuff behind stays on IKEA pegs. Spring
+    # latches under the tiles snap into the board's slots, so it presses straight down and stays.
+    - id: front
+      kind: grid
+      at: [85, 0]                  # from the board's front-left corner, mm
+      holes: [60, 17]              # 570 × 161.5 mm; hole [0, 0] is its own front-left hole
+  # kind: bare
   # kind: gridfinity, pitch: 42
   #   A grid of whole cells, as many as fit, centred in the drawer. Each Gridfinity holder claims
   #   the smallest block of cells that covers what it holds, at the angle it sits; move or turn
@@ -114,10 +123,11 @@ layout:
 
   - id: filters
     zone: brew
-    at: [638, 110]
-    why: Last step before the coffee. On edge, front to back; you pull one off the front.
+    at: [680, 110]
+    why: Last step before the coffee. On edge, front to back; you pull one off the front. Right of
+      the overlay, against the wall.
 
-  - { id: glass-1, item: glass, zone: drink, pose: lying, rotate: 90, at: [200, 198], why: "Lying, because 160 mm won't stand in a 150 mm drawer." }
+  - { id: glass-1, item: glass, zone: drink, pose: lying, rotate: 90, at: [200, 198], why: "Lying, because 160 mm won't stand in a 150 mm drawer. Just behind the overlay." }
   - { id: glass-2, item: glass, zone: drink, pose: lying, rotate: 90, at: [370, 198], why: "Beside the first, mouths the same way." }
   - { id: glass-3, item: glass, zone: drink, pose: lying, rotate: 90, at: [540, 198], why: Third in the drinkware band. }
   - { id: glass-4, item: glass, zone: drink, pose: lying, rotate: 90, at: [580, 275], why: No room left in the band; it sits between the bowls and the filters. See the concern below. }
@@ -173,20 +183,33 @@ holders:
   - id: scales-slot
     method: slot
     holds: [scales]
+    on: front
+    fix:
+      - { hole: [1, 2], by: screw }
+      - { hole: [2, 14], by: screw }
 
   - id: coaster-posts
     method: posts
     holds: [coasters]
+    on: front
+    fix:
+      - { hole: [6, 7], by: screw }
+      - { hole: [14, 7], by: pin }
     why: Three posts round the stack, fingers free to lift the top one.
 
   - id: mug-tray
     method: well
     holds: [mug-large, mug-small]
+    on: front
+    fix:
+      - { hole: [24, 2], by: screw }
+      - { hole: [35, 2], by: screw }
     why: One print for the pair. Shallow wells with a notch for each handle.
 
   - id: v60-peg
     method: peg
     holds: [v60]
+    on: front                              # sits on the overlay; printed before it, so not fixed
     peg: { diameter: 18, height: 30 }
     lock:                                  # printed and in use: frozen as built
       at: 2026-09-24

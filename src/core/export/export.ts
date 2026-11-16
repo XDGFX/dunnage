@@ -2,10 +2,11 @@ import { strToU8, zipSync } from "fflate";
 import type { Manifold, ManifoldToplevel } from "manifold-3d";
 import { collect, freeAll } from "./collect.ts";
 import { drawerShape } from "../drawers.ts";
-import { bumperSolid, joinerSolid, pegSolid, printable, tileSolid } from "../grid/board.ts";
-import { roundOne, roundTwo } from "../grid/calibration.ts";
+import { bumperSolid, joinerSolid, latchSolid, pegSolid, printable, tileSolid } from "../grid/board.ts";
+import { latchStrip, roundOne, roundTwo } from "../grid/calibration.ts";
 import { boardHole, layoutBoard, type BoardLayout } from "../grid/layout.ts";
-import { GRID, gridFit, VARIANT_NAMES, type Fit } from "../grid/parameters.ts";
+import { drawerOverlays, type OverlayLayout } from "../grid/overlay.ts";
+import { GRID, gridFit, VARIANT_NAMES, type Fit, type PrinterFit, type Variant } from "../grid/parameters.ts";
 import { onBed, tile } from "../grid/tile.ts";
 import { plan } from "../plan.ts";
 import { PRINTER_PRESETS, type Drawer } from "../schema.ts";
@@ -22,7 +23,7 @@ export interface ExportOptions {
   /** The printer's bed. Default: the Bambu P1S's. */
   bed?: readonly [number, number, number];
   /** The printer's grid fits, over the calibrated defaults. */
-  fit?: Partial<Fit>;
+  fit?: PrinterFit;
   library?: Library;
   /** Called before each slow step, with what it is. */
   progress?: (step: string) => void;
@@ -46,15 +47,29 @@ const SAMPLE = 6;
 
 export const withSpares = (n: number) => Math.ceil(n * (1 + SPARES));
 
-/** What a grid board takes besides tiles and bumpers. */
-export function boardCounts(drawer: Drawer, layout: BoardLayout): BoardCounts {
-  const fixings = fixingsOf(drawer.holders ?? [], layout);
+/** What a grid board, or a pegboard's overlays, take besides tiles and bumpers. */
+export function boardCounts(drawer: Drawer, layouts: BoardLayout | readonly BoardLayout[]): BoardCounts {
+  const all: readonly BoardLayout[] = Array.isArray(layouts) ? layouts : [layouts as BoardLayout];
+  const holders = drawer.holders ?? [];
+  const fixings = fixingsOf(holders, all);
   const pins = fixings.filter((fixing) => fixing.by === "pin").length;
+  const sum = (count: (layout: BoardLayout) => number) => all.reduce((total, layout) => total + count(layout), 0);
+  // Joiners and pegs are sized to a variant's bosses and holes, so each variant's are counted apart.
+  const variants: BoardCounts["variants"] = {};
+  for (const variant of new Set(all.map((layout) => layout.variant))) {
+    const own = all.filter((layout) => layout.variant === variant);
+    const ownPins = fixingsOf(holders, own).filter((fixing) => fixing.by === "pin").length;
+    variants[variant] = { joiners: withSpares(own.reduce((total, layout) => total + layout.joiners.length, 0)), pegs: withSpares(ownPins) };
+  }
+  const latches = sum((layout) => layout.latches?.length ?? 0);
   return {
-    joiners: withSpares(layout.joiners.length),
-    pegs: withSpares(pins),
+    joiners: Object.values(variants).reduce((total, v) => total + v.joiners, 0),
+    pegs: Object.values(variants).reduce((total, v) => total + v.pegs, 0),
     holderScrews: fixings.length - pins,
-    floorScrews: layout.countersinks.length,
+    floorScrews: sum((layout) => layout.countersinks.length),
+    latches: withSpares(latches),
+    blind: sum((layout) => layout.blind?.length ?? 0),
+    variants,
   };
 }
 
@@ -106,43 +121,60 @@ export function exportDrawer(wasm: ManifoldToplevel, drawer: Drawer, options: Ex
   });
 
   let board: BoardSummary | undefined;
-  const base = drawer.base?.kind === "grid" ? drawer.base : undefined;
-  if (base) {
-    const layout = layoutBoard(drawerShape(drawer.drawer)!, base, { bed, fit });
-    if (layout.problems.length > 0) throw new Error(layout.problems.map((problem) => `${problem.at.join(".")}: ${problem.message}`).join("\n"));
-    const counts = boardCounts(drawer, layout);
+  const layouts: BoardLayout[] = drawer.base?.kind === "grid" ? [layoutBoard(drawerShape(drawer.drawer)!, drawer.base, { bed, fit })] : drawerOverlays(drawer, { bed, fit });
+  if (layouts.length > 0) {
+    const problems = layouts.flatMap((layout) => layout.problems);
+    if (problems.length > 0) throw new Error(problems.map((problem) => `${problem.at.join(".")}: ${problem.message}`).join("\n"));
+    const counts = boardCounts(drawer, layouts);
     const printed: PrintedFile[] = [];
 
-    for (const boardTile of layout.tiles) {
-      say(`tile ${boardTile.label}`);
-      printed.push(freed(() => {
-        const solid = printable(tileSolid(wasm, layout, boardTile, fit));
-        const { max } = solid.boundingBox();
-        const file = `tile-${boardTile.label}.3mf`;
-        const at = [(bed[0] - max[0]) / 2, (bed[1] - max[1]) / 2, 0] as const;
-        files.push({ name: file, data: to3mf([{ name: `tile ${boardTile.label}`, mesh: solid.getMesh(), at: [at] }], `${name}: tile ${boardTile.label}`) });
-        return { file, kinds: { tile: 1 }, grams: weight(solid), tile: { label: boardTile.label, size: boardTile.size } };
-      }));
+    for (const layout of layouts) {
+      const id = (layout as Partial<OverlayLayout>).id;
+      for (const boardTile of layout.tiles) {
+        const label = id ? `overlay ${id} tile ${boardTile.label}` : `tile ${boardTile.label}`;
+        say(label);
+        printed.push(freed(() => {
+          const solid = printable(tileSolid(wasm, layout, boardTile, fit));
+          const { max } = solid.boundingBox();
+          const file = `${id ? `overlay-${id}-` : ""}tile-${boardTile.label}.3mf`;
+          const at = [(bed[0] - max[0]) / 2, (bed[1] - max[1]) / 2, 0] as const;
+          files.push({ name: file, data: to3mf([{ name: label, mesh: solid.getMesh(), at: [at] }], `${name}: ${label}`) });
+          return { file, kinds: { tile: 1 }, grams: weight(solid), tile: { label: boardTile.label, size: boardTile.size, ...(id ? { overlay: id } : {}) } };
+        }));
+      }
     }
 
-    say("bumpers, joiners and pegs");
-    printed.push(...plated("plate", "bumpers, joiners and pegs", () => [
-      ...layout.bumpers.map((bumper): Solid => ({ key: `bumper ${bumper.side} ${bumper.index + 1}`, kind: "bumper", solid: printable(bumperSolid(wasm, layout, bumper, fit)), copies: 1 })),
-      { key: "joiner", kind: "joiner" as const, solid: onBed(joinerSolid(wasm, layout, fit)), copies: counts.joiners },
-      { key: "peg", kind: "peg" as const, solid: onBed(pegSolid(wasm, layout, fit)), copies: counts.pegs },
+    const overlaid = layouts.some((layout) => layout.latches);
+    const extras = overlaid ? "joiners, pegs and latches" : "bumpers, joiners and pegs";
+    say(extras);
+    const variants = Object.entries(counts.variants) as [Variant, { joiners: number; pegs: number }][];
+    const named = (key: string, variant: Variant) => (variants.length > 1 ? `${key} ${variant}` : key);
+    printed.push(...plated("plate", extras, () => [
+      ...layouts.flatMap((layout) => layout.bumpers.map((bumper): Solid => ({ key: `bumper ${bumper.side} ${bumper.index + 1}`, kind: "bumper", solid: printable(bumperSolid(wasm, layout, bumper, fit)), copies: 1 }))),
+      ...variants.flatMap(([variant, own]): Solid[] => {
+        const layout = layouts.find((l) => l.variant === variant)!;
+        return [
+          { key: named("joiner", variant), kind: "joiner", solid: onBed(joinerSolid(wasm, layout, fit)), copies: own.joiners },
+          { key: named("peg", variant), kind: "peg", solid: onBed(pegSolid(wasm, layout, fit)), copies: own.pegs },
+        ];
+      }),
+      { key: "latch", kind: "latch" as const, solid: latchSolid(wasm, fit), copies: counts.latches },
     ].filter((part) => part.copies > 0)));
 
     say("calibration print");
-    const choice = { variant: layout.variant, hole: boardHole(layout.variant, fit), skin: GRID.face };
+    const choices = [...new Set(layouts.map((layout) => layout.variant))].map((variant) => ({ variant, hole: boardHole(variant, fit), skin: GRID.face }));
     const calibration = plated("calibration", "calibration print", () =>
-      [...roundOne(wasm), ...roundTwo(wasm, [choice])].map((part): Solid => ({ key: part.name, kind: "calibration", solid: onBed(part.solid), copies: part.copies })), true);
+      [...roundOne(wasm), ...roundTwo(wasm, choices), ...(overlaid ? latchStrip(wasm, choices[0]!, fit.latch.press) : [])]
+        .map((part): Solid => ({ key: part.name, kind: "calibration", solid: onBed(part.solid), copies: part.copies })), true);
 
     say("weights");
-    board = { layout, counts, printed: [...printed, ...calibration], weights: variantWeights(wasm, layout, fit, printed) };
+    // Weights by variant scale one variant's tiles, so they're left out when boards differ.
+    const weights = choices.length === 1 ? variantWeights(wasm, layouts[0]!, fit, printed) : [];
+    board = { layouts, counts, printed: [...printed, ...calibration], weights };
   }
 
   const drawerPlan = plan(drawer, bed, fit);
-  const sheetBoard = board ? { layout: board.layout, fit } : undefined;
+  const sheetBoard = board ? { layout: board.layouts, fit } : undefined;
   for (const holder of drawerPlan.holders.filter((holder) => hasSpecSheet(holder.method))) {
     files.push({ name: specPath(holder.id), data: strToU8(specSheet(drawerPlan, holder, name, sheetBoard)) });
   }

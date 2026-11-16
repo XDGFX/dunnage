@@ -142,26 +142,28 @@ function needs(text: string, method: Method, holds: string[]): Record<string, un
   return { spec: { purpose: `Hold ${names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0]}.` } };
 }
 
-function addHolder(text: string, id: string, method: Method, holds: string[]): string {
-  return appendIn(text, ["holders"], { id, method, holds, ...needs(text, method, holds) });
+function addHolder(text: string, id: string, method: Method, holds: string[], on?: string): string {
+  return appendIn(text, ["holders"], { id, method, holds, on, ...needs(text, method, holds) });
 }
 
-/** Holds things together in one new holder, taking them out of the ones they were in. */
+/** Holds things together in one new holder, taking them out of the ones they were in. It stays on their overlay when they were all on one. */
 export function holdTogether(text: string, ids: string[], method: Method): { text: string; id: string } {
   const drawer = drawerOf(text);
   const name = ids.length === 1 ? `${ids[0]}-${method}` : ids.length === 2 ? `${ids[0]}-and-${ids[1]}` : `${ids[0]}-group`;
   const id = unique(name, idsIn(drawer));
+  const overlays = new Set(ids.map((thing) => drawer.holders?.find((h) => h.holds.includes(thing))?.on));
+  const on = overlays.size === 1 ? [...overlays][0] : undefined;
   text = releaseFromHolders(text, ids);
-  return { text: addHolder(text, id, method, ids), id };
+  return { text: addHolder(text, id, method, ids, on), id };
 }
 
-/** Splits a holder into one for each thing it holds, each with its method. */
+/** Splits a holder into one for each thing it holds, each with its method, on its overlay. */
 export function splitHolder(text: string, id: string): string {
   const old = drawerOf(text).holders!.find((h) => h.id === id)!;
   text = removeIn(text, ["holders", indexOf(text, "holders", id)]);
   for (const thing of old.holds) {
     const hid = unique(`${thing}-${old.method}`, idsIn(drawerOf(text)));
-    text = addHolder(text, hid, old.method, [thing]);
+    text = addHolder(text, hid, old.method, [thing], old.on);
   }
   return text;
 }
@@ -207,9 +209,17 @@ export const unlockHolder = (text: string, id: string) => setHolder(text, id, "l
 
 export function setBase(text: string, key: BaseKey): string {
   const base = BASES[key].base;
-  if (!drawerOf(text).base) return setIn(text, ["base"], base);
+  const old = drawerOf(text);
+  if (!old.base) return setIn(text, ["base"], base);
+  // Overlays stay when only the pegboard's size changes; otherwise they go, and holders come off them.
+  const keepOverlays = old.base.kind === "pegboard" && base.kind === "pegboard";
   text = setIn(text, ["base", "kind"], base.kind);
-  for (const field of ["pitch", "preset", "variant", "tile", "bumpers", "countersinks"]) text = deleteIn(text, ["base", field]);
+  for (const field of ["pitch", "variant", "tile", "bumpers", "countersinks", ...(keepOverlays ? [] : ["preset", "overlays"])]) text = deleteIn(text, ["base", field]);
+  if (!keepOverlays) {
+    for (const h of old.holders ?? []) {
+      if (h.on !== undefined) text = setHolder(setHolder(text, h.id, "on", undefined), h.id, "fix", undefined);
+    }
+  }
   return "preset" in base ? setIn(text, ["base", "preset"], base.preset) : text;
 }
 
@@ -219,6 +229,41 @@ const SHAPE_FIELDS = ["inside", "walls", "corner_radius", "floor_edge"] as const
  * Names a built-in drawer, dropping the shape fields that would override it. With `null`, the
  * drawer is described directly instead, starting from the shape the preset gave it.
  */
+/** Adds a grid overlay to a pegboard, at its front-left corner, `holes` big. */
+export function addOverlay(text: string, holes: readonly [number, number] = [16, 16]): { text: string; id: string } {
+  const drawer = drawerOf(text);
+  if (drawer.base?.kind !== "pegboard") throw new Error("overlays go on a pegboard base");
+  const id = unique("overlay", new Set((drawer.base.overlays ?? []).map((o) => o.id)));
+  return { text: appendIn(text, ["base", "overlays"], { id, kind: "grid", at: [0, 0], holes: [...holes] }), id };
+}
+
+/** Sets, or with `undefined` removes, a field on an overlay. */
+export function setOverlay(text: string, id: string, field: "at" | "holes" | "variant", value: unknown): string {
+  const index = overlayIndex(text, id);
+  return value === undefined ? deleteIn(text, ["base", "overlays", index, field]) : setIn(text, ["base", "overlays", index, field], value);
+}
+
+/** Removes an overlay, taking the holders on it off it. */
+export function removeOverlay(text: string, id: string): string {
+  for (const h of drawerOf(text).holders ?? []) if (h.on === id) text = setHolder(setHolder(text, h.id, "on", undefined), h.id, "fix", undefined);
+  const left = (drawerOf(text).base as { overlays?: unknown[] }).overlays!.length;
+  return left === 1 ? deleteIn(text, ["base", "overlays"]) : removeIn(text, ["base", "overlays", overlayIndex(text, id)]);
+}
+
+/** Puts a holder on an overlay, or with `undefined` takes it off; its fixings belong to where it was, so they go. */
+export function setOn(text: string, holder: string, overlay: string | undefined): string {
+  const old = drawerOf(text).holders?.find((h) => h.id === holder);
+  if (!old || old.on === overlay) return text;
+  return setHolder(setHolder(text, holder, "fix", undefined), holder, "on", overlay);
+}
+
+function overlayIndex(text: string, id: string): number {
+  const base = drawerOf(text).base;
+  const index = base?.kind === "pegboard" ? (base.overlays ?? []).findIndex((o) => o.id === id) : -1;
+  if (index < 0) throw new Error(`no overlay ${id}`);
+  return index;
+}
+
 export function setDrawerPreset(text: string, preset: string | null): string {
   if (preset !== null) {
     if (!DRAWER_PRESETS[preset]) throw new Error(`no built-in drawer ${preset}`);

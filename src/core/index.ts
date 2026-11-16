@@ -4,10 +4,16 @@ export { DRAWER_PRESETS, drawerShape, presetName, wallFields } from "./drawers.t
 export type { DrawerPreset, DrawerShape, Side } from "./drawers.ts";
 export { FORMATS, MIGRATIONS, migrate, readHeader } from "./format.ts";
 export { GRID, gridFit, VARIANT_NAMES } from "./grid/parameters.ts";
-export type { Fit, Variant } from "./grid/parameters.ts";
+export type { Fit, LatchFit, PrinterFit, Variant } from "./grid/parameters.ts";
 export { bedTile, cornerCuts, cornerHoles, holeAt, holeProblem, lapTabDepth, layoutBoard, OUTWARD, tileSizes } from "./grid/layout.ts";
-export type { BoardBumper, BoardLayout, BoardTile, GridBase, Hole, LayoutOptions } from "./grid/layout.ts";
-export { buildBoard, bumperSolid, joinerSolid, pegSolid, printable, tileSolid } from "./grid/board.ts";
+export type { BoardBumper, BoardLatch, BoardLayout, BoardTile, GridBase, Hole, LayoutOptions } from "./grid/layout.ts";
+export { buildBoard, bumperSolid, joinerSolid, latchSolid, pegSolid, printable, tileSolid } from "./grid/board.ts";
+export { drawerOverlays, layoutOverlay, overlayOf } from "./grid/overlay.ts";
+export type { OverlayLayout, OverlayOptions, OverlaySpec } from "./grid/overlay.ts";
+export { latchProfile, latchSeat, latchShape, printLatch, seatedLatch, socketOf, socketVoid, strainPerMm, UPPDATERA_SLOT } from "./grid/latch.ts";
+export type { LatchShape, Seat, Slot, Socket } from "./grid/latch.ts";
+export { pegboard, PEGBOARD_PRESETS, UPPDATERA } from "./pegboard.ts";
+export type { Pegboard, PegboardPreset } from "./pegboard.ts";
 export type { BoardParts } from "./grid/board.ts";
 export type { FormatKind, Header, Migration, Migrations } from "./format.ts";
 export { Drawer, jsonSchema, Printer, PRINTER_PRESETS } from "./schema.ts";
@@ -22,8 +28,8 @@ export type { Part } from "./shape.ts";
 export { arrange, bodyOf, putBackSpot, seat, snapAngle, solve, wrap } from "./snap.ts";
 export type { ArrangeOp, Body, Move, Snap } from "./snap.ts";
 export {
-  addComment, addThing, answerQuestion, closeConcern, holdTogether, lockHolder, moveThings, placeThing, removeThing,
-  seatOnPegs, setAside, setBase, setDrawerPreset, setFit, setWall, setMethod, setPose, setPoses, setRotate, setRule, splitHolder, unlockHolder,
+  addComment, addOverlay, addThing, answerQuestion, closeConcern, holdTogether, lockHolder, moveThings, placeThing, removeThing,
+  removeOverlay, seatOnPegs, setAside, setBase, setDrawerPreset, setFit, setOn, setOverlay, setWall, setMethod, setPose, setPoses, setRotate, setRule, splitHolder, unlockHolder,
 } from "./actions.ts";
 export { hasSpecSheet, specPath, specSheet } from "./spec.ts";
 export type { SpecBoard } from "./spec.ts";
@@ -31,7 +37,7 @@ export { boardCounts, exportDrawer, PLATE_GAP, SPARES, withSpares, zipExport } f
 export type { ExportedFile, ExportOptions } from "./export/export.ts";
 export { partsList } from "./export/parts.ts";
 export type { BoardCounts, BoardSummary, PartKind, PartsListInput, PrintedFile } from "./export/parts.ts";
-export { fixingsOf, holderSide, pegDiameter, SCREW } from "./export/fixings.ts";
+export { boardFor, fixingsOf, holderSide, pegDiameter, SCREW } from "./export/fixings.ts";
 export type { Fixing, FixBy } from "./export/fixings.ts";
 export { LIBRARY } from "./export/library.ts";
 export type { Library, LibraryPart } from "./export/library.ts";

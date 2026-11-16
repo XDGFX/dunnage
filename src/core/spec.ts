@@ -1,14 +1,14 @@
-import { fixingsOf, holderSide, round } from "./export/fixings.ts";
+import { boardFor, fixingsOf, holderSide, round } from "./export/fixings.ts";
 import type { BoardLayout } from "./grid/layout.ts";
-import type { Fit } from "./grid/parameters.ts";
+import { GRID, type Fit } from "./grid/parameters.ts";
 import { pretty, type Method, type Plan, type PlannedHolder } from "./plan.ts";
 import type { Pose } from "./schema.ts";
 
 const poseText = (pose: Pose) => (typeof pose === "object" ? `tilted ${pose.tilt}°` : pose);
 
-/** The grid board a holder is fixed to, for its fixings' positions and sizes. */
+/** The grid board, or overlays, a holder may be fixed to, for its fixings' positions and sizes. */
 export interface SpecBoard {
-  layout: BoardLayout;
+  layout: BoardLayout | readonly BoardLayout[];
   fit: Fit;
 }
 
@@ -44,15 +44,18 @@ export function specSheet(drawerPlan: Plan, holder: PlannedHolder, drawerName: s
   }
   if (rect) {
     lines.push("", "## Space available", `- Footprint: ${Math.round(rect.x1 - rect.x0)} × ${Math.round(rect.y1 - rect.y0)} mm, front-left corner at (${Math.round(rect.x0)}, ${Math.round(rect.y0)}).`);
-    lines.push(`- Height: up to ${drawerPlan.height - drawerPlan.base.z} mm above the ${drawerPlan.base.z ? "base" : "drawer floor"}, less what it holds.`);
+    const under = drawerPlan.base.z + (holder.source.on ? GRID.thickness : 0);
+    const on = holder.source.on ? `overlay ${holder.source.on}` : drawerPlan.base.z ? "base" : "drawer floor";
+    lines.push(`- Height: up to ${drawerPlan.height - under} mm above the ${on}, less what it holds.`);
     const travel = holder.travel;
     if (travel) lines.push(`- Free space round it: ${Math.round(travel.L)} mm left, ${Math.round(travel.R)} right, ${Math.round(travel.F)} front, ${Math.round(travel.B)} back.`);
   }
-  const fixings = board ? fixingsOf([holder.source], board.layout) : [];
-  if (board && fixings.length > 0) {
-    lines.push("", "## Fixings to the grid");
+  const fixedTo = board ? boardFor(board.layout, holder.source) : undefined;
+  const fixings = fixedTo ? fixingsOf([holder.source], fixedTo) : [];
+  if (board && fixedTo && fixings.length > 0) {
+    lines.push("", holder.source.on ? `## Fixings to overlay ${holder.source.on}` : "## Fixings to the grid");
     for (const fixing of fixings) {
-      lines.push(`- ${fixing.by === "screw" ? "Screw" : "Pin"} in hole [${fixing.hole.join(", ")}], centre at (${round(fixing.at[0])}, ${round(fixing.at[1])}): ${holderSide(fixing.by, board.layout, board.fit)}.`);
+      lines.push(`- ${fixing.by === "screw" ? "Screw" : "Pin"} in hole [${fixing.hole.join(", ")}], centre at (${round(fixing.at[0])}, ${round(fixing.at[1])}): ${holderSide(fixing.by, fixedTo, board.fit)}.`);
     }
   }
   lines.push("", "Origin is the front-left corner of the drawer floor; x right, y back, z up; mm.", "");
