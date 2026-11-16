@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { copyFileSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -77,10 +77,19 @@ function scratch(name: string, text: string) {
 }
 
 describe("dunnage export", () => {
-  test("says it is not built yet and fails", async () => {
-    const result = await dunnage("export", "fixtures/coffee.drawer.yml");
+  test("writes the parts list and spec sheets into --out", async () => {
+    const out = mkdtempSync(join(tmpdir(), "dunnage-export-"));
+    const result = await dunnage("export", "fixtures/coffee.drawer.yml", "--out", out);
+    expect(result.code).toBe(0);
+    expect(existsSync(join(out, "parts.md"))).toBe(true);
+    expect(existsSync(join(out, "specs", "glass-cradles-front.md"))).toBe(true);
+  });
+
+  test("refuses a drawer with problems", async () => {
+    const file = scratch("bad.drawer.yml", "format: drawer/0.3\nname: Bad\ndrawer: { inside: [100, 100, 50] }\nitems: {}\nlayout: [{ id: ghost, at: [0, 0] }]\n");
+    const result = await dunnage("export", file);
     expect(result.code).toBe(1);
-    expect(result.stderr).toContain("export is not built yet");
+    expect(result.stderr).toContain("layout[0]");
   });
 });
 

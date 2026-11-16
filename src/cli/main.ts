@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { parseArgs } from "node:util";
-import { check, load, read, type CheckResult, type Fit, type Problem } from "../core/index.ts";
+import Module from "manifold-3d";
+import { check, exportDrawer, load, read, type CheckResult, type Fit, type Problem } from "../core/index.ts";
 
 const usage = `Usage: dunnage <command> [--json] <file...>
 
@@ -10,11 +11,13 @@ Commands:
   check   validate drawer and printer files, one problem per line as
           file:line:column: path: message (or JSON with --json). Warnings
           are marked as such and don't fail the check.
-  export  write 3MFs and spec sheets (not built yet)`;
+  export  dunnage export <drawer file> [--out dir]: write the grid base as
+          3MFs plated for the bed, the calibration print, a parts list
+          (parts.md) and spec sheets. --out defaults to out/<drawer name>.`;
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
-  options: { version: { type: "boolean" }, help: { type: "boolean", short: "h" }, json: { type: "boolean" } },
+  options: { version: { type: "boolean" }, help: { type: "boolean", short: "h" }, json: { type: "boolean" }, out: { type: "string" } },
 });
 
 if (values.version) {
@@ -50,7 +53,31 @@ if (command === "check") {
   process.exit(results.some((result) => result.problems.length > 0) ? 1 : 0);
 }
 
-if (command === "export") fail("export is not built yet");
+if (command === "export") {
+  if (files.length !== 1) fail("export takes one drawer file");
+  const file = files[0]!;
+  const result = checkFile(file);
+  if (result.problems.length > 0) {
+    for (const { path, message, line, column } of result.problems) console.error(`${[file, line, column].filter((part) => part !== undefined).join(":")}: ${path ? `${path}: ` : ""}${message}`);
+    fail(`${file} has problems: fix them, then export`);
+  }
+  const text = readFileSync(file, "utf8");
+  const loaded = load(text);
+  if (loaded.kind !== "drawer") fail(`${file} is a printer file: export takes a drawer`);
+  const out = values.out ?? join("out", basename(file).replace(/(\.drawer)?\.ya?ml$/, ""));
+  const started = performance.now();
+  const written = exportDrawer(await Module(), loaded.drawer, {
+    ...printerOf(text, (name) => join(dirname(file), `${name}.printer.yml`)),
+    progress: (step) => console.error(`building ${step}`),
+  });
+  for (const { name, data } of written) {
+    mkdirSync(dirname(join(out, name)), { recursive: true });
+    writeFileSync(join(out, name), data);
+    console.log(`${join(out, name)}  ${(data.byteLength / 1024).toFixed(0)} kB`);
+  }
+  console.log(`${written.length} files in ${((performance.now() - started) / 1000).toFixed(1)} s`);
+  process.exit(0);
+}
 
 fail(`unknown command ${command}\n\n${usage}`);
 

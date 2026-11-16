@@ -100,7 +100,7 @@ Each drawer has one base: **bare** (holders sit on the drawer floor), **Gridfini
 
 ```sh
 npx dunnage check  drawers/coffee.drawer.yml     # validate a file after editing it
-npx dunnage export drawers/coffee.drawer.yml     # write 3MFs and spec sheets
+npx dunnage export drawers/coffee.drawer.yml     # write 3MFs, a parts list and spec sheets to out/coffee (or --out dir)
 ```
 
 **With an agent.** Layout is a design problem, not a packing problem (neatness, task order, grouping), so dunnage leaves it to an agent and does the geometry itself: fit, alignment, closing gaps for retention, and export. The agent records its reasons in the file, so every placement explains itself.

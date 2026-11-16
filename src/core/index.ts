@@ -25,5 +25,18 @@ export {
   addComment, addThing, answerQuestion, closeConcern, holdTogether, lockHolder, moveThings, placeThing, removeThing,
   seatOnPegs, setAside, setBase, setDrawerPreset, setFit, setWall, setMethod, setPose, setPoses, setRotate, setRule, splitHolder, unlockHolder,
 } from "./actions.ts";
-export { specSheet } from "./spec.ts";
+export { hasSpecSheet, specPath, specSheet } from "./spec.ts";
+export type { SpecBoard } from "./spec.ts";
+export { boardCounts, exportDrawer, PLATE_GAP, SPARES, withSpares, zipExport } from "./export/export.ts";
+export type { ExportedFile, ExportOptions } from "./export/export.ts";
+export { partsList } from "./export/parts.ts";
+export type { BoardCounts, BoardSummary, PartKind, PartsListInput, PrintedFile } from "./export/parts.ts";
+export { fixingsOf, holderSide, pegDiameter, SCREW } from "./export/fixings.ts";
+export type { Fixing, FixBy } from "./export/fixings.ts";
+export { LIBRARY } from "./export/library.ts";
+export type { Library, LibraryPart } from "./export/library.ts";
+export { plates } from "./export/plates.ts";
+export type { Placement, PlateItem } from "./export/plates.ts";
+export { MODEL_PATH, model, to3mf } from "./export/threemf.ts";
+export type { PlacedPart } from "./export/threemf.ts";
 export { posesOf, samePose } from "./shape.ts";

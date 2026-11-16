@@ -84,7 +84,7 @@ export function MakeSheet({ plan: p, issues, onSpec, onClose }: { plan: Plan; is
         </table>
       </div>
       <p className="note">
-        Writing these files is <span className="mono">dunnage export</span>'s job, which isn't built yet. Until then, a custom holder's spec sheet can be read and copied from here.
+        Export (or <span className="mono">dunnage export</span>) writes a grid base's 3MFs, its calibration print, a parts list with links to library holders, and spec sheets for custom and ply holders. A custom holder's spec sheet can also be read and copied from here.
       </p>
     </Sheet>
   );
