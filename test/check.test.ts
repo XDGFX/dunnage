@@ -192,9 +192,7 @@ describe("check", () => {
     test("inside the walls, handle included", () => {
       const document = drawer();
       document.layout[0].at = [60, 70]; // the handle reaches 35 mm in front of the mug's 50 mm radius
-      const [problem] = problems(document);
-      expect(problem.path).toBe("layout[0].at");
-      expect(problem.message).toContain("front wall by 15 mm");
+      expect(paths(problems(document))).toEqual(["layout[0].at"]);
     });
 
     test("turned, by the outline it really has", () => {

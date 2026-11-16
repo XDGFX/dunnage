@@ -3,8 +3,8 @@ import Module, { type Manifold } from "manifold-3d";
 import { beforeAll, describe, expect, test } from "vitest";
 import { parse } from "yaml";
 import { buildBoard, bumperSolid, joinerSolid, pegSolid, printable, tileSolid } from "../src/core/grid/board.ts";
-import { cornerCuts, holeAt, joinerReach, layoutBoard, type BoardLayout, type GridBase } from "../src/core/grid/layout.ts";
-import { GRID, gridFit } from "../src/core/grid/parameters.ts";
+import { cornerCuts, holeAt, joinerReach, layoutBoard, OUTWARD, type BoardLayout, type GridBase } from "../src/core/grid/layout.ts";
+import { GRID, gridFit, type Variant } from "../src/core/grid/parameters.ts";
 import { overhangs } from "../src/core/grid/printability.ts";
 import { PITCH, THICKNESS, VARIANTS, WEB, seatedJoiner } from "../src/core/grid/tile.ts";
 import { DRAWER_PRESETS, drawerShape, type DrawerShape, type Side } from "../src/core/index.ts";
@@ -41,10 +41,12 @@ function expectSound(layout: BoardLayout, bed: readonly number[]) {
   expect(layout.problems).toEqual([]);
   const [W, D] = layout.shape.inside;
   const [nx, ny] = layout.holes;
-  const { gap, fit } = layout;
-  // The layout plus clearance is the drawer's inside size.
+  const { gap, fit, origin } = layout;
+  // The layout plus clearance is the drawer's inside size, the board starting past the left and front bumpers.
   expect(fit + gap.left + nx * PITCH + gap.right + fit).toBeCloseTo(W, 9);
   expect(fit + gap.front + ny * PITCH + gap.back + fit).toBeCloseTo(D, 9);
+  expect(origin[0]).toBeCloseTo(fit + gap.left, 9);
+  expect(origin[1]).toBeCloseTo(fit + gap.front, 9);
   // Every bumper is 5–10 mm thick at the floor.
   for (const side of SIDES) {
     expect(gap[side]).toBeGreaterThanOrEqual(GRID.bumper.min - 1e-9);
@@ -59,8 +61,11 @@ function expectSound(layout: BoardLayout, bed: readonly number[]) {
     expect(t.box.y0).toBeCloseTo(holeAt(layout, t.first)[1] - PITCH / 2, 9);
   }
   for (const b of layout.bumpers) {
-    expect(b.top.x1 - b.top.x0).toBeLessThanOrEqual(room[0]!);
-    expect(b.top.y1 - b.top.y0).toBeLessThanOrEqual(room[1]!);
+    // Its widest footprint, at the face, with the lap tab.
+    const x = Math.max(b.top.x1, b.tab.x1) - Math.min(b.top.x0, b.tab.x0);
+    const y = Math.max(b.top.y1, b.tab.y1) - Math.min(b.top.y0, b.tab.y0);
+    expect(x).toBeLessThanOrEqual(room[0]! + 1e-9);
+    expect(y).toBeLessThanOrEqual(room[1]! + 1e-9);
   }
   // The tiles cover the board, each hole once.
   expect(layout.tiles.reduce((sum, t) => sum + t.size[0] * t.size[1], 0)).toBe(nx * ny);
@@ -109,6 +114,23 @@ describe("laying out a board", () => {
     expect(layout.holes[1]).toBe(25);
     expect(layout.gap.front).toBeCloseTo(GRID.bumper.max);
     expect(layout.tiles.map((t) => t.size[1])).toEqual([13, 12]);
+  });
+
+  test("a side bumper beside a single row, past both corners, fits the bed", () => {
+    // A 24-hole row and either 9.5 mm bumper fit a P1S, but not both: the side bumper is 247 mm.
+    const layout = layoutBoard(shape({ inside: [100, 24 * PITCH + 19 + 0.6, 80] }), GRID_BASE);
+    expect(layout.holes[1]).toBe(24);
+    expectSound(layout, P1S);
+    expect(layout.tiles.filter((t) => t.col === 0)).toHaveLength(2);
+  });
+
+  test("tiles too small for two joiners on a join are a problem", () => {
+    // 4 × 4 holes in 2 × 2 tiles: every join is 2 holes long.
+    const inside = 4 * PITCH + 0.6 + 15;
+    expect(layoutBoard(shape({ inside: [inside, inside, 80] }), { kind: "grid", tile: [2, 2] }).problems.map((p) => p.at)).toEqual([["base", "tile"]]);
+    // 6 × 6 in 3 × 3 tiles: joins of 3, room for two each.
+    const wider = 6 * PITCH + 0.6 + 15;
+    expect(layoutBoard(shape({ inside: [wider, wider, 80] }), { kind: "grid", tile: [3, 3] }).problems).toEqual([]);
   });
 
   test("a drawer too small for a hole is a problem, not a layout", () => {
@@ -164,19 +186,19 @@ const seated = (layout: BoardLayout, x: number, y: number, fit: number) =>
   seatedJoiner(wasm, layout.variant, HOLE, fit).mirror([0, 0, 1]).translate([x, y, THICKNESS]);
 
 describe("building a board", () => {
-  // 2 × 2 tiles, sloped side walls, a floor edge, and a left bumper thick enough to join. Solids are
-  // built for one tile pair, one joined bumper, one plain bumper, a joiner and a peg.
-  const SLOPE = 20;
+  // 2 × 2 tiles, walls sloping out on the left, right and back, a floor edge, and a left bumper thick
+  // enough to join. Solids are built for a sample: a tile or two, bumpers on every side, a joiner and a peg.
+  const WALLS = { left: 20, right: 15, front: 0, back: 10 };
   const small = () =>
-    layoutBoard(shape({ inside: [130, 110, 80], walls: { left: SLOPE, right: SLOPE, front: 0, back: 0 }, floor_edge: 1 }), { kind: "grid", bumpers: { split: { x: "left" } }, countersinks: [[2, 2]] }, { bed: [80, 80, 80] });
+    layoutBoard(shape({ inside: [130, 110, 80], walls: WALLS, floor_edge: 1 }), { kind: "grid", bumpers: { split: { x: "left" } }, countersinks: [[2, 2]] }, { bed: [80, 80, 80] });
+  const bumperAt = (layout: BoardLayout, side: Side, index: number) => layout.bumpers.find((b) => b.side === side && b.index === index)!;
 
   test("every part is one closed solid that prints face down without supports", () => {
     const layout = small();
     // Tiles and bumpers are made in place; joiners and pegs as they print.
     const parts: Manifold[] = [
       printable(tileSolid(wasm, layout, layout.tiles[0]!)),
-      printable(bumperSolid(wasm, layout, layout.bumpers.find((b) => b.side === "left" && b.index === 0)!)),
-      printable(bumperSolid(wasm, layout, layout.bumpers.find((b) => b.side === "front")!)),
+      ...([["left", 0], ["front", 0], ["right", 1], ["back", 1]] as const).map(([side, index]) => printable(bumperSolid(wasm, layout, bumperAt(layout, side, index)))),
       joinerSolid(wasm, layout),
       pegSolid(wasm, layout),
     ];
@@ -215,23 +237,67 @@ describe("building a board", () => {
     }
   });
 
-  test("a bumper's outer face takes its wall's slope, with a chamfer along the floor edge", () => {
+  test.each([
+    ["left", 1, "left"],
+    ["right", 0, "right"],
+    ["front", 0, "front"],
+    ["back", 1, "back"],
+    // Side bumpers run past the corners, their ends against the front and back walls.
+    ["right", 0, "front"],
+    ["right", 1, "back"],
+    ["left", 1, "back"],
+  ] as const)("the %s bumper %i bears on the %s wall, at its slope, chamfered along the floor", (side, index, wall) => {
     const layout = small();
-    const left = layout.bumpers.find((b) => b.side === "left" && b.index === 1)!;
-    const solid = bumperSolid(wasm, layout, left);
-    const outer = (z: number) => solid.slice(z).bounds().min[0];
-    const [z0, z1] = [3, 7];
-    expect((outer(z0) - outer(z1)) / (z1 - z0)).toBeCloseTo(Math.tan(SLOPE * RAD), 3);
-    expect(outer(z0)).toBeCloseTo(layout.fit - z0 * Math.tan(SLOPE * RAD), 3);
+    const [W, D] = layout.shape.inside;
+    const solid = bumperSolid(wasm, layout, bumperAt(layout, side, index));
+    const [dx, dy] = OUTWARD[wall];
+    // How far out the face is at height z, and where the wall is, less the clearance, at the floor.
+    const reach = (z: number) => {
+      const { min, max } = solid.slice(z).bounds();
+      return dx ? dx * (dx < 0 ? min[0] : max[0]) : dy * (dy < 0 ? min[1] : max[1]);
+    };
+    const wallAtFloor = dx ? (dx < 0 ? 0 : W) * dx - layout.fit : (dy < 0 ? 0 : D) * dy - layout.fit;
+    const slope = Math.tan(WALLS[wall] * RAD);
+    for (const z of [3, 7]) expect(reach(z)).toBeCloseTo(wallAtFloor + z * slope, 3);
     // At the floor it stands a floor edge in from where the face would meet it.
-    expect(outer(0.001)).toBeGreaterThanOrEqual(layout.fit + layout.shape.floor_edge - 0.01);
-    // Its inner face meets the board, upright, above the lap tab.
-    expect(solid.slice(z1).bounds().max[0]).toBeCloseTo(layout.origin[0], 6);
+    expect(reach(0.001)).toBeLessThanOrEqual(wallAtFloor - layout.shape.floor_edge + 0.01);
+  });
+
+  test("a bumper's inner face meets the board upright, above its lap tab", () => {
+    const layout = small();
+    const solid = bumperSolid(wasm, layout, bumperAt(layout, "left", 1));
+    expect(solid.slice(7).bounds().max[0]).toBeCloseTo(layout.origin[0], 6);
+  });
+
+  test.each(Object.keys(VARIANTS) as Variant[])("a %s tile's lap-tab rebate leaves every edge boss whole", (variant) => {
+    const layout = layoutBoard(shape({ inside: [130, 110, 80] }), { kind: "grid", variant }, { bed: [80, 80, 80] });
+    const t = layout.tiles.find((tile) => tile.label === "1-1")!;
+    const solid = tileSolid(wasm, layout, t);
+    const boss = HOLE / 2 + VARIANTS[variant].wall;
+    const [r0, r1, z0, z1] = [boss - 0.15, boss - 0.05, 0.05, THICKNESS - WEB.height - 0.05];
+    const whole = Math.PI * (r1 ** 2 - r0 ** 2) * (z1 - z0);
+    for (const hole of [[0, 2], [2, 0], [0, 0]] as const) {
+      const [x, y] = holeAt(layout, hole);
+      expect(solidIn(solid, x, y, r0, r1, z0, z1)).toBeGreaterThan(0.98 * whole);
+    }
+    // Cal's 2 mm where it fits; less where the bosses come closer.
+    expect(layout.lapTab).toBeCloseTo(Math.min(GRID.lap_tab.depth, PITCH / 2 - boss - GRID.lap_tab.clearance), 9);
+  });
+
+  test("the rebate stands the lap tab's clearance off it all round", () => {
+    const layout = small();
+    const t = layout.tiles.find((tile) => tile.label === "1-1")!;
+    const tile = tileSolid(wasm, layout, t);
+    // Only the tab: the bumper where it reaches under the tile.
+    const tab = bumperSolid(wasm, layout, bumperAt(layout, "left", 0)).intersect(wasm.Manifold.cube([20, 200, 20]).translate([layout.origin[0] + 0.02, -50, -1]));
+    expect(tab.minGap(tile, 1)).toBeCloseTo(GRID.lap_tab.clearance, 3);
   });
 
   test("a bumper's lap tab runs under the tile's edge by its depth, and the tile still sits flat on the floor", () => {
     const layout = small();
-    const { depth, thickness } = GRID.lap_tab;
+    const depth = layout.lapTab;
+    const { thickness } = GRID.lap_tab;
+    expect(depth).toBe(GRID.lap_tab.depth);
     const t = layout.tiles.find((tile) => tile.label === "1-1")!;
     const tile = tileSolid(wasm, layout, t);
     for (const side of ["left", "front"] as const) {
@@ -266,6 +332,17 @@ describe("building a board", () => {
     const [x, y] = holeAt(layout, [2, 2]);
     const [r0, r1, h] = [head + 0.05, head + 0.4, WEB.height - 0.2];
     expect(solidIn(solid, x, y, r0, r1, THICKNESS - WEB.height + 0.1, THICKNESS - 0.1)).toBeGreaterThan(0.95 * Math.PI * (r1 ** 2 - r0 ** 2) * h);
+  });
+
+  test("a tile's face carries its row-col label in dots along its front band", () => {
+    const layout = small();
+    const t = layout.tiles.find((tile) => tile.label === "2-1")!;
+    const solid = tileSolid(wasm, layout, t);
+    const { spacing, inset } = GRID.label;
+    const y = t.box.y0 + Math.max(VARIANTS[layout.variant].band / 2, inset);
+    const dotAt = (n: number) => solidIn(solid, t.box.x0 + PITCH + n * spacing, y, 0, 0.1, THICKNESS - 0.3, THICKNESS);
+    // Two dots for row 2, a space, then one for column 1.
+    expect([0, 1, 2, 3, 4].map((n) => dotAt(n) === 0)).toEqual([true, true, false, true, false]);
   });
 
   test("a peg is smaller than the board hole by the calibrated peg fit", () => {

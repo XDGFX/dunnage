@@ -23,8 +23,8 @@
   "peg": { "chamfer": 0.4, "flat_angle": 50, "length": 12 },
   "screw": { "clearance": 4.5, "flange": 4.5 },
   "countersink": { "head": 8, "angle": 90 },
-  "label": { "dot": 0.6, "spacing": 1.6 },
+  "label": { "dot": 0.6, "spacing": 1.6, "inset": 0.62 },
   "tile": { "bed_margin": 10 },
   "bumper": { "fit": 0.3, "min": 5, "max": 10 },
-  "lap_tab": { "depth": 2, "thickness": 1.2, "clearance": 0.2 }
+  "lap_tab": { "depth": 2, "thickness": 1.2, "clearance": 0.2, "slope": 45 }
 }

@@ -39,7 +39,7 @@ export const JOINER_FITS = [0.2, 0.3, 0.4, 0.5, 0.6];
  */
 export const PEG_CLEARANCES = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8];
 /** The tightest peg's length; each looser one is a step longer, so they sort by eye. */
-const PEG_LENGTH = 12;
+const PEG_LENGTH = GRID.peg.length;
 const PEG_STEP = 2;
 const pegLength = (n: number) => PEG_LENGTH + PEG_STEP * n;
 /** Holders put at least this much plastic under a screw head (#6 §6). */

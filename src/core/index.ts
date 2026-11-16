@@ -5,7 +5,7 @@ export type { DrawerPreset, DrawerShape, Side } from "./drawers.ts";
 export { FORMATS, MIGRATIONS, migrate, readHeader } from "./format.ts";
 export { GRID, gridFit, VARIANT_NAMES } from "./grid/parameters.ts";
 export type { Fit, Variant } from "./grid/parameters.ts";
-export { cornerCuts, holeAt, holeProblem, layoutBoard } from "./grid/layout.ts";
+export { cornerCuts, holeAt, holeProblem, lapTabDepth, layoutBoard, OUTWARD } from "./grid/layout.ts";
 export type { BoardBumper, BoardLayout, BoardTile, GridBase, Hole, LayoutOptions } from "./grid/layout.ts";
 export { buildBoard, bumperSolid, joinerSolid, pegSolid, printable, tileSolid } from "./grid/board.ts";
 export type { BoardParts } from "./grid/board.ts";
