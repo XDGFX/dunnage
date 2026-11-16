@@ -24,7 +24,7 @@ that with Python's standard library. Change a number there, never in code.
 | `web` | The low web along every row and column: `width`, and `height` from the face. |
 | `variant`, `variants` | The default variant, and each one's boss `wall` and edge `band`. |
 | `joiner` | The joiner's ring `wall` and `web_width` × `web_height`; the `ring_room` and `slot_room` cut in a tile's band to let one in. |
-| `fit` | The calibrated fits: `grid_hole` by variant, `peg`, `peg_fixed`, `joiner`, and an overlay's `latch` (`leg`, `catch`, `press`). A printer file's `fit` overrides them. |
+| `fit` | The calibrated fits: `grid_hole` by variant, `peg`, `peg_fixed` and `joiner`. A printer file's `fit` overrides them. |
 | `peg` | A peg's end `chamfer`, the `flat_angle` its flat is cut at, and its `length`: the screw's, so it stays inside the board under a holder's flange. |
 | `screw` | The holder screw's `diameter` and `length` (a 4×12 wood screw), the `clearance` hole in a holder, and the `flange` under the head. |
 | `countersink` | A floor screw's countersink in the face: the `head` diameter and the cone's `angle`. |
@@ -32,9 +32,8 @@ that with Python's standard library. Change a number there, never in code.
 | `tile` | `bed_margin`, the total margin a tile leaves on the bed. |
 | `bumper` | The default `fit` to the wall per side, and the `min` and `max` bumper thickness at the floor. |
 | `lap_tab` | A bumper's tab along its foot, under the tile's edge band: `depth` under the tile (less where a variant's edge bosses come closer), `thickness` at its tip, the `slope` of its top up to the bumper (45° or more, to print face down), and the `clearance` of the tile's rebate all round it. |
-| `overlay` | A grid overlay on a pegboard: the `band` and face `chamfer` on a free edge, the most a point may be from a latch (`reach`), how far a latch's pad stays inside its tile's edges (`edge_room`), how close to the board's edge an overlay edge counts as at the wall (`at_wall`), how finely the overlay is sampled for reach (`sample`), and a new overlay's `size` in holes and the `step` it's moved in to find a clear spot. |
-| `latch` | The overlay's spring latch. `width`: across the slot. `tolerance`: how far a slot may be from where it's expected, along, across or diagonally; `size`: how much bigger or smaller than nominal. `hold`: how far a barb reaches past the slot's end once seated. `entry`: room for the nose at the nearest slot end. `lead_in`: the nose's slope from upright. `root`: the bar's underside above the board. `plug`: the plug's width and the height of its top, which bears on the socket's. `fillet`: the radius at the leg and bar roots. `room`, `bow` and `wall`: the socket's room round the latch, over the bar to bow, and its pad's wall. `clear`: the nose's room above the drawer floor. `strain` and `held`: the most peak strain, stress concentration included, going in and once seated. `notch`: the test latches' label notches. `strip`: the latch test strip's slots, margin and rows, and the `legs` and `catches` it compares. |
-| `uppdatera` | IKEA UPPDATERA: the `boards`' sizes (IKEA's), then the `slot` (length across the drawer, width), its `pitch` along a row and `row` spacing (alternate rows shifted half a pitch), the least `edge` to the first slot, the top `skin`, the board's `thickness`, and the open `cup` under each slot (width, depth below the skin). Every field in `unverified` waits for calipers. |
+| `overlay` | A grid overlay on a pegboard: the `band` and face `chamfer` on a free edge, the most a point may be from a lock pin (`reach`), how close to the board's edge an overlay edge counts as at the wall (`at_wall`), how finely it's sampled for reach (`sample`, and `search_sample` while looking for the best fit), a new overlay's `size` in holes and the `step` it's moved in to find a clear spot, and the `fit_step` the best fit searches in. |
+| `uppdatera` | IKEA UPPDATERA: the `boards`' sizes (IKEA's), then the `slot` (length across the drawer, width), its `pitch` along a row and `row` spacing (alternate rows shifted half a pitch), the least `edge` to the first slot, the top `skin`, the board's `thickness`, the open `cup` under each slot, and the library's `lock_pin`: where it locks from the slot's centre (`at`), and how far a grid hole's centre may be from there, along the slot and across it (`tolerance`). Every field in `unverified` waits for calipers. |
 
 ## The design under test
 
@@ -64,7 +63,6 @@ The variants differ in boss wall, which sets most of the weight along with the t
 bun scripts/grid-calibration.ts round-1
 bun scripts/grid-calibration.ts round-2 --variant light,3.3,0.6       # variant, hole, skin
 bun scripts/grid-calibration.ts round-3 --variant light,3.3,0.6,0.3   # and the joiner fit
-bun scripts/grid-calibration.ts latches --variant light-thin,3.2,0.6  # an overlay's spring latches
 ```
 
 Without `--variant`, rounds two and three use the parameters file's variant, hole, face and joiner
@@ -171,32 +169,6 @@ where the four tiles meet, a spare), a `tile-25x25` to weigh, and a `test-holder
 | The 2 × 2 set lifts as one piece by a corner | |
 | Holder on one screw with 1 kg doesn't move when shaken | |
 | `tile-25x25` weight, estimated / weighed | |
-
-## Latches: an overlay on UPPDATERA
-
-For a grid overlay on an IKEA UPPDATERA pegboard (#13). `dunnage export` adds these to the
-calibration print of a drawer with overlays.
-
-- **`latch-strip`**: a strip of tile with three latch sockets 40 mm apart, over three slots in one
-  row of the board.
-- **`latches`**: one latch per leg thickness (0.7, 0.8, 0.9 mm) and catch (35°, 45°, 55° up from
-  flat). Notches on the bar's left half count the leg; on its right half, the catch.
-
-Press a latch into each socket, then press the strip onto a real board. Keep the latch that snaps
-in by hand, holds the strip down when it's shaken, and comes off with a firm pull without breaking.
-Its leg and catch go in the printer profile as `fit.latch` ([printer.md](format/printer.md)); if
-a latch is loose or tight in its socket, change `fit.latch.press`.
-
-| Check (#13 §6) | Result |
-|---|---|
-| Snaps in by hand, no tool | |
-| Stays down when shaken | |
-| Comes off with a firm pull, latch whole | |
-| Refits 5 times and still holds | |
-| Leg and catch chosen | |
-
-The latch is sized from the UPPDATERA numbers under `uppdatera` in the parameters file, all but the
-board's outer size unverified. Measure the board before trusting the strip: see #13 §5.
 
 ## Outcome
 

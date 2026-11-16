@@ -2,6 +2,7 @@ import { parse } from "yaml";
 import { read } from "./check.ts";
 import { DRAWER_PRESETS, drawerShape, wallFields, type Side } from "./drawers.ts";
 import { boxesOverlap, half } from "./geometry.ts";
+import { bestOverlayAt, type OverlayOptions, type OverlaySpec } from "./grid/overlay.ts";
 import { GRID } from "./grid/parameters.ts";
 import { pegboard } from "./pegboard.ts";
 import { BASES, plan, type BaseKey, type Method } from "./plan.ts";
@@ -254,9 +255,24 @@ export function addOverlay(text: string, holes: readonly [number, number] = GRID
 }
 
 /** Sets, or with `undefined` removes, a field on an overlay. */
-export function setOverlay(text: string, id: string, field: "at" | "holes" | "variant", value: unknown): string {
+export function setOverlay(text: string, id: string, field: "at" | "holes" | "variant" | "pins", value: unknown): string {
   const index = overlayIndex(text, id);
   return value === undefined ? deleteIn(text, ["base", "overlays", index, field]) : setIn(text, ["base", "overlays", index, field], value);
+}
+
+/**
+ * Moves an overlay to the best place within a slot pitch, where its lock pins meet the rules and
+ * most holes line up with slots. Pins it names are dropped, as they belong to where it was.
+ */
+export function moveOverlayToBestFit(text: string, id: string, options: OverlayOptions = {}): string {
+  const drawer = drawerOf(text);
+  const shape = drawerShape(drawer.drawer);
+  if (drawer.base?.kind !== "pegboard" || !shape) return text;
+  const specs = (drawer.base.overlays ?? []) as OverlaySpec[];
+  const spec = specs[overlayIndex(text, id)]!;
+  const board = pegboard(drawer.base.preset, shape.inside[0], shape.inside[1]);
+  const { at } = bestOverlayAt(shape, board, spec, specs.filter((o) => o.id !== id), options);
+  return setOverlay(setOverlay(text, id, "pins", undefined), id, "at", at);
 }
 
 /** Removes an overlay, taking the holders on it off it. */

@@ -40,13 +40,6 @@ export interface BoardBumper {
   tab: Box;
 }
 
-export interface BoardLatch {
-  /** The slot's centre, where the latch is centred, in the drawer. */
-  at: [number, number];
-  /** The tile it presses into, by index in `tiles`. */
-  tile: number;
-}
-
 export interface BoardLayout {
   /** A grid base over the whole floor, or an overlay on a pegboard (an `OverlayLayout`). */
   kind: "grid" | "overlay";
@@ -71,10 +64,8 @@ export interface BoardLayout {
   countersinks: Hole[];
   /** The radius rounded drawer corners are cut to, round the corner's own centre; absent when the corners are square. */
   corner?: { radius: number; cut: number };
-  /** An overlay's spring latches, each under the tile it presses into. */
-  latches?: BoardLatch[];
-  /** Holes closed over a latch's socket, which a fixing can't use. */
-  closed?: Hole[];
+  /** Holes a lock pin goes up into, which a fixing can't use. */
+  occupied?: Hole[];
   /** An overlay's edges that face the pegboard rather than a drawer wall, which get a wide band and a chamfer. */
   free?: Side[];
   /** What stops the board being laid out as asked, by the drawer file field it's about. */
@@ -384,7 +375,7 @@ export function holeProblem(layout: BoardLayout, hole: Hole): string | undefined
   const [nx, ny] = layout.holes;
   if (hole[0] >= nx || hole[1] >= ny) return offBoard(hole, nx, ny);
   if (layout.dropped.some(([i, j]) => i === hole[0] && j === hole[1])) return cutAway(hole);
-  if (layout.closed?.some(([i, j]) => i === hole[0] && j === hole[1])) return `[${hole[0]}, ${hole[1]}] is closed over a latch's socket: use a hole beside it`;
+  if (layout.occupied?.some(([i, j]) => i === hole[0] && j === hole[1])) return `[${hole[0]}, ${hole[1]}] is taken by a lock pin: use a hole beside it`;
   return undefined;
 }
 

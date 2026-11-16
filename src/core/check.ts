@@ -165,7 +165,7 @@ function drawerWarnings(drawer: Drawer): Issue[] {
     if (UPPDATERA.unverified.length > 0) {
       warnings.push({
         at: ["base", "overlays"],
-        message: `UPPDATERA's ${UPPDATERA.unverified.join(", ")} are unverified, and the latches are sized from them: measure the board, and correct \`uppdatera\` in the grid parameters file`,
+        message: `UPPDATERA's ${UPPDATERA.unverified.join(", ")} are unverified, and the lock pins are placed by them: measure the board, and correct \`uppdatera\` in the grid parameters file`,
       });
     }
   }

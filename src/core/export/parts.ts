@@ -1,14 +1,14 @@
 import { boardHole } from "../grid/layout.ts";
-import type { Board } from "../grid/overlay.ts";
+import { lockPinPeg, type Board } from "../grid/overlay.ts";
 import { GRID, type Fit, type Variant } from "../grid/parameters.ts";
 import { METHODS, pretty, type Plan } from "../plan.ts";
 import { hasSpecSheet, specPath } from "../spec.ts";
-import { boardFor, fixingsOf, holderSide, SCREW } from "./fixings.ts";
+import { boardFor, fixingsOf, holderSide, round, SCREW } from "./fixings.ts";
 import type { Library } from "./library.ts";
 
 // The parts list: what to print, what to buy, and where each holder comes from.
 
-export type PartKind = "tile" | "bumper" | "joiner" | "peg" | "latch" | "calibration";
+export type PartKind = "tile" | "bumper" | "joiner" | "peg" | "calibration";
 
 export interface PrintedFile {
   file: string;
@@ -24,10 +24,8 @@ export interface BoardCounts {
   pegs: number;
   holderScrews: number;
   floorScrews: number;
-  /** An overlay's spring latches, spares included. */
-  latches: number;
-  /** Holes closed over a latch's socket. */
-  closed: number;
+  /** The lock pins that hold overlays down, spares included. */
+  lockPins: number;
   /** Joiners and pegs by the variant they're sized for, spares included. */
   variants: Partial<Record<Variant, { joiners: number; pegs: number }>>;
 }
@@ -59,20 +57,19 @@ const NAMES: Record<PartKind, [string, string]> = {
   bumper: ["bumper", "bumpers"],
   joiner: ["joiner", "joiners"],
   peg: ["peg", "pegs"],
-  latch: ["latch", "latches"],
   calibration: ["calibration part", "calibration parts"],
 };
 
 function describe(printed: PrintedFile): string {
   if (printed.tile) return `${printed.tile.overlay ? `Overlay ${printed.tile.overlay}, tile` : "Tile"} ${printed.tile.label}, ${printed.tile.size[0]} × ${printed.tile.size[1]} holes`;
-  if (printed.kinds.calibration) return "Calibration print (docs/grid-calibration.md): screw pilot holes, boss walls, joiner and peg fits, and the latch strip when there are overlays";
+  if (printed.kinds.calibration) return "Calibration print (docs/grid-calibration.md): screw pilot holes, boss walls, joiner and peg fits";
   return (Object.entries(printed.kinds) as [PartKind, number][]).map(([kind, count]) => `${count} ${NAMES[kind][count === 1 ? 0 : 1]}`).join(", ");
 }
 
 /** A line saying what a board or overlay is. */
 function boardLine(layout: Board): string {
   const size = `${layout.variant}, ${layout.holes[0]} × ${layout.holes[1]} holes`;
-  return layout.kind === "overlay" ? `- Overlay ${layout.id}: ${size}, ${layout.latches.length} latches, ${layout.closed.length} holes closed over their sockets.` : `Grid board, ${size}.`;
+  return layout.kind === "overlay" ? `- Overlay ${layout.id}: ${size}, ${layout.pins.length} lock pins, chosen from the ${layout.compatible.length} holes that line up with a slot.` : `Grid board, ${size}.`;
 }
 
 export function partsList({ name, bed, plan: drawerPlan, fit, library, board, spares, density }: PartsListInput): string {
@@ -90,15 +87,15 @@ export function partsList({ name, bed, plan: drawerPlan, fit, library, board, sp
       "|---|---|---|",
       ...printed.map((row) => `| \`${row.file}\` | ${describe(row)} | ${Math.round(row.grams)} g |`),
       "",
-      `${overlaid ? "Joiners, pegs and latches" : "Joiners and pegs"} include ${Math.round(spares * 100)}% spares, rounded up.`,
+      `Joiners and pegs include ${Math.round(spares * 100)}% spares, rounded up.`,
     );
     if (overlaid) {
+      const pin = library["lock-pin"];
       lines.push(
         "",
-        "## Latches",
+        "## From the library",
         "",
-        `- ${counts.latches} spring latches. Press one into each socket under the tiles, clip the tiles together, lay the overlay roughly in place and press it down.`,
-        `- ${counts.closed} holes are closed over the latches' sockets: a holder can't be screwed or pinned there.`,
+        `- UPPDATERA lock pin × ${counts.lockPins}, ${Math.round(spares * 100)}% spares included, with a ${round(lockPinPeg(layouts.find((l) => l.kind === "overlay")!.variant, fit))} mm peg: ${pin ? `[${pin.name}](${pin.url})` : "not in the library yet"}. Twist each into its slot, then press the overlay down over their pegs.`,
       );
     }
     if (weights.length > 0) {

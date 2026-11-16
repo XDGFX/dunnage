@@ -129,8 +129,9 @@ const Base = Type.Union([
           variant: Type.Optional(VariantName),
           at: Type.Tuple([Type.Number({ minimum: 0 }), Type.Number({ minimum: 0 })], { description: "Its front-left corner, from the pegboard's front-left corner, in mm." }),
           holes: Type.Tuple([Type.Integer({ minimum: 1 }), Type.Integer({ minimum: 1 })], { description: "Its size in grid holes, [x, y]." }),
+          pins: Type.Optional(Type.Array(Hole, { minItems: 1, description: "The holes its lock pins go up into, in its own holes; dunnage chooses them when left out." })),
         }),
-        { description: "Patches of the grid board on top of the pegboard, latched into its slots." },
+        { description: "Patches of the grid board on top of the pegboard, held by lock pins twisted into its slots." },
       ),
     ),
   }),
@@ -230,16 +231,6 @@ export const Printer = strict({
         peg: Type.Optional(Type.Number({ minimum: 0, description: "How much smaller a peg is than a grid hole, across the diameter, in mm." })),
         peg_fixed: Type.Optional(Type.Number({ minimum: 0, description: "How much smaller a peg is than a holder's hole, for a peg that stays put, in mm." })),
         joiner: Type.Optional(Type.Number({ description: "Radial clearance of a joiner's rings over the bosses, in mm; negative is interference." })),
-        latch: Type.Optional(
-          strict(
-            {
-              leg: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "Leg and bar thickness, which sets how stiff the latch is, in mm." })),
-              catch: Type.Optional(Type.Number({ minimum: 15, maximum: 75, description: "The barb's catch, in degrees up from flat." })),
-              press: Type.Optional(Type.Number({ description: "How much tighter a latch's plug is than its socket, a side, in mm; negative is clearance." })),
-            },
-            "An overlay's spring latches, from the latch test strip.",
-          ),
-        ),
       },
       "Calibrated fits for the grid base. Each defaults to the grid parameters file's.",
     ),

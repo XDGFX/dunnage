@@ -410,8 +410,8 @@ function BaseLayer({ p, Y }: { p: Plan; Y: (y: number) => number }) {
 }
 
 /**
- * A grid overlay on a pegboard: its tiles and holes as a grid board's, the latches under it as the
- * slots they press into, and the holes closed over their sockets filled in.
+ * A grid overlay on a pegboard: its tiles and holes as a grid board's, a light ring round each hole
+ * over a slot a lock pin could use, and the chosen pins marked over their slots.
  */
 function Overlay({ overlay: o, D, Y }: { overlay: OverlayLayout; D: number; Y: (y: number) => number }) {
   const hole = (GRID.fit.grid_hole[o.variant] ?? GRID.fit.grid_hole[GRID.variant]!) / 2;
@@ -424,12 +424,20 @@ function Overlay({ overlay: o, D, Y }: { overlay: OverlayLayout; D: number; Y: (
         const [x1, y1, x2, y2] = edge[side];
         return <line key={side} className="free-edge" x1={x1} y1={Y(y1)} x2={x2} y2={Y(y2)} />;
       })}
-      {o.closed.map((h) => {
+      {o.compatible.map(({ hole: h }) => {
         const [x, y] = holeAt(o, h);
-        return <circle key={`b${h[0]}-${h[1]}`} className="closed" cx={x} cy={Y(y)} r={hole + 0.4} />;
+        return <circle key={`c${h[0]}-${h[1]}`} className="compatible" cx={x} cy={Y(y)} r={hole + 1.4} />;
       })}
-      {o.latches.map(({ at: [x, y] }) => <rect key={`l${x}-${y}`} className="latch" x={x - SLOT[0] / 2} y={Y(y) - SLOT[1] / 2} width={SLOT[0]} height={SLOT[1]} rx={SLOT[1] / 2} />)}
-      <text className="overlay-label" x={box.x1 - 5} y={Y(box.y1) + 13} textAnchor="end">overlay {o.id}, {o.latches.length} latches</text>
+      {o.pins.map(({ hole: h, slot: [sx, sy] }) => {
+        const [x, y] = holeAt(o, h);
+        return (
+          <g key={`p${h[0]}-${h[1]}`} className="pin">
+            <rect x={sx - SLOT[0] / 2} y={Y(sy) - SLOT[1] / 2} width={SLOT[0]} height={SLOT[1]} rx={SLOT[1] / 2} />
+            <circle cx={x} cy={Y(y)} r={hole + 1} />
+          </g>
+        );
+      })}
+      <text className="overlay-label" x={box.x1 - 5} y={Y(box.y1) + 13} textAnchor="end">overlay {o.id}: {o.pins.length} lock pins of {o.compatible.length} holes over slots</text>
     </g>
   );
 }

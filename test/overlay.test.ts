@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import { strFromU8, unzipSync } from "fflate";
-import Module, { type CrossSection, type Manifold } from "manifold-3d";
+import Module, { type Manifold } from "manifold-3d";
 import { beforeAll, describe, expect, test } from "vitest";
 import { parse } from "yaml";
 import {
-  boardCounts, check, drawerOverlays, drawerShape, exportDrawer, GRID, gridFit, holeAt, latchProfile, latchSeat, latchShape, layoutBoard, layoutOverlay, load, pegboard, plan, printable,
-  printLatch, seatedLatch, socketOf, strainPerMm, stressConcentration, tileSolid, UPPDATERA, withSpares, type Drawer, type OverlayLayout, type OverlaySpec,
+  bestOverlayAt, boardCounts, check, compatibleHoles, drawerOverlays, drawerShape, exportDrawer, GRID, gridFit, holeAt, layoutBoard, layoutOverlay, load, pegboard, pinRules, plan, printable,
+  tileSolid, UPPDATERA, withSpares, type Drawer, type OverlayLayout, type OverlaySpec, type PinSpot,
 } from "../src/core/index.ts";
 import { overhangs } from "../src/core/grid/printability.ts";
 import { PITCH, THICKNESS } from "../src/core/grid/tile.ts";
@@ -23,142 +23,133 @@ const BOARD = pegboard("uppdatera-80", 700, 500);
 const overlay = (spec: Partial<OverlaySpec>, bed?: readonly [number, number, number]) =>
   layoutOverlay(SHAPE, BOARD, { id: "front", kind: "grid", at: [0, 0], holes: [16, 16], ...spec }, 0, bed ? { bed } : {});
 
-/**
- * A latch measured on its mesh against an UPPDATERA slot's solid, moved by `offset` and grown by
- * `grow` from nominal, with nothing from the latch's own seat model: how far each leg must be
- * pushed in to pass the skin, how far it stays pushed in once seated, and how far past that it
- * would have to go to let go.
- */
-function measure(latch: Manifold, root: number, offset: readonly [number, number], grow: number) {
-  const { Manifold, CrossSection } = wasm;
-  const [L, W] = [UPPDATERA.slot[0] + grow, UPPDATERA.slot[1] + grow];
-  const { skin, thickness: T } = UPPDATERA;
-  const [cupW, cupD] = UPPDATERA.cup;
-  const opening = CrossSection.union([
-    CrossSection.square([L - W, W], true),
-    ...[-1, 1].map((side) => CrossSection.circle(W / 2, 96).translate((side * (L - W)) / 2, 0)),
-  ]).translate(offset[0], offset[1]);
-  const big = 40;
-  const skinLayer = Manifold.cube([big, big, skin], true).translate([0, 0, -skin / 2]).subtract(Manifold.extrude(opening, skin + 2).translate([0, 0, -skin - 1]));
-  const under = Manifold.cube([big, big, T + 5], true).translate([0, 0, -skin - (T + 5) / 2]).subtract(Manifold.cylinder(T - skin + 1, cupW / 2, cupW / 2, 96).translate([offset[0], offset[1], -T]));
-  const cut = (x0: number, x1: number, z0: number, z1: number) => latch.intersect(Manifold.cube([x1 - x0, big, z1 - z0]).translate([x0, -big / 2, z0]));
-  const sides = [-1, 1].map((side) => {
-    const [x0, x1] = side < 0 ? [-big, -0.01] : [0.01, big];
-    const leg = cut(x0, x1, -big, root);
-    const inward = (s: number) => [-side * s, 0, 0] as [number, number, number];
-    /** The least inward push, to 0.005 mm, at which `clear` holds. */
-    const least = (clear: (s: number) => boolean) => {
-      if (clear(0)) return 0;
-      let [lo, hi] = [0, 6];
-      while (hi - lo > 0.005) {
-        const mid = (lo + hi) / 2;
-        if (clear(mid)) hi = mid;
-        else lo = mid;
-      }
-      return hi;
-    };
-    const outside = (plan: CrossSection, s: number) => plan.translate(-side * s, 0).subtract(opening).area() < 1e-8;
-    const below = cut(x0, x1, -big, 0).project();
-    const underSkin = cut(x0, x1, -big, -skin).project();
-    const nose = leg.boundingBox().min[2];
-    const tip = cut(x0, x1, nose, nose + 0.3).project();
-    const insertion = least((s) => outside(below, s));
-    const held = least((s) => leg.translate(inward(s)).intersect(skinLayer).volume() < 1e-8);
-    const release = least((s) => outside(underSkin, s));
-    return {
-      enters: outside(tip, 0),
-      insertion,
-      held,
-      overlap: release - held,
-      inCup: leg.translate(inward(held)).intersect(under).volume() < 1e-8,
-    };
-  });
-  return {
-    enters: sides.every((s) => s.enters),
-    insertion: Math.max(...sides.map((s) => s.insertion)),
-    held: Math.max(...sides.map((s) => s.held)),
-    overlap: Math.min(...sides.map((s) => s.overlap)),
-    inCup: sides.every((s) => s.inCup),
-  };
-}
-
-describe("a latch", () => {
-  const shape = latchShape();
-  const { tolerance, size } = GRID.latch;
-  const steps = (t: number) => [-t, 0, t];
-
-  test("seats, measured on its mesh, with the slot moved up to the tolerance along, across or diagonally, in slots that much bigger or smaller", () => {
-    const latch = seatedLatch(wasm, shape);
-    const per = strainPerMm(shape);
-    for (const grow of steps(size)) {
-      for (const dx of steps(tolerance)) {
-        for (const dy of steps(tolerance)) {
-          const at = `slot ${grow >= 0 ? "+" : ""}${grow} mm, moved [${dx}, ${dy}]`;
-          const m = measure(latch, shape.root, [dx, dy], grow);
-          expect(m.enters, at).toBe(true);
-          expect(m.inCup, at).toBe(true);
-          expect(m.overlap, at).toBeGreaterThanOrEqual(GRID.latch.hold - 0.02);
-          expect(m.insertion * per, at).toBeLessThanOrEqual(GRID.latch.strain);
-          expect(m.held * per, at).toBeLessThanOrEqual(GRID.latch.held);
-        }
-      }
-    }
-  }, 120_000);
-
-  test("doesn't seat with a smaller slot moved 1 mm diagonally, past the tolerance it's made for", () => {
-    const m = measure(seatedLatch(wasm, shape), shape.root, [1, 1], -size);
-    expect(m.enters).toBe(false);
-  });
-
-  test("the design model agrees with the mesh", () => {
-    const latch = seatedLatch(wasm, shape);
-    for (const offset of [[0, 0], [tolerance, tolerance]] as const) {
-      const m = measure(latch, shape.root, offset, 0);
-      const seat = latchSeat(shape, offset);
-      expect(seat.deflection).toBeCloseTo(m.insertion, 1);
-      expect(seat.held).toBeCloseTo(m.held, 1);
-    }
-  });
-
-  test("keeps its fillets: the leg and bar roots are rounded", () => {
-    const flat = latchShape();
-    const profile = wasm.CrossSection.union(latchProfile(flat).map((p) => wasm.CrossSection.ofPolygons([p])));
-    const printed = printLatch(wasm, flat);
-    const extra = printed.volume() - profile.area() * flat.width;
-    // Four fillets of radius r each add (1 − π/4) r² of profile.
-    expect(extra).toBeCloseTo(4 * (1 - Math.PI / 4) * flat.fillet ** 2 * flat.width, 1);
-    expect(stressConcentration(flat)).toBeGreaterThan(1);
-  });
-
-  test("prints flat on its side, with no overhang steeper than 45°", () => {
-    const latch = printLatch(wasm, shape);
-    expect(latch.status()).toBe("NoError");
-    expect(latch.decompose().length).toBe(1);
-    expect(overhangs(latch.getMesh())).toBe(0);
-    const { min, max } = latch.boundingBox();
-    expect(min[2]).toBeCloseTo(0, 6);
-    // Lying on its side: it stands only its width across the slot.
-    expect(max[2] - min[2]).toBeCloseTo(shape.width, 6);
-  });
-
-  test("takes its stiffness and catch from the printer's latch fit", () => {
-    const stiff = latchShape({ ...GRID.fit.latch, leg: 1.6, catch: 30 });
-    expect(stiff.leg).toBe(1.6);
-    expect(stiff.catch).toBe(30);
-    expect(gridFit({ latch: { leg: 1.6 } }).latch).toEqual({ ...GRID.fit.latch, leg: 1.6 });
-  });
-});
-
-/** Every point of an overlay, a millimetre apart, and how far it is from the nearest latch. */
+/** How far the point of an overlay farthest from every pin is, a millimetre apart. */
 function farthest(layout: OverlayLayout): number {
   let worst = 0;
   for (let x = layout.box.x0; x <= layout.box.x1; x += 1) {
     for (let y = layout.box.y0; y <= layout.box.y1; y += 1) {
-      worst = Math.max(worst, Math.min(...layout.latches.map(({ at }) => Math.hypot(at[0] - x, at[1] - y))));
+      worst = Math.max(worst, Math.min(...layout.pins.map(({ slot }) => Math.hypot(slot[0] - x, slot[1] - y))));
     }
   }
   return worst;
 }
+
+const keyOf = (spots: readonly PinSpot[]) => spots.map(({ hole, slot }) => `${hole.join(",")} @ ${slot.join(",")}`).sort();
+
+describe("which holes line up with a slot", () => {
+  // A drawer the 80 cm board's size, so the board's corner is the drawer's. Slots, as UPPDATERA
+  // lays them out: 31 steps of 20 mm across 675 mm, centred, start at x = 27.5; 22 rows of 20 mm
+  // across 500 mm start at y = 30; a slot is where the step and row counts add up to an even
+  // number. An overlay at [0, 0], 16 × 16 holes, has hole centres at 4.75 + 9.5 i and covers
+  // 0–152 mm, so a whole slot (17 × 7) under it has its centre at x 8.5–143.5, y 3.5–148.5.
+  //
+  // Rows y = 30, 50, 70, 130 are 3.25, 2.25, 1.25 and 1.75 mm from the nearest hole row: more than
+  // 1 mm across. Row y = 90 (row 3, odd steps): x = 47.5 is 4.75 mm from a hole, 87.5 is 2.75 mm
+  // from hole 9 (90.25), and 127.5 is 0.75 mm from hole 13 (128.25); y is 0.25 mm from row 9. Row
+  // y = 110 (row 4, even steps): 27.5 and 67.5 are 3.75 mm from a hole, 107.5 is 1.75 mm from hole
+  // 11 (109.25); y is 0.75 mm from row 11.
+  const shape = drawerShape({ inside: [675, 500, 100] })!;
+  const board = pegboard("uppdatera-80", 675, 500);
+  const at00 = (options = {}) => layoutOverlay(shape, board, { id: "a", kind: "grid", at: [0, 0], holes: [16, 16] }, 0, { tolerance: [3, 1], ...options });
+
+  test("lists the slots within 3 mm along and 1 mm across of a hole, worked out by hand", () => {
+    expect(keyOf(at00().compatible)).toEqual(["11,11 @ 107.5,110", "13,9 @ 127.5,90", "9,9 @ 87.5,90"]);
+  });
+
+  test("and none within 0.5 mm both ways", () => {
+    expect(at00({ tolerance: [0.5, 0.5] }).compatible).toEqual([]);
+  });
+
+  test("reports the rules failing there: the corner at [0, 0] is 125.5 mm from the pin at (87.5, 90)", () => {
+    const layout = at00();
+    expect(layout.problems.map((p) => p.message)).toEqual([expect.stringMatching(/^leaves a point 12[56] mm from the nearest lock pin/)]);
+    expect(Math.hypot(87.5, 90)).toBeGreaterThan(GRID.overlay.reach);
+  });
+
+  test("leaves out a hole a joiner sits round, or that's been dropped", () => {
+    const layout = at00();
+    const hole = gridFit().grid_hole[GRID.variant]!;
+    // A joiner centred on the corner up and right of hole (9, 9) sits round it and its three neighbours.
+    const [x, y] = holeAt(layout, [9, 9]);
+    const joined = compatibleHoles(board, { ...layout, joiners: [[x + PITCH / 2, y + PITCH / 2]] }, hole, [3, 1]);
+    expect(keyOf(joined)).toEqual(["11,11 @ 107.5,110", "13,9 @ 127.5,90"]);
+    const dropped = compatibleHoles(board, { ...layout, dropped: [[13, 9]] }, hole, [3, 1]);
+    expect(keyOf(dropped)).toEqual(["11,11 @ 107.5,110", "9,9 @ 87.5,90"]);
+  });
+});
+
+describe("choosing lock pins", () => {
+  const cases: [string, OverlayLayout][] = [];
+  beforeAll(() => {
+    cases.push(["the coffee drawer's", drawerOverlays(coffee())[0]!]);
+    const shape = drawerShape({ inside: [675, 500, 100] })!;
+    const board = pegboard("uppdatera-80", 675, 500);
+    const spec: OverlaySpec = { id: "a", kind: "grid", at: [0, 0], holes: [16, 16] };
+    cases.push(["a one-tile overlay at its best fit", layoutOverlay(shape, board, { ...spec, at: bestOverlayAt(shape, board, spec, []).at }, 0)]);
+  });
+
+  test("picks compatible holes, two a tile, three not in a line, and every point within 120 mm, measured a millimetre apart", () => {
+    for (const [name, layout] of cases) {
+      expect(layout.problems, name).toEqual([]);
+      for (const pin of layout.pins) expect(layout.compatible, name).toContain(pin);
+      for (const index of layout.tiles.keys()) expect(layout.pins.filter((p) => p.tile === index).length, name).toBeGreaterThanOrEqual(2);
+      const [a, b] = [layout.pins[0]!.slot, layout.pins[1]!.slot];
+      expect(layout.pins.some(({ slot: c }) => Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) > 1), name).toBe(true);
+      expect(farthest(layout), name).toBeLessThanOrEqual(GRID.overlay.reach);
+    }
+  });
+
+  test("uses as few as it can: none can go without breaking a rule", () => {
+    for (const [name, layout] of cases) {
+      for (const k of layout.pins.keys()) expect(pinRules(layout, layout.pins.filter((_, n) => n !== k)), `${name} without pin ${k}`).toBeDefined();
+    }
+  });
+
+  test("takes pins named by hand, and reports one that isn't over a slot, and a set that breaks the rules", () => {
+    const named = layoutOverlay(SHAPE, BOARD, { id: "a", kind: "grid", at: [0, 0], holes: [16, 16], pins: [[0, 0]] }, 0);
+    expect(named.problems.map((p) => p.at)).toEqual(expect.arrayContaining([["base", "overlays", 0, "pins", 0], ["base", "overlays", 0, "pins"]]));
+    const coffeeSpec = coffee().base as { overlays: OverlaySpec[] };
+    const chosen = drawerOverlays(coffee())[0]!.pins.map((p) => p.hole) as [number, number][];
+    const byHand = layoutOverlay(SHAPE, BOARD, { ...coffeeSpec.overlays[0]!, pins: chosen }, 0);
+    expect(byHand.problems).toEqual([]);
+    expect(byHand.pins.map((p) => p.hole)).toEqual(chosen);
+  });
+});
+
+describe("the best fit", () => {
+  test("moves an overlay whose pins break the rules to where they don't, with more holes over slots", () => {
+    const shape = drawerShape({ inside: [675, 500, 100] })!;
+    const board = pegboard("uppdatera-80", 675, 500);
+    const spec: OverlaySpec = { id: "a", kind: "grid", at: [0, 0], holes: [16, 16] };
+    const before = layoutOverlay(shape, board, spec, 0);
+    expect(before.problems).not.toEqual([]);
+    const best = bestOverlayAt(shape, board, spec, []);
+    expect(best.met).toBe(true);
+    const after = layoutOverlay(shape, board, { ...spec, at: best.at }, 0);
+    expect(after.problems).toEqual([]);
+    expect(after.compatible.length).toBeGreaterThanOrEqual(before.compatible.length);
+    // Within a slot pitch along a row, and a row, of where it was.
+    expect(Math.abs(best.at[0] - spec.at[0])).toBeLessThanOrEqual(UPPDATERA.pitch / 2);
+    expect(Math.abs(best.at[1] - spec.at[1])).toBeLessThanOrEqual(UPPDATERA.row / 2);
+  });
+
+  test("keeps off the other overlays and on the board", () => {
+    const shape = drawerShape({ inside: [675, 500, 100] })!;
+    const board = pegboard("uppdatera-80", 675, 500);
+    const other = { at: [0, 16 * PITCH] as [number, number], holes: [16, 16] as [number, number] };
+    const best = bestOverlayAt(shape, board, { id: "a", kind: "grid", at: [0, 0], holes: [16, 16] }, [other]);
+    expect(best.at[0]).toBeGreaterThanOrEqual(0);
+    expect(best.at[1]).toBeGreaterThanOrEqual(0);
+    expect(best.at[1] + 16 * PITCH).toBeLessThanOrEqual(other.at[1] + 0.5);
+  });
+
+  test("puts the coffee drawer's overlay where it is", () => {
+    const drawer = coffee();
+    const shape = drawerShape(drawer.drawer)!;
+    const spec = (drawer.base as { overlays: OverlaySpec[] }).overlays[0]!;
+    expect(bestOverlayAt(shape, pegboard("uppdatera-80", shape.inside[0], shape.inside[1]), spec, []).at).toEqual(spec.at);
+  });
+});
 
 describe("laying out an overlay", () => {
   const cases: [string, OverlayLayout][] = [];
@@ -166,37 +157,6 @@ describe("laying out an overlay", () => {
     cases.push(["the coffee drawer's", drawerOverlays(coffee())[0]!]);
     cases.push(["a 2 × 2-tile", overlay({ holes: [16, 16] }, [90, 90, 90])]);
     cases.push(["a whole board", overlay({ holes: [71, 52] })]);
-  });
-
-  test("puts every latch over one of the board's slots", () => {
-    for (const [name, layout] of cases) {
-      expect(layout.problems, name).toEqual([]);
-      for (const { at } of layout.latches) expect(BOARD.holes.some(([x, y]) => x === at[0] && y === at[1]), name).toBe(true);
-    }
-  });
-
-  test("gives every tile two latches, the overlay three not in a line, and leaves no point more than 120 mm from one", () => {
-    for (const [name, layout] of cases) {
-      for (const [index] of layout.tiles.entries()) expect(layout.latches.filter((l) => l.tile === index).length, name).toBeGreaterThanOrEqual(2);
-      expect(layout.latches.length, name).toBeGreaterThanOrEqual(3);
-      const [a, b] = [layout.latches[0]!.at, layout.latches[1]!.at];
-      const offLine = layout.latches.some(({ at: c }) => Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) > 1);
-      expect(offLine, name).toBe(true);
-      expect(farthest(layout), name).toBeLessThanOrEqual(GRID.overlay.reach);
-    }
-  });
-
-  test("keeps each latch's pad inside its tile, clear of the joiners at its edges", () => {
-    const { pad } = socketOf([latchShape()]);
-    for (const [name, layout] of cases) {
-      for (const { at: [x, y], tile } of layout.latches) {
-        const box = layout.tiles[tile]!.box;
-        expect(x - pad[0] / 2 - box.x0, name).toBeGreaterThanOrEqual(GRID.overlay.edge_room - 1e-9);
-        expect(box.x1 - x - pad[0] / 2, name).toBeGreaterThanOrEqual(GRID.overlay.edge_room - 1e-9);
-        expect(y - pad[1] / 2 - box.y0, name).toBeGreaterThanOrEqual(GRID.overlay.edge_room - 1e-9);
-        expect(box.y1 - y - pad[1] / 2, name).toBeGreaterThanOrEqual(GRID.overlay.edge_room - 1e-9);
-      }
-    }
   });
 
   test("keeps hole centres on the 9.5 mm grid across the joins between its tiles", () => {
@@ -215,7 +175,7 @@ describe("laying out an overlay", () => {
 
   test("joins tiles only to each other, and counts an edge at a wall as not free", () => {
     const [, layout] = cases[0]!;
-    // At [85, 0] on the board: its front edge is on the board's, and the rest face the pegboard.
+    // At [87, 0] on the board: its front edge is on the board's, and the rest face the pegboard.
     expect(layout.free).toEqual(["left", "right", "back"]);
     for (const [x, y] of layout.joiners) {
       expect(x > layout.box.x0 && x < layout.box.x1 && y > layout.box.y0 && y < layout.box.y1).toBe(true);
@@ -223,7 +183,7 @@ describe("laying out an overlay", () => {
   });
 
   test("reports an overlay that runs off the board", () => {
-    expect(overlay({ at: [600, 0], holes: [16, 16] }).problems.map((p) => p.at)).toEqual([["base", "overlays", 0]]);
+    expect(overlay({ at: [600, 0], holes: [16, 16] }).problems.map((p) => p.at)).toContainEqual(["base", "overlays", 0]);
   });
 });
 
@@ -271,7 +231,7 @@ describe("a grid base's tiles", () => {
 });
 
 describe("building an overlay tile", () => {
-  test("prints face down without supports, its latch sockets in solid pads, with the holes over them closed", () => {
+  test("prints face down without supports, with its free edges chamfered and its pins' holes open from below", () => {
     // Clear of the board's edges, so every outer edge is free and chamfered.
     const layout = overlay({ at: [20, 20], holes: [16, 16] }, [90, 90, 90]);
     expect(layout.free).toEqual(["left", "right", "front", "back"]);
@@ -279,22 +239,8 @@ describe("building an overlay tile", () => {
     const solid = tileSolid(wasm, layout, t);
     expect(solid.status()).toBe("NoError");
     expect(overhangs(printable(solid).getMesh())).toBe(0);
-
-    const own = layout.closed.map((hole) => holeAt(layout, hole)).filter(([x, y]) => x > t.box.x0 && x < t.box.x1 && y > t.box.y0 && y < t.box.y1);
-    expect(own.length).toBeGreaterThan(0);
-    for (const [x, y] of own) expect(solidDown(solid, x, y)).toBeGreaterThan(0);
-    // A hole away from every latch goes right through.
-    const open = [...Array(t.size[0]).keys()].flatMap((i) => [...Array(t.size[1]).keys()].map((j) => [t.first[0] + i, t.first[1] + j] as const))
-      .find((hole) => !layout.closed.some(([i, j]) => i === hole[0] && j === hole[1]))!;
-    expect(solidDown(solid, ...holeAt(layout, open))).toBe(0);
-
-    // Each latch's pocket is open from below, in a pad that's solid round it.
-    const { pad, pocket } = socketOf([latchShape()]);
-    for (const { at: [x, y] } of layout.latches.filter((l) => l.tile === 0)) {
-      expect(solid.intersect(wasm.Manifold.cube([1, 1, 1], true).translate([x, y, 1])).volume()).toBe(0);
-      const wall = (pad[0] + pocket[0]) / 4;
-      expect(solid.intersect(wasm.Manifold.cube([0.2, 0.2, 1], true).translate([x + wall, y, 1])).volume()).toBeGreaterThan(0);
-    }
+    // Every hole stays a through hole, so a pin's peg goes up into whichever is chosen.
+    for (const i of [0, t.size[0] - 1]) for (const j of [0, t.size[1] - 1]) expect(solidDown(solid, ...holeAt(layout, [t.first[0] + i, t.first[1] + j]))).toBe(0);
   });
 });
 
@@ -326,7 +272,7 @@ describe("an overlay in a drawer", () => {
     check(JSON.stringify({
       format: "drawer/0.4", name: "Board", drawer: { inside: [700, 500, 100] }, items: {}, layout: [],
       base: { kind: "pegboard", preset: "uppdatera-80", overlays: [{ id: "a", kind: "grid", at: [0, 0], holes: [16, 16] }, ...more.map((o) => ({ kind: "grid", holes: [16, 16], ...o }))] },
-    })).problems;
+    })).problems.filter((p) => !/lock pin/.test(p.message));
   const SIDE = 16 * PITCH;
 
   test("reports an overlay off the board", () => {
@@ -343,6 +289,13 @@ describe("an overlay in a drawer", () => {
 
   test("lets overlays touch edge to edge", () => {
     expect(onBoard({ id: "b", at: [SIDE, 0] }, { id: "c", at: [0, SIDE] })).toEqual([]);
+  });
+
+  test("reports a fixing in a hole a lock pin takes", () => {
+    const [front] = drawerOverlays(coffee());
+    const taken = front!.pins[0]!.hole;
+    const found = problems((d) => (d.holders.find((h: any) => h.id === "mug-tray").fix[0].hole = taken));
+    expect(found).toEqual([expect.objectContaining({ path: "holders[3].fix[0].hole", message: expect.stringContaining("taken by a lock pin") })]);
   });
 
   test("gives the full height to a holder whose `on` names no overlay, and reports the name", () => {
@@ -392,6 +345,7 @@ describe("an overlay in a drawer", () => {
 });
 
 describe("exporting an overlay", () => {
+  // At [97, 100], the best fit near [100, 100]: three lock pins.
   const SMALL = `
 format: drawer/0.4
 name: Small pegboard
@@ -400,7 +354,7 @@ base:
   kind: pegboard
   preset: uppdatera-60
   overlays:
-    - { id: patch, kind: grid, at: [100, 100], holes: [16, 16] }
+    - { id: patch, kind: grid, at: [97, 100], holes: [16, 16] }
 items:
   cup: { name: Cup, cylinder: [40, 40] }
 layout:
@@ -413,29 +367,26 @@ holders:
     spec: { purpose: Hold the cup }
     fix: [{ hole: [7, 8], by: pin }]
 `;
-  const BED = [90, 90, 90] as const;
 
-  test("plates its tiles, and the latches with spares, and lists the latches and closed holes", async () => {
+  test("plates its tiles as a grid base's, and lists the lock pins, with spares, as a library part", async () => {
+    expect(check(SMALL).problems).toEqual([]);
     const drawer = (load(SMALL) as { drawer: Drawer }).drawer;
-    expect(check(SMALL, { bed: BED }).problems).toEqual([]);
-    const [layout] = drawerOverlays(drawer, { bed: BED });
-    expect(layout!.tiles.length).toBe(4);
     const files = exportDrawer(await Module(), drawer, { bed: [256, 256, 256] });
     const names = files.map((f) => f.name);
-    expect(names.filter((n) => n.startsWith("overlay-patch-tile-"))).toHaveLength(1);
+    expect(names.filter((n) => n.startsWith("overlay-patch-tile-"))).toEqual(["overlay-patch-tile-1-1.3mf"]);
 
-    const big = drawerOverlays(drawer, { bed: [256, 256, 256] });
-    const counts = boardCounts(drawer, big);
-    expect(counts.latches).toBe(withSpares(big[0]!.latches.length));
-    const plate = unzipSync(files.find((f) => f.name === "plate.3mf")!.data);
-    const model = strFromU8(plate["3D/3dmodel.model"]!);
-    expect(model.match(/<item /g)?.length).toBe(counts.joiners + counts.pegs + counts.latches);
-    expect(model).toContain('name="latch"');
+    const overlays = drawerOverlays(drawer);
+    const counts = boardCounts(drawer, overlays);
+    expect(counts.lockPins).toBe(withSpares(overlays[0]!.pins.length));
+    const plate = strFromU8(unzipSync(files.find((f) => f.name === "plate.3mf")!.data)["3D/3dmodel.model"]!);
+    expect(plate.match(/<item /g)?.length).toBe(counts.joiners + counts.pegs);
 
     const parts = strFromU8(files.find((f) => f.name === "parts.md")!.data);
-    expect(parts).toContain(`${counts.latches} spring latches`);
-    expect(parts).toContain(`${counts.closed} holes are closed`);
-    const calibration = strFromU8(unzipSync(files.find((f) => f.name === "calibration.3mf")!.data)["3D/3dmodel.model"]!);
-    expect(calibration).toContain("latch-strip-");
+    expect(parts).toContain(`UPPDATERA lock pin × ${counts.lockPins}`);
+    expect(parts).toContain("not in the library yet");
+    // The peg is the 3.2 mm hole less the 0.5 mm press fit a holder's own peg takes.
+    expect(parts).toContain(`with a ${gridFit().grid_hole[GRID.variant]! - gridFit().peg_fixed} mm peg`);
+    const linked = exportDrawer(await Module(), drawer, { library: { "lock-pin": { name: "Lock pin", url: "https://example.org/pin" } } });
+    expect(strFromU8(linked.find((f) => f.name === "parts.md")!.data)).toContain("[Lock pin](https://example.org/pin)");
   }, 120_000);
 });

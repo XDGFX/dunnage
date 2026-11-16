@@ -24,7 +24,7 @@ describe("dunnage check", () => {
     const result = await dunnage("check", "fixtures/coffee.drawer.yml", "fixtures/p1s.printer.yml");
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("fixtures/coffee.drawer.yml: ok, drawer/0.4");
-    expect(result.stdout).toContain("fixtures/p1s.printer.yml: ok, printer/0.4");
+    expect(result.stdout).toContain("fixtures/p1s.printer.yml: ok, printer/0.3");
   });
 
   test("warns about an unverified built-in drawer without failing", async () => {
@@ -54,12 +54,12 @@ describe("dunnage check", () => {
   });
 
   test("speaks JSON for agents", async () => {
-    const file = scratch("bad.printer.yml", "format: printer/0.4\nbed: [256, 256]\n");
+    const file = scratch("bad.printer.yml", "format: printer/0.3\nbed: [256, 256]\n");
     const result = await dunnage("check", "--json", "fixtures/p1s.printer.yml", file);
     expect(result.code).toBe(1);
     expect(JSON.parse(result.stdout)).toEqual([
-      { file: "fixtures/p1s.printer.yml", format: "printer/0.4", problems: [] },
-      { file, format: "printer/0.4", problems: [{ path: "bed", message: expect.any(String), line: 2, column: 1 }] },
+      { file: "fixtures/p1s.printer.yml", format: "printer/0.3", problems: [] },
+      { file, format: "printer/0.3", problems: [{ path: "bed", message: expect.any(String), line: 2, column: 1 }] },
     ]);
   });
 

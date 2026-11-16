@@ -25,11 +25,12 @@ base:
   kind: pegboard
   preset: uppdatera-80             # 675 × 500, centred: 12.5 mm to each side wall
   overlays:
-    # The small brew kit wants the fine grid; the big stuff behind stays on IKEA pegs. Spring
-    # latches under the tiles snap into the board's slots, so it presses straight down and stays.
+    # The small brew kit wants the fine grid; the big stuff behind stays on IKEA pegs. Lock pins
+    # twist into the board's slots first; the overlay presses down over their pegs. dunnage picks
+    # which holes line up with a slot; `pins: [[col, row], ...]` would choose them by hand.
     - id: front
       kind: grid
-      at: [85, 0]                  # from the board's front-left corner, mm
+      at: [87, 0]                  # from the board's front-left corner, mm: the best fit near [85, 0]
       holes: [60, 17]              # 570 × 161.5 mm; hole [0, 0] is its own front-left hole
   # kind: bare
   # kind: gridfinity, pitch: 42

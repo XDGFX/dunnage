@@ -1,7 +1,6 @@
 import type { CrossSection, Manifold, ManifoldToplevel, Vec3 } from "manifold-3d";
 import type { Side } from "../drawers.ts";
 import type { Box } from "../geometry.ts";
-import { latchShape, printLatch, socketOf, socketVoid, type Socket } from "./latch.ts";
 import { boardHole, OUTWARD, type BoardBumper, type BoardLayout, type BoardTile, type Hole } from "./layout.ts";
 import { GRID, gridFit, type PrinterFit } from "./parameters.ts";
 import { joinerRoom, peg, PITCH, printJoiner, THICKNESS, tile, VARIANTS } from "./tile.ts";
@@ -91,7 +90,6 @@ export function tileSolid(wasm: ManifoldToplevel, layout: BoardLayout, t: BoardT
     ? wasm.CrossSection.square([w + 2, d + 2]).translate(-1, -1).subtract(cut.translate(-t.box.x0, -t.box.y0))
     : undefined;
   const outer = outerSides(layout, t);
-  const latches = latchesIn(wasm, layout, t, fit);
   const local = tile(wasm, {
     variant: layout.variant,
     nx: t.size[0],
@@ -99,9 +97,6 @@ export function tileSolid(wasm: ManifoldToplevel, layout: BoardLayout, t: BoardT
     hole,
     drop: inSet(layout.dropped),
     countersink: inSet(layout.countersinks),
-    closed: inSet(layout.closed ?? []),
-    solids: latches?.pads,
-    voids: latches?.voids,
     // A grid base's joiners may reach its bumpers; an overlay's are only between its own tiles.
     joiners: layout.kind === "grid" ? true : SIDES.filter((side) => !outer.includes(side)),
     clip,
@@ -136,23 +131,6 @@ function outerSides(layout: BoardLayout, t: BoardTile): Side[] {
     ...(t.row === 0 ? (["front"] as const) : []),
     ...(t.row === lastRow ? (["back"] as const) : []),
   ];
-}
-
-/** A tile's latch sockets, for `tile`, or none. */
-function latchesIn(wasm: ManifoldToplevel, layout: BoardLayout, t: BoardTile, fit?: PrinterFit) {
-  const own = (layout.latches ?? []).filter((latch) => layout.tiles[latch.tile]?.label === t.label);
-  if (own.length === 0) return undefined;
-  const fits = gridFit(fit);
-  return latchSockets(wasm, own.map(({ at: [x, y] }) => [x - t.box.x0, y - t.box.y0] as const), socketOf([latchShape(fits.latch)], fits.latch));
-}
-
-/** Latch sockets in a tile, in its own frame, z from the face: a solid pad for each, and the room cut in it. */
-export function latchSockets(wasm: ManifoldToplevel, centres: readonly (readonly [number, number])[], socket: Socket) {
-  const room = socketVoid(wasm, socket).mirror([0, 0, 1]).translate([0, 0, THICKNESS]);
-  const { CrossSection } = wasm;
-  const pads = CrossSection.union(centres.map(([x, y]) => CrossSection.square(socket.pad, true).translate(x, y)));
-  const voids = centres.map(([x, y]) => room.translate([x, y, 0]));
-  return { pads, voids };
 }
 
 /** How far out along `side`'s outward direction a box's edge on that side is. */
@@ -220,11 +198,6 @@ export function bumperSolid(wasm: ManifoldToplevel, layout: BoardLayout, b: Boar
 export function joinerSolid(wasm: ManifoldToplevel, layout: BoardLayout, fit?: PrinterFit): Manifold {
   const fits = gridFit(fit);
   return printJoiner(wasm, layout.variant, boardHole(layout.variant, fits), fits.joiner);
-}
-
-/** One spring latch, as it prints, lying on its side. */
-export function latchSolid(wasm: ManifoldToplevel, fit?: PrinterFit): Manifold {
-  return printLatch(wasm, latchShape(gridFit(fit).latch));
 }
 
 /** One peg, as it prints: smaller than the board hole by the calibrated peg fit. */

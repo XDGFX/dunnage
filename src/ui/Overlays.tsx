@@ -1,8 +1,8 @@
-import { addOverlay, GRID, mm, removeOverlay, setOverlay, VARIANT_NAMES, type OverlayLayout, type OverlaySpec, type Pegboard, type Variant } from "../core/index.ts";
+import { addOverlay, GRID, mm, moveOverlayToBestFit, removeOverlay, setOverlay, VARIANT_NAMES, type Fit, type OverlayLayout, type OverlaySpec, type Pegboard, type Variant } from "../core/index.ts";
 import { Icon } from "./icons.tsx";
 import { NumberField } from "./NumberField.tsx";
 
-// Grid overlays on a pegboard: patches of the grid board, latched into the pegboard's slots. Each
+// Grid overlays on a pegboard: patches of the grid board, held by lock pins in the pegboard's slots. Each
 // is placed from the board's front-left corner and sized in holes.
 
 interface Props {
@@ -10,18 +10,21 @@ interface Props {
   specs: OverlaySpec[];
   overlays: OverlayLayout[];
   board: Pegboard;
+  /** The printer's bed and fits, which the best fit lays tiles out for. */
+  bed: readonly [number, number, number];
+  fit: Fit;
   apply: (edit: (text: string) => string) => void;
 }
 
 const PITCH = GRID.pitch;
 
-export function Overlays({ specs, overlays, board, apply }: Props) {
+export function Overlays({ specs, overlays, board, bed, fit, apply }: Props) {
   return (
     <div className="grid-base overlays">
       <h4>Grid overlays</h4>
       <p className="note">
-        A patch of the fine grid on top of the pegboard, for things that want screwed or pinned holders. Spring latches under it snap into the slots, so it presses
-        straight down. The rest of the drawer keeps its IKEA pegs.
+        A patch of the fine grid on top of the pegboard, for things that want screwed or pinned holders. Lock pins from the library twist into the board's slots
+        first; the overlay presses down over their pegs, which go up into its holes. The rest of the drawer keeps its IKEA pegs.
       </p>
       {specs.map((spec) => {
         const o = overlays.find((layout) => layout.id === spec.id);
@@ -54,15 +57,13 @@ export function Overlays({ specs, overlays, board, apply }: Props) {
               </select>
             </div>
             <p className="note board-sum">
-              {o.problems.length ? (
-                <span className="bad-text">{o.problems.map((p) => p.message).join("; ")}</span>
-              ) : (
-                <>
-                  {mm(o.box.x1 - o.box.x0)} × {mm(o.box.y1 - o.box.y0)} mm in {o.tiles.length} {o.tiles.length === 1 ? "tile" : "tiles"}, held by <b>{o.latches.length} latches</b>;
-                  {" "}{o.closed.length} holes over their sockets are closed. Things on it have {GRID.thickness} mm less height.
-                </>
-              )}
+              {mm(o.box.x1 - o.box.x0)} × {mm(o.box.y1 - o.box.y0)} mm in {o.tiles.length} {o.tiles.length === 1 ? "tile" : "tiles"}. <b>{o.compatible.length} holes</b> line up with a slot,
+              {" "}and <b>{o.pins.length} lock pins</b> {spec.pins ? "are chosen by hand" : "are chosen"}; no fixing can use their holes. Things on it have {GRID.thickness} mm less height.
             </p>
+            {o.problems.length > 0 && <p className="note bad-text">{o.problems.map((p) => p.message).join("; ")}</p>}
+            <div>
+              <button type="button" className="btn sm" onClick={() => apply((text) => moveOverlayToBestFit(text, spec.id, { bed, fit }))}>Move to the best fit</button>
+            </div>
           </div>
         );
       })}

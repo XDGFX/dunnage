@@ -60,12 +60,6 @@ export interface TileOptions {
   skin?: number;
   /** Cut the band for joiners at the edge holes, on every edge or these. A test piece that never joins can leave it whole. */
   joiners?: boolean | readonly Side[];
-  /** Holes left closed, such as those over a latch's socket. */
-  closed?: (i: number, j: number) => boolean;
-  /** More solid, full height, such as a latch's pad. */
-  solids?: CrossSection;
-  /** More to cut away, z from the face, such as a latch's socket. */
-  voids?: Manifold[];
   dots?: readonly Dots[];
   /** Holes left out, bosses and all: those a rounded drawer corner cuts. */
   drop?: (i: number, j: number) => boolean;
@@ -87,7 +81,7 @@ export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
     value === undefined ? fallback : typeof value === "number" ? value : value(i, j);
   const width = nx * PITCH;
   const depth = ny * PITCH;
-  const holes: { x: number; y: number; r: number; boss: number; edges: Vec2[]; sunk: boolean; closed: boolean }[] = [];
+  const holes: { x: number; y: number; r: number; boss: number; edges: Vec2[]; sunk: boolean }[] = [];
   for (let i = 0; i < nx; i++) {
     for (let j = 0; j < ny; j++) {
       if (options.drop?.(i, j)) continue;
@@ -98,7 +92,7 @@ export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
       if (i === nx - 1) edges.push([1, 0]);
       if (j === 0) edges.push([0, -1]);
       if (j === ny - 1) edges.push([0, 1]);
-      holes.push({ x: holeCentre(i), y: holeCentre(j), r, boss: r + byHole(options.wall, i, j, spec.wall), edges, sunk: options.countersink?.(i, j) ?? false, closed: options.closed?.(i, j) ?? false });
+      holes.push({ x: holeCentre(i), y: holeCentre(j), r, boss: r + byHole(options.wall, i, j, spec.wall), edges, sunk: options.countersink?.(i, j) ?? false });
     }
   }
 
@@ -117,7 +111,7 @@ export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
     .filter((h) => h.sunk)
     .map(({ x, y, boss, r }) => Manifold.cylinder(WEB.height, COUNTERSINK.head / 2 + boss - r, COUNTERSINK.head / 2 + boss - r, SEGMENTS).translate([x, y, 0]));
   let solid = Manifold.union([
-    Manifold.extrude(CrossSection.union([band, ...bosses, ...(options.solids ? [options.solids] : [])]), THICKNESS),
+    Manifold.extrude(CrossSection.union([band, ...bosses]), THICKNESS),
     Manifold.extrude(outline, skin),
     Manifold.extrude(web, WEB.height),
     ...flares,
@@ -148,15 +142,13 @@ export function tile(wasm: ManifoldToplevel, options: TileOptions): Manifold {
       }
     }
   }
-  for (const { x, y, r, sunk, closed } of holes) {
-    if (closed) continue;
+  for (const { x, y, r, sunk } of holes) {
     voids.push(Manifold.cylinder(THICKNESS + 2, r, r, SEGMENTS).translate([x, y, -1]));
     // A 45° lead-in on the face, which also hides elephant's foot; or the countersink in its place.
     const [depth, mouth] = sunk ? [countersinkDepth(r), COUNTERSINK.head / 2] : [LEAD_IN, r + LEAD_IN];
     voids.push(Manifold.cylinder(depth + EPS, mouth + EPS, r, SEGMENTS).translate([x, y, -EPS]));
   }
   for (const dots of options.dots ?? []) voids.push(faceDots(wasm, dots));
-  voids.push(...(options.voids ?? []));
 
   return solid.subtract(Manifold.union(voids));
 }

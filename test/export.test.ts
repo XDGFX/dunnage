@@ -141,7 +141,7 @@ describe("boardCounts", () => {
     const layout = layoutBoard(drawerShape(drawer.drawer)!, drawer.base as GridBase);
     expect(layout.joiners.length).toBeGreaterThan(0);
     const [joiners, pegs] = [withSpares(layout.joiners.length), withSpares(2)];
-    expect(boardCounts(drawer, [layout])).toEqual({ joiners, pegs, holderScrews: 1, floorScrews: 1, latches: 0, closed: 0, variants: { [layout.variant]: { joiners, pegs } } });
+    expect(boardCounts(drawer, [layout])).toEqual({ joiners, pegs, holderScrews: 1, floorScrews: 1, lockPins: 0, variants: { [layout.variant]: { joiners, pegs } } });
     expect(withSpares(2)).toBe(3);
   });
 });

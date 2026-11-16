@@ -4,14 +4,12 @@ export { DRAWER_PRESETS, drawerShape, presetName, wallFields } from "./drawers.t
 export type { DrawerPreset, DrawerShape, Side } from "./drawers.ts";
 export { FORMATS, MIGRATIONS, migrate, readHeader } from "./format.ts";
 export { GRID, gridFit, VARIANT_NAMES } from "./grid/parameters.ts";
-export type { Fit, LatchFit, PrinterFit, Variant } from "./grid/parameters.ts";
+export type { Fit, PrinterFit, Variant } from "./grid/parameters.ts";
 export { bedTile, cornerCuts, cornerHoles, holeAt, holeProblem, lapTabDepth, layoutBoard, OUTWARD, tileSizes } from "./grid/layout.ts";
-export type { BoardBumper, BoardLatch, BoardLayout, BoardTile, GridBase, GridLayout, Hole, LayoutOptions } from "./grid/layout.ts";
-export { buildBoard, bumperSolid, joinerSolid, latchSolid, pegSolid, printable, tileSolid } from "./grid/board.ts";
-export { closedHoles, drawerOverlays, layoutOverlay, overlayOf } from "./grid/overlay.ts";
-export type { Board, OverlayLayout, OverlayOptions, OverlaySpec } from "./grid/overlay.ts";
-export { latchProfile, latchSeat, latchShape, printLatch, seatedLatch, slotEnd, socketOf, socketVoid, strainPerMm, stressConcentration, UPPDATERA_SLOT } from "./grid/latch.ts";
-export type { LatchShape, Seat, Slot, Socket } from "./grid/latch.ts";
+export type { BoardBumper, BoardLayout, BoardTile, GridBase, GridLayout, Hole, LayoutOptions } from "./grid/layout.ts";
+export { buildBoard, bumperSolid, joinerSolid, pegSolid, printable, tileSolid } from "./grid/board.ts";
+export { bestOverlayAt, choosePins, compatibleHoles, drawerOverlays, layoutOverlay, lockPinPeg, overlayOf, pinRules } from "./grid/overlay.ts";
+export type { BestFit, Board, OverlayLayout, OverlayOptions, OverlaySpec, PinSpot } from "./grid/overlay.ts";
 export { pegboard, PEGBOARD_PRESETS, UPPDATERA } from "./pegboard.ts";
 export type { Pegboard, PegboardPreset } from "./pegboard.ts";
 export type { BoardParts } from "./grid/board.ts";
@@ -29,7 +27,7 @@ export { arrange, bodyOf, putBackSpot, seat, snapAngle, solve, wrap } from "./sn
 export type { ArrangeOp, Body, Move, Snap } from "./snap.ts";
 export {
   addComment, addOverlay, addThing, answerQuestion, closeConcern, holdTogether, lockHolder, moveThings, placeThing, removeThing,
-  removeOverlay, seatOnPegs, setAside, setBase, setDrawerPreset, setFit, setOn, setOverlay, setWall, setMethod, setPose, setPoses, setRotate, setRule, splitHolder, unlockHolder,
+  moveOverlayToBestFit, removeOverlay, seatOnPegs, setAside, setBase, setDrawerPreset, setFit, setOn, setOverlay, setWall, setMethod, setPose, setPoses, setRotate, setRule, splitHolder, unlockHolder,
 } from "./actions.ts";
 export { hasSpecSheet, specPath, specSheet } from "./spec.ts";
 export type { SpecBoard } from "./spec.ts";

@@ -6,9 +6,9 @@ from dunnage's.
 | Format | File | Spec | JSON Schema |
 |---|---|---|---|
 | `drawer/0.4` | `<name>.drawer.yml` | [drawer.md](drawer.md) | [drawer-0.4.schema.json](drawer-0.4.schema.json) |
-| `printer/0.4` | `<name>.printer.yml` | [printer.md](printer.md) | [printer-0.4.schema.json](printer-0.4.schema.json) |
+| `printer/0.3` | `<name>.printer.yml` | [printer.md](printer.md) | [printer-0.3.schema.json](printer-0.3.schema.json) |
 
-The 0.2 and 0.3 schemas stay here for files that still name them.
+The older schemas stay here for files that still name them.
 
 Every file starts with a `format: <kind>/<version>` line.
 
@@ -29,7 +29,6 @@ Migrations are kept in `MIGRATIONS` in `src/core/format.ts`.
 | `drawer/0.2` | `drawer/0.3` | Added the drawer's shape (`preset`, `walls`, `corner_radius`, `floor_edge`; `inside` may come from a preset), `base.kind: grid`, and holders' `fix`. Nothing to rewrite. |
 | `printer/0.2` | `printer/0.3` | Added `fit`. Nothing to rewrite. |
 | `drawer/0.3` | `drawer/0.4` | Added a pegboard's `overlays`, and holders' `on`. Nothing to rewrite. |
-| `printer/0.3` | `printer/0.4` | Added `fit.latch`. Nothing to rewrite. |
 
 ## Checking a file
 

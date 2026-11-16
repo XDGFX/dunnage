@@ -18,8 +18,7 @@
     "grid_hole": { "light-thin": 3.2 },
     "peg": 0.6,
     "peg_fixed": 0.5,
-    "joiner": 0.28,
-    "latch": { "leg": 0.8, "catch": 45, "press": 0.1 }
+    "joiner": 0.28
   },
   "peg": { "chamfer": 0.4, "flat_angle": 50, "length": 12 },
   "screw": { "diameter": 4, "length": 12, "clearance": 4.5, "flange": 4.5 },
@@ -28,17 +27,10 @@
   "tile": { "bed_margin": 10 },
   "bumper": { "fit": 0.3, "min": 5, "max": 10 },
   "lap_tab": { "depth": 2, "thickness": 1.2, "clearance": 0.2, "slope": 45 },
-  "overlay": { "band": 2.4, "chamfer": 1.5, "reach": 120, "edge_room": 9, "at_wall": 0.5, "sample": 2, "size": [16, 16], "step": 10 },
-  "latch": {
-    "width": 2, "tolerance": 0.5, "size": 0.5, "hold": 0.6, "entry": 0.3, "lead_in": 40,
-    "root": 5, "plug": [3, 7.4], "fillet": 0.5, "room": 0.3, "bow": 0.6, "wall": 1.2, "clear": 0.5,
-    "strain": 0.025, "held": 0.01,
-    "notch": { "size": 0.6, "first": 0.8, "spacing": 1.1 },
-    "strip": { "slots": 3, "margin": 3, "rows": 3, "legs": [0.7, 0.8, 0.9], "catches": [35, 45, 55] }
-  },
+  "overlay": { "band": 2.4, "chamfer": 1.5, "reach": 120, "at_wall": 0.5, "sample": 2, "search_sample": 6, "size": [16, 16], "step": 10, "fit_step": 0.5 },
   "uppdatera": {
     "$comment": "IKEA UPPDATERA, from #13 §5. Only the board sizes are IKEA's; every field in `unverified` waits for calipers on a real board.",
-    "unverified": ["slot", "pitch", "row", "edge", "skin", "thickness", "cup"],
+    "unverified": ["slot", "pitch", "row", "edge", "skin", "thickness", "cup", "lock_pin"],
     "boards": { "uppdatera-60": [475, 500], "uppdatera-80": [675, 500] },
     "slot": [17, 7],
     "pitch": 40,
@@ -46,6 +38,11 @@
     "edge": 25,
     "skin": 2,
     "thickness": 7.5,
-    "cup": [23, 5.5]
+    "cup": [23, 5.5],
+    "lock_pin": {
+      "$comment": "The library's quarter-turn lock pin. `at` is where it locks, from the slot's centre; `tolerance` is how far a grid hole's centre may be from there, [along the slot, across it]. Its peg is the grid hole less the printer's `peg_fixed`.",
+      "at": [0, 0],
+      "tolerance": [3, 1]
+    }
   }
 }

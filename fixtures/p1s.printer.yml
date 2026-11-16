@@ -2,7 +2,7 @@
 #
 # The tool needs one thing from a printer: what fits on it. Pick a preset from the tool's
 # library of common printers, or type the bed in yourself.
-format: printer/0.4
+format: printer/0.3
 preset: bambu-p1s          # fills in the bed; delete it and set bed by hand for anything else
 bed: [256, 256, 256]       # usable x, y, z in mm. Holders bigger than this are split or flagged.
 

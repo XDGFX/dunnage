@@ -2,8 +2,8 @@ import { strToU8, zipSync } from "fflate";
 import type { Manifold, ManifoldToplevel } from "manifold-3d";
 import { collect, freeAll } from "./collect.ts";
 import { drawerShape } from "../drawers.ts";
-import { bumperSolid, joinerSolid, latchSolid, pegSolid, printable, tileSolid } from "../grid/board.ts";
-import { latchStrip, roundOne, roundTwo } from "../grid/calibration.ts";
+import { bumperSolid, joinerSolid, pegSolid, printable, tileSolid } from "../grid/board.ts";
+import { roundOne, roundTwo } from "../grid/calibration.ts";
 import { boardHole, layoutBoard, type BoardLayout } from "../grid/layout.ts";
 import { drawerOverlays, type Board } from "../grid/overlay.ts";
 import { GRID, gridFit, VARIANT_NAMES, type Fit, type PrinterFit, type Variant } from "../grid/parameters.ts";
@@ -52,7 +52,7 @@ export function boardCounts(drawer: Drawer, all: readonly Board[]): BoardCounts 
   const holders = drawer.holders ?? [];
   const fixings = fixingsOf(holders, all);
   const pins = fixings.filter((fixing) => fixing.by === "pin").length;
-  const sum = (count: (layout: BoardLayout) => number) => all.reduce((total, layout) => total + count(layout), 0);
+  const sum = (count: (layout: Board) => number) => all.reduce((total, layout) => total + count(layout), 0);
   // Joiners and pegs are sized to a variant's bosses and holes, so each variant's are counted apart.
   const variants: BoardCounts["variants"] = {};
   for (const variant of new Set(all.map((layout) => layout.variant))) {
@@ -60,14 +60,13 @@ export function boardCounts(drawer: Drawer, all: readonly Board[]): BoardCounts 
     const ownPins = fixingsOf(holders, own).filter((fixing) => fixing.by === "pin").length;
     variants[variant] = { joiners: withSpares(own.reduce((total, layout) => total + layout.joiners.length, 0)), pegs: withSpares(ownPins) };
   }
-  const latches = sum((layout) => layout.latches?.length ?? 0);
+  const lockPins = sum((layout) => (layout.kind === "overlay" ? layout.pins.length : 0));
   return {
     joiners: Object.values(variants).reduce((total, v) => total + v.joiners, 0),
     pegs: Object.values(variants).reduce((total, v) => total + v.pegs, 0),
     holderScrews: fixings.length - pins,
     floorScrews: sum((layout) => layout.countersinks.length),
-    latches: withSpares(latches),
-    closed: sum((layout) => layout.closed?.length ?? 0),
+    lockPins: withSpares(lockPins),
     variants,
   };
 }
@@ -144,7 +143,7 @@ export function exportDrawer(wasm: ManifoldToplevel, drawer: Drawer, options: Ex
     }
 
     const overlaid = layouts.some((layout) => layout.kind === "overlay");
-    const extras = overlaid ? "joiners, pegs and latches" : "bumpers, joiners and pegs";
+    const extras = overlaid ? "joiners and pegs" : "bumpers, joiners and pegs";
     say(extras);
     const variants = Object.entries(counts.variants) as [Variant, { joiners: number; pegs: number }][];
     const named = (key: string, variant: Variant) => (variants.length > 1 ? `${key} ${variant}` : key);
@@ -157,13 +156,12 @@ export function exportDrawer(wasm: ManifoldToplevel, drawer: Drawer, options: Ex
           { key: named("peg", variant), kind: "peg", solid: onBed(pegSolid(wasm, layout, fit)), copies: own.pegs },
         ];
       }),
-      { key: "latch", kind: "latch" as const, solid: latchSolid(wasm, fit), copies: counts.latches },
     ].filter((part) => part.copies > 0)));
 
     say("calibration print");
     const choices = [...new Set(layouts.map((layout) => layout.variant))].map((variant) => ({ variant, hole: boardHole(variant, fit), skin: GRID.face }));
     const calibration = plated("calibration", "calibration print", () =>
-      [...roundOne(wasm), ...roundTwo(wasm, choices), ...(overlaid ? latchStrip(wasm, choices[0]!, fit.latch.press) : [])]
+      [...roundOne(wasm), ...roundTwo(wasm, choices)]
         .map((part): Solid => ({ key: part.name, kind: "calibration", solid: onBed(part.solid), copies: part.copies })), true);
 
     say("weights");
