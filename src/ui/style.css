@@ -153,6 +153,13 @@ h1, h2, h3 { margin: 0; font-weight: 500; text-wrap: balance; }
 .plan .board { fill: #121212; stroke: rgba(255, 255, 255, 0.18); }
 .plan .hole { fill: #000; stroke: rgba(255, 255, 255, 0.25); stroke-width: 1; }
 .plan .nobase { fill: url(#hatch); }
+.plan .tile { fill: #171717; stroke: rgba(255, 255, 255, 0.32); stroke-width: 1; }
+.plan .grid-hole { fill: #000; stroke: rgba(255, 255, 255, 0.16); stroke-width: 0.4; }
+.plan .bumper { fill: #242424; stroke: rgba(255, 255, 255, 0.32); stroke-width: 1; }
+.plan .bumper-top { fill: none; stroke: rgba(255, 255, 255, 0.22); stroke-width: 1; stroke-dasharray: 3 3; }
+.plan .tile-label { font: 500 10px var(--mono); fill: var(--muted); }
+.plan .dropped { stroke: var(--bad); stroke-width: 1.2; stroke-linecap: round; }
+.plan .countersink { fill: none; stroke: var(--green-t); stroke-width: 1.2; }
 .plan .obstruction { pointer-events: none; }
 .plan .obstruction rect { fill: url(#hatch); stroke: rgba(255, 255, 255, 0.3); stroke-dasharray: 3 3; }
 .plan .obstruction text { font: 500 11px var(--sans); fill: var(--dim); }
@@ -251,6 +258,19 @@ h1, h2, h3 { margin: 0; font-weight: 500; text-wrap: balance; }
 .flag:focus-visible { outline: 2px solid #fff; }
 .flag b { font-weight: 500; }
 .flag span { color: var(--bad); }
+.flag.warn span { color: var(--warn); }
+
+/* --- The grid base's settings ----------------------------------------------------------- */
+.grid-base { display: flex; flex-direction: column; gap: 8px; }
+.grid-base h4 { margin: 8px 0 0; font-size: 13px; font-weight: 500; color: var(--muted); }
+.grid-base .triple { display: inline-flex; gap: 4px; }
+.board-sum { font-variant-numeric: tabular-nums; }
+.sinks { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.sinks .tag { font-family: var(--mono); gap: 2px; padding-right: 2px; }
+.unsink { border: 0; background: none; padding: 2px; display: inline-flex; color: var(--dim); }
+.unsink:hover { color: var(--text); }
+.unsink .icon { width: 12px; height: 12px; }
+.sinks .ask .field { flex: none; }
 
 .methods { display: flex; flex-direction: column; gap: 8px; }
 .method-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
